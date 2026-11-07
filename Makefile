@@ -18,16 +18,18 @@ TARGET ?= compilecraft.exe
 BIN_DIR       ?= bin
 BUILD_DIR     ?= build
 BUILD_C_DIR   ?= $(BUILD_DIR)/c
+BUILD_CPP_DIR ?= $(BUILD_DIR)/cpp
 
 LEXER_BIN     ?= $(BIN_DIR)/compilecraft-lexer.exe
 LEXER_C_BIN   ?= $(BIN_DIR)/compilecraft-lexer-c.exe
+LEXER_CPP_BIN ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
 
-.PHONY: all toolchain-check lexer lexer-c test-lexer test-c test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp test-lexer test-c test-cpp test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (Milestone 2.1: C Lexical Analyzer)"
+	@echo " CompileCraft - Build Succeeded (Milestone 2.2: C++ Lexical Analyzer)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -38,6 +40,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN)
 	@echo " Built Artifacts:"
 	@echo "   Baseline Lexer: $(LEXER_BIN)"
 	@echo "   C Lexer       : $(LEXER_C_BIN)"
+	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
 	@echo ""
 	@echo " Run 'mingw32-make test' to execute all regression test suites."
 	@echo "=============================================================================="
@@ -80,11 +83,27 @@ lexer-c: $(LEXER_C_BIN)
 test-c: $(LEXER_C_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_C_BIN) tests/c
 
-test: test-lexer test-c
+# ------------------------------------------------------------------------------
+# C++-Subset Lexer (Milestone 2.2)
+# ------------------------------------------------------------------------------
+$(BUILD_CPP_DIR)/lex.yy.c: src/frontend_cpp/lexer.l src/frontend_cpp/tokens.h src/frontend_cpp/tokens.def
+	@mkdir -p $(BUILD_CPP_DIR)
+	$(FLEX) -o $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/lexer.l
+
+$(LEXER_CPP_BIN): $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/tokens.c src/frontend_cpp/tokens.h src/frontend_cpp/tokens.def src/frontend_cpp/main_cpp.c
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -Isrc/frontend_cpp -Isrc -o $(LEXER_CPP_BIN) $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/tokens.c src/frontend_cpp/main_cpp.c
+
+lexer-cpp: $(LEXER_CPP_BIN)
+
+test-cpp: $(LEXER_CPP_BIN)
+	$(PYTHON) tests/run_tests.py $(LEXER_CPP_BIN) tests/cpp
+
+test: test-lexer test-c test-cpp
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -93,13 +112,15 @@ help:
 	@echo " CompileCraft Makefile Help"
 	@echo "=============================================================================="
 	@echo " Targets:"
-	@echo "   all              Default: checks toolchain and builds both lexers"
+	@echo "   all              Default: checks toolchain and builds all lexers"
 	@echo "   toolchain-check  Verifies GCC, Flex, and Bison executable paths and versions"
 	@echo "   lexer            Builds baseline lexer (bin/compilecraft-lexer.exe)"
 	@echo "   lexer-c          Builds C-subset lexer (bin/compilecraft-lexer-c.exe)"
+	@echo "   lexer-cpp        Builds C++-subset lexer (bin/compilecraft-lexer-cpp.exe)"
 	@echo "   test-lexer       Runs automated tests for baseline lexer (tests/lexer)"
 	@echo "   test-c           Runs automated tests for C-subset lexer (tests/c)"
-	@echo "   test             Runs all automated test suites (baseline + C)"
+	@echo "   test-cpp         Runs automated tests for C++-subset lexer (tests/cpp)"
+	@echo "   test             Runs all automated test suites (baseline + C + C++)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

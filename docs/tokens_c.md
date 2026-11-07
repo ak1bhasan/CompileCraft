@@ -123,10 +123,11 @@ Keywords are reserved, case-sensitive, and lowercase:
   `Lexical Error at line %d: Unterminated block comment`
 
 ### 3.3 Preprocessing Directives
-CompileCraft's C front end expects preprocessed source code:
-- Any preprocessing line starting with `#` (e.g., `#include`, `#define`, `#pragma`) is recognized and rejected:
+CompileCraft operates on a directive-free C subset:
+- Preprocessor directives (such as `#include`, `#define`, `#pragma`) are not supported in this subset.
+- Any preprocessing line starting with `#` is recognized and explicitly rejected:
   `Lexical Error at line %d: Unsupported language feature: Preprocessing directive`
-- This ensures unsupported features are not silently dropped.
+- This directive-free subset policy ensures unsupported preprocessor directives are explicitly diagnosed rather than silently ignored or requiring an external preprocessor pass.
 
 ---
 

@@ -1,0 +1,87 @@
+/* ==============================================================================
+ * CompileCraft - Authoritative Token Definitions for C++ Subset
+ * Conforming to ISO C++98/C++11 Object-Oriented Subset (docs/tokens_cpp.md)
+ * Compatible with GNU Bison token generation (parser.tab.h)
+ * ============================================================================== */
+
+/* Keywords */
+TOKEN_DEF(KW_INT,          258, "KW_INT")
+TOKEN_DEF(KW_FLOAT,        259, "KW_FLOAT")
+TOKEN_DEF(KW_DOUBLE,       260, "KW_DOUBLE")
+TOKEN_DEF(KW_CHAR,         261, "KW_CHAR")
+TOKEN_DEF(KW_VOID,         262, "KW_VOID")
+TOKEN_DEF(KW_BOOL,         263, "KW_BOOL")
+TOKEN_DEF(KW_TRUE,         264, "KW_TRUE")
+TOKEN_DEF(KW_FALSE,        265, "KW_FALSE")
+TOKEN_DEF(KW_IF,           266, "KW_IF")
+TOKEN_DEF(KW_ELSE,         267, "KW_ELSE")
+TOKEN_DEF(KW_WHILE,        268, "KW_WHILE")
+TOKEN_DEF(KW_FOR,          269, "KW_FOR")
+TOKEN_DEF(KW_RETURN,       270, "KW_RETURN")
+TOKEN_DEF(KW_BREAK,        271, "KW_BREAK")
+TOKEN_DEF(KW_CONTINUE,     272, "KW_CONTINUE")
+TOKEN_DEF(KW_CLASS,        273, "KW_CLASS")
+TOKEN_DEF(KW_PUBLIC,       274, "KW_PUBLIC")
+TOKEN_DEF(KW_PRIVATE,      275, "KW_PRIVATE")
+TOKEN_DEF(KW_PROTECTED,    276, "KW_PROTECTED")
+TOKEN_DEF(KW_NEW,          277, "KW_NEW")
+TOKEN_DEF(KW_DELETE,       278, "KW_DELETE")
+TOKEN_DEF(KW_THIS,         279, "KW_THIS")
+
+/* Identifiers & Constants */
+TOKEN_DEF(IDENTIFIER,      280, "IDENTIFIER")
+TOKEN_DEF(INT_LITERAL,     281, "INT_LITERAL")
+TOKEN_DEF(FLOAT_LITERAL,   282, "FLOAT_LITERAL")
+TOKEN_DEF(CHAR_LITERAL,    283, "CHAR_LITERAL")
+TOKEN_DEF(STRING_LITERAL,  284, "STRING_LITERAL")
+
+/* Scope & Member Operators */
+TOKEN_DEF(SCOPE,           285, "SCOPE")
+TOKEN_DEF(DOT,             286, "DOT")
+TOKEN_DEF(ARROW,           287, "ARROW")
+TOKEN_DEF(LSHIFT,          288, "LSHIFT")
+TOKEN_DEF(RSHIFT,          289, "RSHIFT")
+
+/* Arithmetic Operators */
+TOKEN_DEF(PLUS,            290, "PLUS")
+TOKEN_DEF(MINUS,           291, "MINUS")
+TOKEN_DEF(STAR,            292, "STAR")
+TOKEN_DEF(SLASH,           293, "SLASH")
+TOKEN_DEF(MOD,             294, "MOD")
+
+/* Relational Operators */
+TOKEN_DEF(LT,              295, "LT")
+TOKEN_DEF(GT,              296, "GT")
+TOKEN_DEF(LE,              297, "LE")
+TOKEN_DEF(GE,              298, "GE")
+TOKEN_DEF(EQ,              299, "EQ")
+TOKEN_DEF(NE,              300, "NE")
+
+/* Logical Operators */
+TOKEN_DEF(AND,             301, "AND")
+TOKEN_DEF(OR,              302, "OR")
+TOKEN_DEF(NOT,             303, "NOT")
+
+/* Assignment Operators */
+TOKEN_DEF(ASSIGN,          304, "ASSIGN")
+TOKEN_DEF(PLUS_ASSIGN,     305, "PLUS_ASSIGN")
+TOKEN_DEF(MINUS_ASSIGN,    306, "MINUS_ASSIGN")
+TOKEN_DEF(STAR_ASSIGN,     307, "STAR_ASSIGN")
+TOKEN_DEF(SLASH_ASSIGN,    308, "SLASH_ASSIGN")
+TOKEN_DEF(MOD_ASSIGN,      309, "MOD_ASSIGN")
+
+/* Increment / Decrement */
+TOKEN_DEF(INC,             310, "INC")
+TOKEN_DEF(DEC,             311, "DEC")
+
+/* Delimiters & Punctuation */
+TOKEN_DEF(LBRACE,          312, "LBRACE")
+TOKEN_DEF(RBRACE,          313, "RBRACE")
+TOKEN_DEF(LPAREN,          314, "LPAREN")
+TOKEN_DEF(RPAREN,          315, "RPAREN")
+TOKEN_DEF(LBRACKET,        316, "LBRACKET")
+TOKEN_DEF(RBRACKET,        317, "RBRACKET")
+TOKEN_DEF(SEMICOLON,       318, "SEMICOLON")
+TOKEN_DEF(COMMA,           319, "COMMA")
+TOKEN_DEF(COLON,           320, "COLON")
+

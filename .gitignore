@@ -96,7 +96,9 @@ desktop.ini
 !tests/**/*.expected
 !tests/**/*.mc
 !tests/**/*.c
+!tests/**/*.cpp
 !tests/**/*.txt
 !examples/**/*.mc
 !examples/**/*.c
+!examples/**/*.cpp
 !examples/**/*.txt

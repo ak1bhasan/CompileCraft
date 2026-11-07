@@ -1,0 +1,11 @@
+Lexical Error at line 1: Unsupported language feature: Preprocessing directive
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'main'
+Line 2: LPAREN '('
+Line 2: RPAREN ')'
+Line 2: LBRACE '{'
+Line 2: KW_RETURN 'return'
+Line 2: INT_LITERAL '0'
+Line 2: SEMICOLON ';'
+Line 2: RBRACE '}'
+

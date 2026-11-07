@@ -28,9 +28,9 @@ def main():
         print(f"Error: Tests directory not found at '{tests_dir}'.")
         sys.exit(1)
 
-    test_files = sorted([f for f in os.listdir(tests_dir) if f.endswith(".mc") or f.endswith(".c")])
+    test_files = sorted([f for f in os.listdir(tests_dir) if f.endswith(".mc") or f.endswith(".c") or f.endswith(".cpp")])
     if not test_files:
-        print(f"Warning: No .mc or .c test files found in '{tests_dir}'.")
+        print(f"Warning: No .mc, .c, or .cpp test files found in '{tests_dir}'.")
         sys.exit(0)
 
     print("==============================================================================")
