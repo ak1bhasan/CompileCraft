@@ -1,0 +1,6 @@
+Line 1: KW_FLOAT 'float'
+Line 1: IDENTIFIER 'f'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Unrecognized character '.'
+Line 1: INT_LITERAL '5'
+Line 1: SEMICOLON ';'

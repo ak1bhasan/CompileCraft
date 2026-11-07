@@ -1,0 +1,5 @@
+Line 1: KW_INT 'int'
+Line 1: IDENTIFIER 'x'
+Line 1: SEMICOLON ';'
+Lexical Error at line 2: Unterminated block comment
+

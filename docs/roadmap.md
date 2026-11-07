@@ -56,29 +56,45 @@ Formally specify the Context-Free Grammar (CFG) and token sets based strictly on
 
 ---
 
-## Milestone 2: Lexical Analyzer (Flex)
+## Milestone 2: Lexical Analysis & Multi-Language Front-End Architecture
 
 ### Objective
-Implement the lexical analyzer using Flex to convert source characters into a stream of tokens, skipping comments and whitespace, and reporting lexical errors with line numbers.
+Implement production-grade lexical analyzers using Flex to convert source characters into token streams, skip comments and whitespace, and report lexical errors with line numbers across three target languages: C, C++, and Java.
 
-### Target Deliverables
-- `src/lexer/lexer.l`: Flex specification file.
-- `src/lexer/tokens.h`: Shared token definitions (used prior to Bison token generation).
-- Standalone token-printer driver for isolated lexer testing.
+### Current Status: Baseline Completed, Re-aligning for Multi-Language Front-Ends
+- [x] **Baseline Lexer (`src/lexer/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main.c`.
+- [x] **Automated Regression Suite**: 17 tests passing via `tests/run_tests.py` covering token categories, boundaries, operators, numeric forms, minus tokens, comments, CRLF line tracking, empty input, and error diagnostics.
+- [ ] **Multi-Language Expansion**: Re-architecting into dedicated front ends for C, C++, and Java subsets sharing core symbol table, AST, and TAC generation infrastructure (DEC-13).
 
-### Acceptance Checks
-- [ ] Correctly tokenizes all 9 keywords (`int`, `float`, `bool`, `if`, `else`, `while`, `print`, `true`, `false`).
-- [ ] Correctly identifies identifiers, integer literals, floating literals, and boolean literals.
-- [ ] Correctly tokenizes arithmetic (`+ - * / %`), relational (`< > <= >= == !=`), and logical (`&& || !`) operators.
-- [ ] Discards single-line (`//`) and block (`/* ... */`) comments without advancing token count.
-- [ ] Accurately increments `yylineno` across newlines in code and comments.
-- [ ] Emits an informative lexical error for unexpected characters along with line number.
+### Revised Milestone 2 Execution Sequence
 
-### Suggested Commit Messages
-- `feat(lexer): implement token definitions and keyword rules in lexer.l`
-- `feat(lexer): add comment and whitespace skipping with accurate line tracking`
-- `feat(lexer): implement lexical error reporting for unrecognized characters`
-- `test(lexer): add unit tests for token recognition and lexical error reporting`
+#### Milestone 2.0: Architectural Realignment & Language Subset Definitions [COMPLETED]
+- [x] Defined realistic, bounded subsets for C, C++, and Java (DEC-13).
+- [x] Documented formal token specification and preprocessor policy for C subset (`docs/tokens_c.md`).
+- [ ] Document token tables for C++ (`docs/tokens_cpp.md` [Planned]) and Java (`docs/tokens_java.md` [Planned]).
+- [ ] Structure shared compiler infrastructure directories (`src/common/ast/`, `src/common/symbol_table/`, `src/common/tac/` [Planned]).
+
+#### Milestone 2.1: C Lexical Analyzer (`CompileCraft-C` / `src/frontend_c/`) [COMPLETED]
+- [x] Implement `src/frontend_c/tokens.def`, `tokens.h`, `tokens.c`.
+- [x] Implement `src/frontend_c/lexer.l` supporting C subset keywords (`int`, `float`, `double`, `char`, `void`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`), character/string literals with escape sequences, operators, and preprocessor rejection. (Note: `printf` and `main` are standard identifiers).
+- [x] Build standalone C lexer driver `bin/compilecraft-lexer-c.exe`.
+- [x] Add automated C lexical test suite (`tests/c/`) with 19/19 passing tests covering keywords, identifiers, operators, minus tokens, literals, escapes, CRLF, and error rejections.
+
+#### Milestone 2.2: C++ Lexical Analyzer (`CompileCraft-CPP` / `src/frontend_cpp/` [Planned])
+- [ ] Implement `src/frontend_cpp/tokens.def`, `tokens.h`, `tokens.c`.
+- [ ] Implement `src/frontend_cpp/lexer.l` adding C++ subset tokens (`class`, `public`, `private`, `bool`, `true`, `false`, `new`, `<<`, `::`). (Note: `cout` and `std` are standard identifiers).
+- [ ] Build standalone C++ lexer driver `bin/compilecraft-lexer-cpp.exe`.
+- [ ] Add automated C++ lexical test suite (`tests/cpp/`).
+
+#### Milestone 2.3: Java Lexical Analyzer (`CompileCraft-Java` / `src/frontend_java/` [Planned])
+- [ ] Implement `src/frontend_java/tokens.def`, `tokens.h`, `tokens.c`.
+- [ ] Implement `src/frontend_java/lexer.l` adding Java subset tokens (`class`, `public`, `static`, `void`, `boolean`, `new`, `this`, etc.). (Note: `System`, `out`, `println`, and `String` are standard identifiers).
+- [ ] Build standalone Java lexer driver `bin/compilecraft-lexer-java.exe`.
+- [ ] Add automated Java lexical test suite (`tests/java/`).
+
+#### Milestone 2.4: Unified Test Runner & Build Integration [Planned]
+- [ ] Update `Makefile` with targets: `lexer-c`, `lexer-cpp`, `lexer-java`, `test-c`, `test-cpp`, `test-java`, `test-all`.
+- [ ] Integrate multi-language dispatching into `tests/run_tests.py`.
 
 ---
 

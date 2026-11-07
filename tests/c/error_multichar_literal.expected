@@ -1,0 +1,11 @@
+Line 1: KW_CHAR 'char'
+Line 1: IDENTIFIER 'c'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Multi-character literal is unsupported
+Line 1: SEMICOLON ';'
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'a'
+Line 2: ASSIGN '='
+Line 2: INT_LITERAL '1'
+Line 2: SEMICOLON ';'
+

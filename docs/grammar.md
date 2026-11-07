@@ -11,7 +11,7 @@
 
 The CompileCraft grammar defines the syntactic structure of an imperative, block-scoped, statically typed mini programming language. It is designed to satisfy the following engineering criteria:
 
-1. **Section 5 Authority**: Conforms strictly to the instructor-defined specification in Section 5. Where other manual sections contain conflicting examples, Section 5 prevails.
+1. **Section 5 Authority**: Conforms strictly to the language specification in Section 5. Where other manual sections contain conflicting examples, Section 5 prevails.
 2. **Deterministic LALR(1) Parsing**: Designed with unambiguous productions and precedence directives, achieving **zero unresolved conflicts after precedence resolution** (0 shift/reduce, 0 reduce/reduce conflicts) under Bison analysis, without claiming this alone proves the grammar is unambiguous.
 3. **Clean Phase Separation**: Grammatical rules strictly govern structural validity (token sequencing, nesting, and statement boundaries). Context-dependent properties (such as type matching, variable declaration before use, and scope visibility) are deliberately deferred to the Semantic Analysis phase (Milestone 6).
 4. **Resilient Error Recovery**: Employs synchronization productions (`error ';'`) to recover gracefully from malformed statements and continue parsing.

@@ -1,0 +1,11 @@
+Line 1: KW_CHAR 'char'
+Line 1: STAR '*'
+Line 1: IDENTIFIER 'msg'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Unterminated string literal
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'next'
+Line 2: ASSIGN '='
+Line 2: INT_LITERAL '42'
+Line 2: SEMICOLON ';'
+

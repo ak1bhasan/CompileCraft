@@ -88,10 +88,15 @@ desktop.ini
 .DS_Store
 
 # Explicitly ensure source specifications and expected test outputs are NEVER ignored
-!src/lexer/*.l
-!src/parser/*.y
+!src/**/*.l
+!src/**/*.y
+!src/**/*.c
+!src/**/*.h
+!src/**/*.def
 !tests/**/*.expected
 !tests/**/*.mc
+!tests/**/*.c
 !tests/**/*.txt
 !examples/**/*.mc
+!examples/**/*.c
 !examples/**/*.txt

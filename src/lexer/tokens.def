@@ -1,0 +1,51 @@
+/* ==============================================================================
+ * CompileCraft - Authoritative Token Definitions
+ * Conforming to Section 5 of the Compiler Construction Language Specification
+ * Compatible with GNU Bison token generation (parser.tab.h)
+ * ============================================================================== */
+
+/* Keywords (Section 4.1, 5.1, 5.2) */
+TOKEN_DEF(KW_INT,          258, "KW_INT")
+TOKEN_DEF(KW_FLOAT,        259, "KW_FLOAT")
+TOKEN_DEF(KW_BOOL,         260, "KW_BOOL")
+TOKEN_DEF(KW_IF,           261, "KW_IF")
+TOKEN_DEF(KW_ELSE,         262, "KW_ELSE")
+TOKEN_DEF(KW_WHILE,        263, "KW_WHILE")
+TOKEN_DEF(KW_PRINT,        264, "KW_PRINT")
+TOKEN_DEF(KW_TRUE,         265, "KW_TRUE")
+TOKEN_DEF(KW_FALSE,        266, "KW_FALSE")
+
+/* Identifiers & Constants (Section 5.4) */
+TOKEN_DEF(IDENTIFIER,      267, "IDENTIFIER")
+TOKEN_DEF(INT_LITERAL,     268, "INT_LITERAL")
+TOKEN_DEF(FLOAT_LITERAL,   269, "FLOAT_LITERAL")
+
+/* Arithmetic Operators (Section 5.3) */
+TOKEN_DEF(PLUS,            270, "PLUS")
+TOKEN_DEF(MINUS,           271, "MINUS")
+TOKEN_DEF(STAR,            272, "STAR")
+TOKEN_DEF(SLASH,           273, "SLASH")
+TOKEN_DEF(MOD,             274, "MOD")
+
+/* Relational Operators (Section 5.3) */
+TOKEN_DEF(LT,              275, "LT")
+TOKEN_DEF(GT,              276, "GT")
+TOKEN_DEF(LE,              277, "LE")
+TOKEN_DEF(GE,              278, "GE")
+TOKEN_DEF(EQ,              279, "EQ")
+TOKEN_DEF(NE,              280, "NE")
+
+/* Logical Operators (Section 5.3) */
+TOKEN_DEF(AND,             281, "AND")
+TOKEN_DEF(OR,              282, "OR")
+TOKEN_DEF(NOT,             283, "NOT")
+
+/* Assignment Operator (Section 5.2) */
+TOKEN_DEF(ASSIGN,          284, "ASSIGN")
+
+/* Delimiters & Punctuation (Section 5.4) */
+TOKEN_DEF(LBRACE,          285, "LBRACE")
+TOKEN_DEF(RBRACE,          286, "RBRACE")
+TOKEN_DEF(LPAREN,          287, "LPAREN")
+TOKEN_DEF(RPAREN,          288, "RPAREN")
+TOKEN_DEF(SEMICOLON,       289, "SEMICOLON")

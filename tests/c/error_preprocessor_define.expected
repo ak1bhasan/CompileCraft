@@ -1,0 +1,7 @@
+Lexical Error at line 1: Unsupported language feature: Preprocessing directive
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'x'
+Line 2: ASSIGN '='
+Line 2: IDENTIFIER 'MAX'
+Line 2: SEMICOLON ';'
+

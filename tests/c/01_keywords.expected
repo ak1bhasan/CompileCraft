@@ -1,0 +1,13 @@
+Line 1: KW_INT 'int'
+Line 1: KW_FLOAT 'float'
+Line 1: KW_DOUBLE 'double'
+Line 1: KW_CHAR 'char'
+Line 1: KW_VOID 'void'
+Line 2: KW_IF 'if'
+Line 2: KW_ELSE 'else'
+Line 2: KW_WHILE 'while'
+Line 2: KW_FOR 'for'
+Line 3: KW_RETURN 'return'
+Line 3: KW_BREAK 'break'
+Line 3: KW_CONTINUE 'continue'
+

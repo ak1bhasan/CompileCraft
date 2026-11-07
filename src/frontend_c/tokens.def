@@ -1,0 +1,69 @@
+/* ==============================================================================
+ * CompileCraft - Authoritative Token Definitions for C Subset
+ * Conforming to ISO C99/C11 Procedural Subset (docs/tokens_c.md)
+ * Compatible with GNU Bison token generation (parser.tab.h)
+ * ============================================================================== */
+
+/* Keywords */
+TOKEN_DEF(KW_INT,          258, "KW_INT")
+TOKEN_DEF(KW_FLOAT,        259, "KW_FLOAT")
+TOKEN_DEF(KW_DOUBLE,       260, "KW_DOUBLE")
+TOKEN_DEF(KW_CHAR,         261, "KW_CHAR")
+TOKEN_DEF(KW_VOID,         262, "KW_VOID")
+TOKEN_DEF(KW_IF,           263, "KW_IF")
+TOKEN_DEF(KW_ELSE,         264, "KW_ELSE")
+TOKEN_DEF(KW_WHILE,        265, "KW_WHILE")
+TOKEN_DEF(KW_FOR,          266, "KW_FOR")
+TOKEN_DEF(KW_RETURN,       267, "KW_RETURN")
+TOKEN_DEF(KW_BREAK,        268, "KW_BREAK")
+TOKEN_DEF(KW_CONTINUE,     269, "KW_CONTINUE")
+
+/* Identifiers & Constants */
+TOKEN_DEF(IDENTIFIER,      270, "IDENTIFIER")
+TOKEN_DEF(INT_LITERAL,     271, "INT_LITERAL")
+TOKEN_DEF(FLOAT_LITERAL,   272, "FLOAT_LITERAL")
+TOKEN_DEF(CHAR_LITERAL,    273, "CHAR_LITERAL")
+TOKEN_DEF(STRING_LITERAL,  274, "STRING_LITERAL")
+
+/* Arithmetic Operators */
+TOKEN_DEF(PLUS,            275, "PLUS")
+TOKEN_DEF(MINUS,           276, "MINUS")
+TOKEN_DEF(STAR,            277, "STAR")
+TOKEN_DEF(SLASH,           278, "SLASH")
+TOKEN_DEF(MOD,             279, "MOD")
+
+/* Relational Operators */
+TOKEN_DEF(LT,              280, "LT")
+TOKEN_DEF(GT,              281, "GT")
+TOKEN_DEF(LE,              282, "LE")
+TOKEN_DEF(GE,              283, "GE")
+TOKEN_DEF(EQ,              284, "EQ")
+TOKEN_DEF(NE,              285, "NE")
+
+/* Logical Operators */
+TOKEN_DEF(AND,             286, "AND")
+TOKEN_DEF(OR,              287, "OR")
+TOKEN_DEF(NOT,             288, "NOT")
+
+/* Assignment Operators */
+TOKEN_DEF(ASSIGN,          289, "ASSIGN")
+TOKEN_DEF(PLUS_ASSIGN,     290, "PLUS_ASSIGN")
+TOKEN_DEF(MINUS_ASSIGN,    291, "MINUS_ASSIGN")
+TOKEN_DEF(STAR_ASSIGN,     292, "STAR_ASSIGN")
+TOKEN_DEF(SLASH_ASSIGN,    293, "SLASH_ASSIGN")
+TOKEN_DEF(MOD_ASSIGN,      294, "MOD_ASSIGN")
+
+/* Increment / Decrement */
+TOKEN_DEF(INC,             295, "INC")
+TOKEN_DEF(DEC,             296, "DEC")
+
+/* Delimiters & Punctuation */
+TOKEN_DEF(LBRACE,          297, "LBRACE")
+TOKEN_DEF(RBRACE,          298, "RBRACE")
+TOKEN_DEF(LPAREN,          299, "LPAREN")
+TOKEN_DEF(RPAREN,          300, "RPAREN")
+TOKEN_DEF(LBRACKET,        301, "LBRACKET")
+TOKEN_DEF(RBRACKET,        302, "RBRACKET")
+TOKEN_DEF(SEMICOLON,       303, "SEMICOLON")
+TOKEN_DEF(COMMA,           304, "COMMA")
+

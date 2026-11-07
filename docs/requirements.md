@@ -1,43 +1,46 @@
 # Technical Requirements Specification
 
-> **Project**: CompileCraft — Mini Programming Language Compiler Front-End  
-> **Reference**: *Compiler Construction Lab Project Manual* (Technical Specification)  
-> **Status**: Stage 1 Requirements Baseline (Planning & Verification Phase)
+> **Project**: CompileCraft — Multi-Language Compiler Front-End (C, C++, Java)  
+> **Reference**: Language Specification & Architectural Decision DEC-13  
+> **Status**: Multi-Frontend Architecture Baseline (Milestone 2 Re-alignment)
 
 ---
 
 ## 1. Traceability Matrix Overview
 
-| Requirement Area | Manual Reference | Primary Target Module / Location | Verification Method |
+| Requirement Area | Target Languages | Primary Target Module / Location | Verification Method |
 |---|---|---|---|
-| **Lexical Analysis** | Section 4.1, 5.3, 5.4 | `src/lexer/` (`lexer.l`) | Lexer token output verification |
-| **Syntax Analysis & CFG** | Section 4.2, 5.1–5.4 | `src/parser/` (`parser.y`) | Parser test suite & AST generation |
-| **Abstract Syntax Tree (AST)** | Section 4.3 | `src/ast/` (`ast.h`, `ast.c`) | Hierarchical AST inspection |
-| **Symbol Table & Scoping** | Section 4.4, 5.2 | `src/symbol_table/` | Unit tests for nested scopes & shadowing |
-| **Semantic Analysis** | Section 4.5 | `src/semantic/` | 6 mandatory semantic error tests |
-| **Intermediate Code (TAC)** | Section 4.6, 5.5 | `src/tac/` | Clean Three-Address Code output |
-| **Testing Suite** | Section 15 | `tests/` | Automated test runner & expected diffs |
-| **Toolchain & Build** | Section 7, 8 | `Makefile` | One-command compilation & clean targets |
+| **Core Lexical Analysis (Baseline)** | Simplified Mini-Language | `src/lexer/` (`lexer.l`) | Verified with 17 automated tests |
+| **C Lexical & Syntax Analysis** | C Subset (`.c`) | `src/frontend_c/` (`lexer.l`, `parser.y`) | C test suite & AST generation |
+| **C++ Lexical & Syntax Analysis** | C++ Subset (`.cpp`) | `src/frontend_cpp/` (`lexer.l`, `parser.y`) | C++ test suite & AST generation |
+| **Java Lexical & Syntax Analysis** | Java Subset (`.java`) | `src/frontend_java/` (`lexer.l`, `parser.y`) | Java test suite & AST generation |
+| **Abstract Syntax Tree (AST)** | Shared Core + Extensions | `src/common/ast/` (`ast.h`, `ast.c`) | Hierarchical AST inspection |
+| **Symbol Table & Scoping** | Shared Core + OOP scopes | `src/common/symbol_table/` | Nested scopes & class table tests |
+| **Semantic Analysis** | Language-specific rules | `src/semantic/` | Type & scope constraint checks |
+| **Intermediate Code (TAC)** | Shared Unified IR | `src/common/tac/` | Clean Three-Address Code output |
+| **Testing Suite** | All three languages | `tests/` (`tests/run_tests.py`) | Automated multi-language runner |
+| **Toolchain & Build** | Unified Build | `Makefile` | Multi-target build and clean recipes |
 
 ---
 
 ## 2. Compiler Pipeline Requirements
 
-### 2.1 Lexical Analyzer Module (Flex)
-- [ ] **REQ-LEX-01 (Sec 4.1, 5.1)**: Recognize language keywords: `int`, `float`, `bool`, `if`, `else`, `while`, `print`, `true`, `false`.
-- [ ] **REQ-LEX-02 (Sec 4.1, 5.4)**: Recognize identifiers starting with a letter or underscore, followed by letters, digits, or underscores (`[a-zA-Z_][a-zA-Z0-9_]*`).
-- [ ] **REQ-LEX-03 (Sec 4.1, 5.4)**: Recognize integer literals (e.g., `42`, `0`, `100`).
-- [ ] **REQ-LEX-04 (Sec 4.1, 5.4)**: Recognize floating-point literals (e.g., `3.14`, `0.5`, `10.0`).
-- [ ] **REQ-LEX-05 (Sec 4.1, 5.4)**: Recognize boolean literal tokens: `true` and `false`.
-- [ ] **REQ-LEX-06 (Sec 4.1, 5.3)**: Recognize arithmetic operators: `+`, `-`, `*`, `/`, `%`.
-- [ ] **REQ-LEX-07 (Sec 4.1, 5.3)**: Recognize relational operators: `<`, `>`, `<=`, `>=`, `==`, `!=`.
-- [ ] **REQ-LEX-08 (Sec 4.1, 5.3)**: Recognize logical operators: `&&`, `||`, `!`.
-- [ ] **REQ-LEX-09 (Sec 4.1, 5.4)**: Recognize delimiters: `{`, `}`, `(`, `)`, `;`.
-- [ ] **REQ-LEX-10 (Sec 4.1)**: Discard single-line comments (`// ...`) without producing tokens.
-- [ ] **REQ-LEX-11 (Sec 4.1)**: Discard block comments (`/* ... */`) without producing tokens.
-- [ ] **REQ-LEX-12 (Sec 4.1)**: Discard whitespace (spaces, tabs, newlines) while accurately tracking current line numbers (`yylineno`).
-- [ ] **REQ-LEX-13 (Sec 4.1)**: Detect and report any invalid character/token as a lexical error with line number, continuing scanning where possible.
-- [ ] **REQ-LEX-14 (Sec 4.1 Tip)**: Define keyword patterns before general identifier patterns to leverage Flex's longest-match rule.
+### 2.1 Lexical Analyzer Baseline Module (Flex)
+> *Note: This module provides the initial, verified lexical engine for the Section 5 core mini-language. It serves as the baseline for the modular C, C++, and Java lexical analyzers in Milestone 2.*
+- [x] **REQ-LEX-01 (Sec 4.1, 5.1)**: Recognize language keywords: `int`, `float`, `bool`, `if`, `else`, `while`, `print`, `true`, `false`. *(Verified in Milestone 2 via `01_token_categories.mc` and `02_keyword_boundaries.mc`)*
+- [x] **REQ-LEX-02 (Sec 4.1, 5.4)**: Recognize identifiers starting with a letter or underscore, followed by letters, digits, or underscores (`[a-zA-Z_][a-zA-Z0-9_]*`). *(Verified in Milestone 2)*
+- [x] **REQ-LEX-03 (Sec 4.1, 5.4)**: Recognize integer literals (e.g., `42`, `0`, `100`). *(Verified in Milestone 2 via `04_numeric_literals.mc`)*
+- [x] **REQ-LEX-04 (Sec 4.1, 5.4)**: Recognize floating-point literals (e.g., `3.14`, `0.5`, `10.0`). *(Verified in Milestone 2 via `04_numeric_literals.mc`)*
+- [x] **REQ-LEX-05 (Sec 4.1, 5.4)**: Recognize boolean literal tokens: `true` and `false`. *(Verified in Milestone 2)*
+- [x] **REQ-LEX-06 (Sec 4.1, 5.3)**: Recognize arithmetic operators: `+`, `-`, `*`, `/`, `%`. *(Verified in Milestone 2 via `03_operators.mc` and `05_minus_tokens.mc`)*
+- [x] **REQ-LEX-07 (Sec 4.1, 5.3)**: Recognize relational operators: `<`, `>`, `<=`, `>=`, `==`, `!=`. *(Verified in Milestone 2 via `03_operators.mc`)*
+- [x] **REQ-LEX-08 (Sec 4.1, 5.3)**: Recognize logical operators: `&&`, `||`, `!`. *(Verified in Milestone 2 via `03_operators.mc`)*
+- [x] **REQ-LEX-09 (Sec 4.1, 5.4)**: Recognize delimiters: `{`, `}`, `(`, `)`, `;`. *(Verified in Milestone 2 via `01_token_categories.mc`)*
+- [x] **REQ-LEX-10 (Sec 4.1)**: Discard single-line comments (`// ...`) without producing tokens. *(Verified in Milestone 2 via `06_comments_whitespace.mc`)*
+- [x] **REQ-LEX-11 (Sec 4.1)**: Discard block comments (`/* ... */`) without producing tokens. *(Verified in Milestone 2 via `06_comments_whitespace.mc`)*
+- [x] **REQ-LEX-12 (Sec 4.1)**: Discard whitespace (spaces, tabs, newlines) while accurately tracking current line numbers (`yylineno`). *(Verified in Milestone 2 via `06_comments_whitespace.mc` and `07_crlf_line_tracking.mc`)*
+- [x] **REQ-LEX-13 (Sec 4.1)**: Detect and report any invalid character/token as a lexical error with line number, continuing scanning where possible. *(Verified in Milestone 2 via `error_invalid_char.mc`, `error_malformed_float_*.mc`, `error_multiple_chars.mc`, and `error_unterminated_comment.mc`)*
+- [x] **REQ-LEX-14 (Sec 4.1 Tip)**: Define keyword patterns before general identifier patterns to leverage Flex's longest-match rule. *(Verified in Milestone 2 via `02_keyword_boundaries.mc`)*
 
 ### 2.2 Syntax Analyzer Module (Bison)
 - [ ] **REQ-SYN-01 (Sec 4.2, 5)**: Implement a complete, formal, unambiguous Context-Free Grammar (CFG) for the language defined in Section 5.

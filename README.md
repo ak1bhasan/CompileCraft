@@ -1,62 +1,55 @@
 # CompileCraft
 
-> **A Mini Programming Language Compiler Front-End with Three-Address Code (TAC) Intermediate Code Generation**
+> **A Multi-Language Compiler Front-End Supporting C, C++, and Java Subsets with Unified Three-Address Code (TAC) Intermediate Representation**
 
 ---
 
 ## 1. Project Overview
 
-**CompileCraft** is a modular compiler front-end developed in **C**, **Flex**, and **Bison**. The project processes source code written in a statically typed, block-scoped mini programming language, performs lexical, syntactic, and semantic validation, and produces linear **Three-Address Code (TAC)**.
+**CompileCraft** is a modular compiler front-end developed in **C**, **Flex**, and **Bison**. The project processes source code written in distinct subsets of **C**, **C++**, and **Java**, performs lexical, syntactic, and semantic validation across separate language front ends, and emits linear **Three-Address Code (TAC)** through a shared intermediate representation.
 
-The primary architectural goal of CompileCraft is to showcase a clean, decoupled compiler front-end pipeline where each phase communicates through explicit intermediate structures (token streams, Abstract Syntax Trees, scoped symbol tables, and TAC instructions) and emits human-readable diagnostic messages with line numbers.
+The primary architectural goal of CompileCraft is to showcase a decoupled, multi-frontend compiler pipeline where each language front end maps its idiosyncratic syntax (procedural C, object-oriented C++, and class-centric Java) into shared intermediate structures (Abstract Syntax Trees, scoped symbol tables, and TAC instructions) while emitting human-readable diagnostic messages with line numbers.
 
 ---
 
-## 2. Compiler Pipeline Phases
+## 2. Compiler Pipeline Architecture
 
-CompileCraft implements six front-end compilation phases:
+CompileCraft supports three language front ends feeding into a shared intermediate representation and TAC generator:
 
 ```
-Source Program (.mc / .txt)
-           │
-           ▼
-┌─────────────────────────┐
-│ 1. Lexical Analyzer     │  Tokenizes characters into keywords, identifiers, literals,
-│    (Flex)               │  and operators; strips comments & whitespace; reports lexical errors.
-└──────────┬──────────────┘
-           │ Token Stream
-           ▼
-┌─────────────────────────┐
-│ 2. Syntax Analyzer      │  Validates token sequence against formal Context-Free Grammar;
-│    (Bison)              │  implements syntax error recovery via Bison 'error' token.
-└──────────┬──────────────┘
-           │ Parse Tree / Production Actions
-           ▼
-┌─────────────────────────┐
-│ 3. Abstract Syntax Tree │  Constructs a clean hierarchical tree node representation devoid
-│    (AST Construction)   │  of syntax boilerplate; supports formatted indented tree printing.
-└──────────┬──────────────┘
-           │ Raw AST
-           ▼
-┌─────────────────────────┐
-│ 4. Symbol Table Manager │  Tracks identifiers, types (int, float, bool), declaration lines,
-│    & Lexical Scoping    │  and manages enter/exit scopes for block isolation.
-└──────────┬──────────────┘
-           │
-           ▼
-┌─────────────────────────┐
-│ 5. Semantic Analyzer    │  Enforces 6 mandatory semantic constraints (undeclared use,
-│    (Type & Scope Check) │  redeclaration, scope violations, type mismatches, invalid assign).
-└──────────┬──────────────┘
-           │ Annotated / Validated AST
-           ▼
-┌─────────────────────────┐
-│ 6. Intermediate Code    │  Emits linear Three-Address Code (TAC) with temporaries (t0, t1...)
-│    Generator (TAC)      │  and control flow jump labels (L0, L1...).
-└──────────┬──────────────┘
-           │
-           ▼
-  Three-Address Code (TAC) Output
+  ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
+  │   C Source (.c)  │    │ C++ Source (.cpp)  │    │  Java Source (.java)│
+  └────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
+           │                        │                          │
+           ▼                        ▼                          ▼
+  ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
+  │  C Front-End     │    │   C++ Front-End    │    │   Java Front-End    │
+  │  - Lexer (Flex)  │    │   - Lexer (Flex)   │    │   - Lexer (Flex)    │
+  │  - Parser (Bison)│    │   - Parser (Bison) │    │   - Parser (Bison)  │
+  │  - AST Mapper    │    │   - AST Mapper     │    │   - AST Mapper      │
+  └────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
+           │                        │                          │
+           └───────────────────┐    │    ┌─────────────────────┘
+                               ▼    ▼    ▼
+                    ┌──────────────────────────────┐
+                    │      Shared Core AST &       │
+                    │   Scoped Symbol Table Engine │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │      Semantic Analyzer       │
+                    │   (Type & Scope Validation)  │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │ Intermediate Code Generator  │
+                    │  Three-Address Code (TAC)    │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                        Three-Address Code (TAC)
 ```
 
 ### Out-of-Scope Architecture Boundaries
@@ -84,28 +77,28 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 
 ## 4. Current Implementation Status
 
-> **Status**: **Milestone 1 Complete — Formal Grammar & Token Specification Verified**  
-> *Toolchain verified, LALR(1) grammar validated with zero unresolved conflicts after precedence resolution, and token specification established. Ready for Milestone 2 (Flex Lexer).*
+> **Status**: **Milestone 2.1 Complete — C-Subset Lexical Analyzer Verified**  
+> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`src/frontend_c/`) verified (19/19 tests). Total 36 automated tests passing across both suites.*
 
 ### Status Matrix
 
 | Module / Component | Description | Status | Current Details |
 |---|---|:---:|---|
-| **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, and Make verification | **COMPLETED** | Verified via standalone smoke test generating and executing C lexer/parser. |
-| **Build Foundation** | Modular `Makefile` with tool overrides & sanity targets | **COMPLETED** | Supports `mingw32-make toolchain-check`, `help`, and `clean`. |
-| **Requirements Specification** | Traceable technical requirements checklist | **COMPLETED** | See `docs/requirements.md`. |
-| **Engineering Decisions** | Specification analysis, conclusions, and open items | **COMPLETED** | See `docs/decisions.md`. |
-| **Milestone Roadmap** | Granular roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
-| **Grammar Specification** | Context-Free Grammar (BNF) & ambiguity resolution | **COMPLETED** | See `docs/grammar.md` (zero unresolved conflicts after precedence resolution in Bison). |
-| **Token Specification** | Lexical tokens, literal patterns, and error policy | **COMPLETED** | See `docs/tokens.md`. |
-| **Lexical Analyzer (`src/lexer/`)** | Flex scanner specification (`lexer.l`) | **PLANNED** | Scheduled for Milestone 2. |
-| **Syntax Analyzer (`src/parser/`)** | Bison grammar specification (`parser.y`) | **PLANNED** | Scheduled for Milestone 3. |
-| **AST (`src/ast/`)** | Node structures, constructors, and visualizer | **PLANNED** | Scheduled for Milestone 4. |
-| **Symbol Table (`src/symbol_table/`)** | Scoped symbol table and scope lifecycle | **PLANNED** | Scheduled for Milestone 5. |
-| **Semantic Analyzer (`src/semantic/`)** | 6 mandatory semantic checks & diagnostics | **PLANNED** | Scheduled for Milestone 6. |
-| **TAC Generator (`src/tac/`)** | Three-Address Code intermediate representation | **PLANNED** | Scheduled for Milestone 7. |
-| **CLI Driver (`src/main.c`)** | Main compiler driver executable (`compilecraft`) | **PLANNED** | Scheduled for Milestone 8. |
-| **Test Suite (`tests/`)** | Valid programs, lexical, syntax, and semantic tests | **PLANNED** | Scheduled for Milestone 9. |
+| **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, and Make verification | **COMPLETED** | Verified 64-bit UCRT64 GCC 16.2.0, Flex 2.6.4, Bison 3.8.2. |
+| **Build Foundation** | Modular `Makefile` with tool overrides & multi-targets | **COMPLETED** | Supports `toolchain-check`, `lexer`, `lexer-c`, `test-lexer`, `test-c`, `test`, `clean`. |
+| **Requirements Specification** | Multi-language technical requirements checklist | **COMPLETED** | See `docs/requirements.md`. |
+| **Engineering Decisions** | Language subset definitions, analysis, decisions | **COMPLETED** | See `docs/decisions.md` (DEC-13 Multi-Language Architecture). |
+| **Milestone Roadmap** | Multi-language roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
+| **Core Lexer Baseline (`src/lexer/`)** | Baseline scanner specification, driver, tests | **COMPLETED** | 17/17 automated tests passing via `tests/run_tests.py`. |
+| **C Lexical Analyzer (`src/frontend_c/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | 19/19 automated tests passing via `tests/run_tests.py`. |
+| **C++ Lexical Analyzer (`src/frontend_cpp/`)** | C++ subset lexer & driver | **PLANNED** | Scheduled for Milestone 2.2. |
+| **Java Lexical Analyzer (`src/frontend_java/`)** | Java subset lexer & driver | **PLANNED** | Scheduled for Milestone 2.3. |
+| **Shared Core AST (`src/common/ast/`)** | Common AST node structures & visualizer | **PLANNED** | Scheduled for Milestone 4. |
+| **Shared Symbol Table (`src/common/symbol_table/`)** | Multi-scope symbol table manager | **PLANNED** | Scheduled for Milestone 5. |
+| **Semantic Analyzer (`src/semantic/`)** | Scope, type, and OOP constraint checks | **PLANNED** | Scheduled for Milestone 6. |
+| **Shared TAC Generator (`src/common/tac/`)** | Three-Address Code intermediate representation | **PLANNED** | Scheduled for Milestone 7. |
+| **CLI Driver (`src/main.c`)** | Universal multi-language CLI (`compilecraft`) | **PLANNED** | Scheduled for Milestone 8. |
+| **Regression Test Suite (`tests/`)** | Multi-language test suites | **IN PROGRESS** | Baseline (17 tests) and C (19 tests) operational (36 total passing). |
 
 ---
 
@@ -113,29 +106,39 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 
 ```
 CompileCraft/
-├── .gitignore               # Ignores build artifacts, generated files, local files
-├── README.md                # Project architecture, verified stack, and setup instructions
-├── Makefile                 # Verified build automation supporting tool overrides
+├── .gitignore                   # Ignores build artifacts, generated files, local files
+├── README.md                    # Multi-language architecture, toolchain, and usage
+├── Makefile                     # Build automation with tool overrides and targets
 ├── docs/
-│   ├── requirements.md      # Traceable technical requirements and specification rules
-│   ├── roadmap.md           # Milestone plan with acceptance criteria and commit messages
-│   ├── decisions.md         # Open questions, manual-backed conclusions, and proposals
-│   ├── grammar.md           # Formal BNF Context-Free Grammar and precedence rules
-│   └── tokens.md            # Complete lexical token specifications and error rules
-├── src/                     # [Planned] Source code organized by compiler phase
-│   ├── lexer/               # Flex lexical specifications (.l)
-│   ├── parser/              # Bison grammar specifications (.y)
-│   ├── ast/                 # AST node data structures and printer
-│   ├── symbol_table/        # Scoped symbol table implementation
-│   ├── semantic/            # Type checker and semantic validation passes
-│   ├── tac/                 # Three-Address Code data structures and generator
-│   └── main.c               # Compiler CLI driver entry point
-├── tests/                   # [Planned] Test programs paired with expected outputs
-│   ├── valid/               # Valid test cases (.mc) and expected TAC (.expected)
-│   ├── lexical_errors/      # Invalid character/token test cases
-│   ├── syntax_errors/       # Grammar violation test cases
-│   └── semantic_errors/     # Tests for each of the 6 mandatory semantic error types
-└── examples/                # [Planned] Representative sample programs
+│   ├── requirements.md          # Multi-language technical requirements
+│   ├── roadmap.md               # Milestone plan with acceptance criteria
+│   ├── decisions.md             # Subsets, decisions, and architectural proposals (DEC-13)
+│   ├── grammar.md               # Context-Free Grammar specifications
+│   └── tokens.md                # Authoritative token specifications (tokens.def strategy)
+├── src/
+│   ├── common/                  # [Planned] Shared compiler infrastructure
+│   │   ├── ast/                 # Shared AST nodes, constructors, pretty-printer
+│   │   ├── symbol_table/        # Scoped symbol table and scope lifecycle
+│   │   └── tac/                 # Three-Address Code data structures & emitter
+│   ├── lexer/                   # [Baseline Complete] Core lexical analyzer
+│   │   ├── tokens.def           # Master token X-macro table
+│   │   ├── tokens.h / tokens.c  # Token enum and name resolver
+│   │   ├── lexer.l              # Flex lexical specification
+│   │   └── main.c               # Standalone baseline lexer driver
+│   ├── frontend_c/              # [Milestone 2.1 Complete] C-subset front end
+│   │   ├── tokens.def           # C subset token definitions
+│   │   ├── tokens.h / tokens.c  # C token enum and resolver
+│   │   ├── lexer.l              # C Flex scanner (ISO C99/C11 procedural subset)
+│   │   └── main_c.c             # Standalone C lexer CLI driver
+│   ├── frontend_cpp/            # [Planned M2.2] C++ subset front end
+│   ├── frontend_java/           # [Planned M2.3] Java subset front end
+│   └── main.c                   # [Planned M8] Universal compiler CLI driver
+└── tests/
+    ├── run_tests.py             # Multi-suite regression test runner
+    ├── lexer/                   # Baseline 17 test cases (.mc / .expected)
+    ├── c/                       # C-subset 19 test cases (.c / .expected)
+    ├── cpp/                     # [Planned M2.2] C++ test cases (.cpp / .expected)
+    └── java/                    # [Planned M2.3] Java test cases (.java / .expected)
 ```
 
 ---
@@ -150,26 +153,26 @@ To verify that all required build tools resolve to functional 64-bit binaries:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" toolchain-check
 ```
 
-### 6.2 Building with Custom Tool Paths
-Tool paths can be overridden directly from the command line if tools are installed elsewhere:
+### 6.2 Building the Lexers
+To build the standalone lexer binaries:
 
 ```powershell
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" `
-    CC="E:/msys64/ucrt64/bin/gcc.exe" `
-    FLEX="E:/msys64/usr/bin/flex.exe" `
-    BISON="E:/msys64/usr/bin/bison.exe" `
-    toolchain-check
+# Build both baseline and C-subset lexers:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" all
+
+# Or build individual targets:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-c
 ```
 
-### 6.3 Planned Compiler Usage (Post-Implementation)
-Once `src/main.c` and compiler modules are implemented in subsequent milestones:
-```bash
-# Build the compilecraft binary
-mingw32-make all
+### 6.3 Running Regression Tests
+To execute the automated regression test suites:
 
-# Run compiler on a source file to output TAC
-./compilecraft examples/sample.mc
+```powershell
+# Run all test suites (baseline + C subset):
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
-# Run the automated test suite
-mingw32-make test
+# Or run individual test suites:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-lexer
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c
 ```

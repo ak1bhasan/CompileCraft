@@ -1,0 +1,227 @@
+%{
+/* ==============================================================================
+ * CompileCraft - C-Subset Lexical Analyzer Specification (Flex)
+ * Conforming to ISO C99/C11 Procedural Subset (docs/tokens_c.md)
+ * ============================================================================== */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "tokens.h"
+
+int c_lexical_error_count = 0;
+static int comment_start_line = 1;
+
+static char parse_escape_char(char c) {
+    switch (c) {
+        case 'n':  return '\n';
+        case 't':  return '\t';
+        case 'r':  return '\r';
+        case '0':  return '\0';
+        case '\\': return '\\';
+        case '\'': return '\'';
+        case '\"': return '\"';
+        default:   return c;
+    }
+}
+%}
+
+%option noyywrap
+%option nounput
+%option noinput
+%option yylineno
+
+/* Exclusive start condition for multiline block comments */
+%x COMMENT
+
+%%
+
+    /* --------------------------------------------------------------------------
+     * 1. Comments & Whitespace
+     * -------------------------------------------------------------------------- */
+
+"//"[^\n]*              { /* Single-line comment: discard until end of line */ }
+
+"/*"                    { comment_start_line = yylineno; BEGIN(COMMENT); }
+<COMMENT>"*/"           { BEGIN(INITIAL); }
+<COMMENT>\n             { /* yylineno incremented automatically by Flex */ }
+<COMMENT>.              { /* Discard comment characters */ }
+<COMMENT><<EOF>>        {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Unterminated block comment\n", comment_start_line);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                            BEGIN(INITIAL);
+                            return 0;
+                        }
+
+[ \t\r]+                { /* Discard spaces, tabs, and carriage returns */ }
+\n                      { /* Newlines handled by %option yylineno */ }
+
+    /* --------------------------------------------------------------------------
+     * 2. Preprocessing Directives (Unsupported language feature policy)
+     * Directives are explicitly diagnosed rather than silently dropped.
+     * -------------------------------------------------------------------------- */
+
+"#"([^\n]*)             {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Unsupported language feature: Preprocessing directive\n", yylineno);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+    /* --------------------------------------------------------------------------
+     * 3. Keywords (ISO C99/C11 Procedural Subset)
+     * Ordered before IDENTIFIER to leverage Flex's longest-match and rule priority.
+     * Note: main and printf are identifiers, NOT keywords.
+     * -------------------------------------------------------------------------- */
+
+"int"                   { return KW_INT; }
+"float"                 { return KW_FLOAT; }
+"double"                { return KW_DOUBLE; }
+"char"                  { return KW_CHAR; }
+"void"                  { return KW_VOID; }
+"if"                    { return KW_IF; }
+"else"                  { return KW_ELSE; }
+"while"                 { return KW_WHILE; }
+"for"                   { return KW_FOR; }
+"return"                { return KW_RETURN; }
+"break"                 { return KW_BREAK; }
+"continue"              { return KW_CONTINUE; }
+
+    /* --------------------------------------------------------------------------
+     * 4. Multi-character Operators (ordered before single-character operators)
+     * -------------------------------------------------------------------------- */
+
+"=="                    { return EQ; }
+"!="                    { return NE; }
+"<="                    { return LE; }
+">="                    { return GE; }
+"&&"                    { return AND; }
+"||"                    { return OR; }
+"++"                    { return INC; }
+"--"                    { return DEC; }
+"+="                    { return PLUS_ASSIGN; }
+"-="                    { return MINUS_ASSIGN; }
+"*="                    { return STAR_ASSIGN; }
+"/="                    { return SLASH_ASSIGN; }
+"%="                    { return MOD_ASSIGN; }
+
+    /* --------------------------------------------------------------------------
+     * 5. Single-character Operators
+     * -------------------------------------------------------------------------- */
+
+"+"                     { return PLUS; }
+"-"                     { return MINUS; }
+"*"                     { return STAR; }
+"/"                     { return SLASH; }
+"%"                     { return MOD; }
+"<"                     { return LT; }
+">"                     { return GT; }
+"!"                     { return NOT; }
+"="                     { return ASSIGN; }
+
+    /* --------------------------------------------------------------------------
+     * 6. Delimiters & Punctuation
+     * -------------------------------------------------------------------------- */
+
+"{"                     { return LBRACE; }
+"}"                     { return RBRACE; }
+"("                     { return LPAREN; }
+")"                     { return RPAREN; }
+"["                     { return LBRACKET; }
+"]"                     { return RBRACKET; }
+";"                     { return SEMICOLON; }
+","                     { return COMMA; }
+
+    /* --------------------------------------------------------------------------
+     * 7. Character Literals
+     * -------------------------------------------------------------------------- */
+
+"''"                    {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Empty character literal\n", yylineno);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+'([^'\\\n]|\\.)'        {
+                            if (yytext[1] == '\\') {
+                                yylval.cval = parse_escape_char(yytext[2]);
+                            } else {
+                                yylval.cval = yytext[1];
+                            }
+                            return CHAR_LITERAL;
+                        }
+
+'([^'\\\n]|\\.)+'       {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Multi-character literal is unsupported\n", yylineno);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+'([^'\\\n]|\\.)*        {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Unterminated character literal\n", yylineno);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+    /* --------------------------------------------------------------------------
+     * 8. String Literals
+     * -------------------------------------------------------------------------- */
+
+\"([^\"\\\n]|\\.)*\"    {
+                            yylval.sval = strdup(yytext);
+                            return STRING_LITERAL;
+                        }
+
+\"([^\"\\\n]|\\.)*      {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Unterminated string literal\n", yylineno);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+    /* --------------------------------------------------------------------------
+     * 9. Numeric Literals
+     * Unsigned numbers only; minus sign is tokenized separately as MINUS.
+     * -------------------------------------------------------------------------- */
+
+[0-9]+\.[0-9]+          {
+                            yylval.fval = atof(yytext);
+                            return FLOAT_LITERAL;
+                        }
+
+[0-9]+                  {
+                            yylval.ival = atoi(yytext);
+                            return INT_LITERAL;
+                        }
+
+    /* --------------------------------------------------------------------------
+     * 10. Identifiers
+     * Standard alphanumeric/underscore names; includes main, printf, etc.
+     * -------------------------------------------------------------------------- */
+
+[a-zA-Z_][a-zA-Z0-9_]*  {
+                            yylval.sval = strdup(yytext);
+                            return IDENTIFIER;
+                        }
+
+    /* --------------------------------------------------------------------------
+     * 11. Fallback Rule: Lexical Errors
+     * Matches any unexpected character.
+     * -------------------------------------------------------------------------- */
+
+.                       {
+                            fflush(stdout);
+                            fprintf(stderr, "Lexical Error at line %d: Unrecognized character '%c'\n",
+                                    yylineno, yytext[0]);
+                            fflush(stderr);
+                            c_lexical_error_count++;
+                        }
+
+%%
+
