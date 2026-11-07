@@ -1,6 +1,6 @@
 # CompileCraft C-Subset Lexical Token Specification
 
-> **Project**: CompileCraft — C Front-End (`src/frontend_c/`)  
+> **Project**: CompileCraft — C Front-End (`C_Compiler/`)  
 > **Milestone**: Milestone 2.1 — C-Subset Lexical Analyzer  
 > **Target Standard**: ISO C99 / C11 Procedural Subset  
 > **Target Tools**: Flex 2.6.4 & GNU Bison 3.8.2 (MSYS2 UCRT64)

@@ -1,6 +1,6 @@
 # CompileCraft C++-Subset Lexical Token Specification
 
-> **Project**: CompileCraft — C++ Front-End (`src/frontend_cpp/`)  
+> **Project**: CompileCraft — C++ Front-End (`CPP_Compiler/`)  
 > **Milestone**: Milestone 2.2 — C++-Subset Lexical Analyzer  
 > **Target Standard**: ISO C++98 / C++11 Object-Oriented Subset  
 > **Target Tools**: Flex 2.6.4 & GNU Bison 3.8.2 (MSYS2 UCRT64)

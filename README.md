@@ -78,7 +78,7 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 ## 4. Current Implementation Status
 
 > **Status**: **Milestone 2.2 Complete — C++-Subset Lexical Analyzer Verified**  
-> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`src/frontend_c/`) verified (19/19 tests). C++-subset lexical analyzer (`src/frontend_cpp/`) verified (18/18 tests). Total 54 automated tests passing across all three suites.*
+> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`C_Compiler/`) verified (19/19 tests). C++-subset lexical analyzer (`CPP_Compiler/`) verified (18/18 tests). Total 54 automated tests passing across all three suites.*
 
 ### Status Matrix
 
@@ -90,9 +90,11 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 | **Engineering Decisions** | Language subset definitions, analysis, decisions | **COMPLETED** | See `docs/decisions.md` (DEC-13 Multi-Language Architecture). |
 | **Milestone Roadmap** | Multi-language roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
 | **Core Lexer Baseline (`src/lexer/`)** | Baseline scanner specification, driver, tests | **COMPLETED** | 17/17 automated tests passing via `tests/run_tests.py`. |
-| **C Lexical Analyzer (`src/frontend_c/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | 19/19 automated tests passing via `tests/run_tests.py`. |
-| **C++ Lexical Analyzer (`src/frontend_cpp/`)** | ISO C++98/C++11 OOP subset lexer, driver, tests | **COMPLETED** | 18/18 automated tests passing via `tests/run_tests.py`. |
-| **Java Lexical Analyzer (`src/frontend_java/`)** | Java subset lexer & driver | **PLANNED** | Scheduled for Milestone 2.3. |
+| **C Lexical Analyzer (`C_Compiler/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | 19/19 automated tests passing via `tests/run_tests.py`. |
+| **C++ Lexical Analyzer (`CPP_Compiler/`)** | ISO C++98/C++11 OOP subset lexer, driver, tests | **COMPLETED** | 18/18 automated tests passing via `tests/run_tests.py`. |
+| **Java Lexical Analyzer (`Java_Compiler/`)** | Java subset lexer & driver | **RESERVED** | Reserved for Milestone 2.3. |
+| **Visual Interface Front-End (`frontend/`)** | Visual user interface component | **PLANNED** | Planned visual-interface component. |
+| **Visual Interface Back-End (`backend/`)** | Visual interface API / service component | **PLANNED** | Planned visual-interface component. |
 | **Shared Core AST (`src/common/ast/`)** | Common AST node structures & visualizer | **PLANNED** | Scheduled for Milestone 4. |
 | **Shared Symbol Table (`src/common/symbol_table/`)** | Multi-scope symbol table manager | **PLANNED** | Scheduled for Milestone 5. |
 | **Semantic Analyzer (`src/semantic/`)** | Scope, type, and OOP constraint checks | **PLANNED** | Scheduled for Milestone 6. |
@@ -117,6 +119,19 @@ CompileCraft/
 │   ├── tokens.md                # Authoritative baseline token specifications
 │   ├── tokens_c.md              # Authoritative C subset token specifications
 │   └── tokens_cpp.md            # Authoritative C++ subset token specifications
+├── C_Compiler/                  # [Milestone 2.1 Complete] C-subset compiler front end
+│   ├── tokens.def               # C subset token definitions
+│   ├── tokens.h / tokens.c      # C token enum and resolver
+│   ├── lexer.l                  # C Flex scanner (ISO C99/C11 procedural subset)
+│   └── main_c.c                 # Standalone C lexer CLI driver
+├── CPP_Compiler/                # [Milestone 2.2 Complete] C++ subset compiler front end
+│   ├── tokens.def               # C++ subset token definitions
+│   ├── tokens.h / tokens.c      # C++ token enum and resolver
+│   ├── lexer.l                  # C++ Flex scanner (ISO C++98/C++11 OOP subset)
+│   └── main_cpp.c               # Standalone C++ lexer CLI driver
+├── Java_Compiler/               # [Reserved for M2.3] Java subset compiler front end
+├── frontend/                    # [Planned] Visual interface front end (UI component)
+├── backend/                     # [Planned] Visual interface back end (API / service component)
 ├── src/
 │   ├── common/                  # [Planned] Shared compiler infrastructure
 │   │   ├── ast/                 # Shared AST nodes, constructors, pretty-printer
@@ -127,17 +142,6 @@ CompileCraft/
 │   │   ├── tokens.h / tokens.c  # Token enum and name resolver
 │   │   ├── lexer.l              # Flex lexical specification
 │   │   └── main.c               # Standalone baseline lexer driver
-│   ├── frontend_c/              # [Milestone 2.1 Complete] C-subset front end
-│   │   ├── tokens.def           # C subset token definitions
-│   │   ├── tokens.h / tokens.c  # C token enum and resolver
-│   │   ├── lexer.l              # C Flex scanner (ISO C99/C11 procedural subset)
-│   │   └── main_c.c             # Standalone C lexer CLI driver
-│   ├── frontend_cpp/            # [Milestone 2.2 Complete] C++ subset front end
-│   │   ├── tokens.def           # C++ subset token definitions
-│   │   ├── tokens.h / tokens.c  # C++ token enum and resolver
-│   │   ├── lexer.l              # C++ Flex scanner (ISO C++98/C++11 OOP subset)
-│   │   └── main_cpp.c           # Standalone C++ lexer CLI driver
-│   ├── frontend_java/           # [Planned M2.3] Java subset front end
 │   └── main.c                   # [Planned M8] Universal compiler CLI driver
 └── tests/
     ├── run_tests.py             # Multi-suite regression test runner (.mc, .c, .cpp)

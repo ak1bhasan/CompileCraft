@@ -22,7 +22,7 @@
 | **DEC-10** | Error Recovery Strategy & CLI Exit Code | Sec 4.2, 4.5 | **Supported Conclusion**: Sec 4.2 requires basic error recovery via Bison `error` token to continue parsing. Sec 4.5 requires detecting all semantic violations. | Continue parsing and semantic analysis to collect and report all diagnostic errors; exit with code 0 on clean build, non-zero (code 1) if errors are detected. | **SUPPORTED** |
 | **DEC-11** | Compilation Pipeline Boundary | Sec 4.6, 6 | **Supported Conclusion**: Sec 4.6 and Sec 6 explicitly mandate terminating at Three-Address Code (TAC). Assembly, machine code, register allocation, and linking are strictly out of scope. | The compiler pipeline terminates at Three-Address Code (TAC) generation. | **SUPPORTED** |
 | **DEC-12** | Unary Minus Handling | Sec 5.3 vs Sec 14 | **Ambiguity**: Sec 5.3 lists `-` under arithmetic operators, while Sec 14 lists "Unary operators, increment/decrement" as bonus features. However, expressions like `x = -1;` or `-a` are common. | In the grammar, support unary minus (`- <expr> %prec UMINUS`) while excluding full unary extensions (increment/decrement `++`, `--`). Literals in the lexer remain unsigned (`[0-9]+`). | **PROPOSED** |
-| **DEC-13** | Multi-Language Front-Ends (C, C++, Java) | Project Scope Clarification | **Scope Clarification**: CompileCraft must support separate compiler front ends for C, C++, and Java targeting a shared Three-Address Code (TAC) intermediate representation. | Define realistic, principled subsets for C, C++, and Java. Re-architect the front ends into modular components (`src/frontend_c/`, `src/frontend_cpp/`, `src/frontend_java/`) sharing core symbol table, AST infrastructure, and TAC code generation. | **SUPPORTED** |
+| **DEC-13** | Multi-Language Front-Ends (C, C++, Java) | Project Scope Clarification | **Scope Clarification**: CompileCraft must support separate compiler front ends for C, C++, and Java targeting a shared Three-Address Code (TAC) intermediate representation. | Define realistic, principled subsets for C, C++, and Java. Re-architect the front ends into dedicated language directories (`C_Compiler/`, `CPP_Compiler/`, `Java_Compiler/`) sharing core symbol table, AST infrastructure, and TAC code generation. | **SUPPORTED** |
 
 ---
 
@@ -146,7 +146,7 @@
 - **Scope Clarification**:
   CompileCraft supports three separate compiler front ends: C, C++, and Java. Each language front end tokenizes and parses its respective source syntax, constructs an AST, and maps it into a shared intermediate Three-Address Code (TAC) representation.
 - **Language Subsets Definition**:
-  1. **C Subset (`CompileCraft-C` / `src/frontend_c/`)**:
+  1. **C Subset (`CompileCraft-C` / `C_Compiler/`)**:
      - *Target Standard*: ISO C99 / C11 procedural subset.
      - *Keywords*: `int`, `float`, `double`, `char`, `void`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`.
      - *Identifiers*: Standard alphanumeric/underscore names (`[a-zA-Z_][a-zA-Z0-9_]*`). Note: `main` and `printf` are standard function identifiers (`IDENTIFIER`), not keywords.
@@ -154,13 +154,13 @@
      - *Statements*: Variable declarations with optional initializers, assignments, compound blocks `{ ... }`, `if`/`if-else`, `while`, `for`, `return`, `break`, `continue`.
      - *Preprocessing Directives Policy*: Preprocessing directives (such as `#include`, `#define`) are unsupported language features in this front end. Instead of being silently ignored, any preprocessing directive is explicitly diagnosed as a lexical error (`Unsupported language feature: Preprocessing directive`), preserving a clear distinction between valid-but-unsupported C features and malformed input.
      - *Exclusions*: Preprocessor macros, complex structs/unions, pointer arithmetic, bitfields, variable-length arrays.
-  2. **C++ Subset (`CompileCraft-CPP` / `src/frontend_cpp/` [Planned])**:
+  2. **C++ Subset (`CompileCraft-CPP` / `CPP_Compiler/`)**:
      - *Paradigm*: Procedural + Object-Oriented.
-     - *Keywords*: C subset keywords plus `class`, `public`, `private`, `bool`, `true`, `false`, `new`. Note: `std` and `cout` are standard identifiers (`IDENTIFIER`), not keywords.
-     - *Classes & Objects*: `class Name { public: private: ... };`, object instantiation, member access `obj.field`, `obj.method()`.
-     - *I/O*: Stream insertion operator: `cout << expr;`.
+     - *Keywords*: C subset keywords plus `class`, `public`, `private`, `protected`, `bool`, `true`, `false`, `new`, `delete`, `this`. Note: `std`, `cout`, `cin`, and `endl` are standard identifiers (`IDENTIFIER`), not keywords.
+     - *Classes & Objects*: `class Name { public: private: protected: ... };`, object instantiation via `new`, destruction via `delete`, member access `obj.field`, pointer access `ptr->method()`, scope resolution `Scope::Name`.
+     - *I/O*: Stream insertion operator: `cout << expr;` and extraction `cin >> var;`.
      - *Exclusions*: Templates, multiple inheritance, operator overloading, virtual tables/dynamic dispatch, exceptions, STL containers.
-  3. **Java Subset (`CompileCraft-Java` / `src/frontend_java/` [Planned])**:
+  3. **Java Subset (`CompileCraft-Java` / `Java_Compiler/` [Reserved])**:
      - *Paradigm*: Strictly class-enclosed object-oriented.
      - *Structure*: `public class Main { public static void main(String[] args) { ... } }`.
      - *Keywords*: `class`, `public`, `static`, `void`, `boolean`, `int`, `float`, `char`, `if`, `else`, `while`, `for`, `return`, `new`, `this`, `true`, `false`. Note: `System`, `out`, `println`, and `String` are class, field, and method identifiers (`IDENTIFIER`), not keywords.

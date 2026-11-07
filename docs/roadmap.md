@@ -63,10 +63,10 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 
 ### Current Status: Baseline, C, and C++ Front-End Lexers Completed
 - [x] **Baseline Lexer (`src/lexer/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main.c` (17/17 tests).
-- [x] **C-Subset Lexer (`src/frontend_c/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_c.c` (19/19 tests).
-- [x] **C++-Subset Lexer (`src/frontend_cpp/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_cpp.c` (18/18 tests).
+- [x] **C-Subset Lexer (`C_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_c.c` (19/19 tests).
+- [x] **C++-Subset Lexer (`CPP_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_cpp.c` (18/18 tests).
 - [x] **Automated Regression Suite**: 54 total automated tests passing via `tests/run_tests.py` across baseline (17), C (19), and C++ (18).
-- [ ] **Next Phase**: Milestone 2.3 Java Lexical Analyzer (`src/frontend_java/`).
+- [ ] **Next Phase**: Milestone 2.3 Java Lexical Analyzer (`Java_Compiler/`).
 
 ### Revised Milestone 2 Execution Sequence
 
@@ -77,21 +77,21 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 - [ ] Document token tables for Java (`docs/tokens_java.md` [Planned]).
 - [ ] Structure shared compiler infrastructure directories (`src/common/ast/`, `src/common/symbol_table/`, `src/common/tac/` [Planned]).
 
-#### Milestone 2.1: C Lexical Analyzer (`CompileCraft-C` / `src/frontend_c/`) [COMPLETED]
-- [x] Implement `src/frontend_c/tokens.def`, `tokens.h`, `tokens.c`.
-- [x] Implement `src/frontend_c/lexer.l` supporting C subset keywords (`int`, `float`, `double`, `char`, `void`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`), character/string literals with escape sequences, operators, and preprocessor rejection. (Note: `printf` and `main` are standard identifiers).
+#### Milestone 2.1: C Lexical Analyzer (`CompileCraft-C` / `C_Compiler/`) [COMPLETED]
+- [x] Implement `C_Compiler/tokens.def`, `tokens.h`, `tokens.c`.
+- [x] Implement `C_Compiler/lexer.l` supporting C subset keywords (`int`, `float`, `double`, `char`, `void`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`), character/string literals with escape sequences, operators, and preprocessor rejection. (Note: `printf` and `main` are standard identifiers).
 - [x] Build standalone C lexer driver `bin/compilecraft-lexer-c.exe`.
 - [x] Add automated C lexical test suite (`tests/c/`) with 19/19 passing tests covering keywords, identifiers, operators, minus tokens, literals, escapes, CRLF, and error rejections.
 
-#### Milestone 2.2: C++ Lexical Analyzer (`CompileCraft-CPP` / `src/frontend_cpp/`) [COMPLETED]
-- [x] Implement `src/frontend_cpp/tokens.def`, `tokens.h`, `tokens.c`.
-- [x] Implement `src/frontend_cpp/lexer.l` adding 22 C++ subset keywords (`int`, `float`, `double`, `char`, `void`, `bool`, `true`, `false`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`, `class`, `public`, `private`, `protected`, `new`, `delete`, `this`), OOP operators (`::`, `.`, `->`, `<<`, `>>`, arithmetic, relational, logical, compound assignment, inc/dec), and preprocessor rejection. (Note: `cout`, `cin`, `std`, `endl`, and `main` are standard identifiers).
+#### Milestone 2.2: C++ Lexical Analyzer (`CompileCraft-CPP` / `CPP_Compiler/`) [COMPLETED]
+- [x] Implement `CPP_Compiler/tokens.def`, `tokens.h`, `tokens.c`.
+- [x] Implement `CPP_Compiler/lexer.l` adding 22 C++ subset keywords (`int`, `float`, `double`, `char`, `void`, `bool`, `true`, `false`, `if`, `else`, `while`, `for`, `return`, `break`, `continue`, `class`, `public`, `private`, `protected`, `new`, `delete`, `this`), OOP operators (`::`, `.`, `->`, `<<`, `>>`, arithmetic, relational, logical, compound assignment, inc/dec), and preprocessor rejection. (Note: `cout`, `cin`, `std`, `endl`, and `main` are standard identifiers).
 - [x] Build standalone C++ lexer driver `bin/compilecraft-lexer-cpp.exe`.
 - [x] Add automated C++ lexical test suite (`tests/cpp/`) with 18/18 passing tests covering all token categories, keyword boundaries, scope resolution, stream I/O, classes, CRLF endings, empty input, and error conditions.
 
-#### Milestone 2.3: Java Lexical Analyzer (`CompileCraft-Java` / `src/frontend_java/` [Planned])
-- [ ] Implement `src/frontend_java/tokens.def`, `tokens.h`, `tokens.c`.
-- [ ] Implement `src/frontend_java/lexer.l` adding Java subset tokens (`class`, `public`, `static`, `void`, `boolean`, `new`, `this`, etc.). (Note: `System`, `out`, `println`, and `String` are standard identifiers).
+#### Milestone 2.3: Java Lexical Analyzer (`CompileCraft-Java` / `Java_Compiler/` [Reserved])
+- [ ] Implement `Java_Compiler/tokens.def`, `tokens.h`, `tokens.c`.
+- [ ] Implement `Java_Compiler/lexer.l` adding Java subset tokens (`class`, `public`, `static`, `void`, `boolean`, `new`, `this`, etc.). (Note: `System`, `out`, `println`, and `String` are standard identifiers).
 - [ ] Build standalone Java lexer driver `bin/compilecraft-lexer-java.exe`.
 - [ ] Add automated Java lexical test suite (`tests/java/`).
 
@@ -291,3 +291,13 @@ Document the complete formal grammar, pipeline architecture, symbol table scopin
 ### Acceptance Checks
 - [ ] Formal CFG completely covers Section 5 language features.
 - [ ] Architecture document accurately reflects the implemented AST and TAC structures.
+
+---
+
+## Planned Visual Interface Components
+
+### Visual Front-End (`frontend/` [Planned])
+- Interactive web/desktop visual user interface for source code editing, real-time lexical/syntax token stream inspection, AST graph visualization, and TAC output display.
+
+### Visual Back-End (`backend/` [Planned])
+- Interface API and compilation service connecting the interactive front-end to CompileCraft language compiler engines (`C_Compiler/`, `CPP_Compiler/`, `Java_Compiler/`).

@@ -11,15 +11,17 @@
 | Requirement Area | Target Languages | Primary Target Module / Location | Verification Method |
 |---|---|---|---|
 | **Core Lexical Analysis (Baseline)** | Simplified Mini-Language | `src/lexer/` (`lexer.l`) | Verified with 17 automated tests |
-| **C Lexical & Syntax Analysis** | C Subset (`.c`) | `src/frontend_c/` (`lexer.l`, `parser.y`) | C test suite & AST generation |
-| **C++ Lexical & Syntax Analysis** | C++ Subset (`.cpp`) | `src/frontend_cpp/` (`lexer.l`, `parser.y`) | C++ test suite & AST generation |
-| **Java Lexical & Syntax Analysis** | Java Subset (`.java`) | `src/frontend_java/` (`lexer.l`, `parser.y`) | Java test suite & AST generation |
+| **C Lexical & Syntax Analysis** | C Subset (`.c`) | `C_Compiler/` (`lexer.l`, `parser.y`) | C test suite & AST generation |
+| **C++ Lexical & Syntax Analysis** | C++ Subset (`.cpp`) | `CPP_Compiler/` (`lexer.l`, `parser.y`) | C++ test suite & AST generation |
+| **Java Lexical & Syntax Analysis** | Java Subset (`.java`) | `Java_Compiler/` (`lexer.l`, `parser.y`) | Java test suite & AST generation |
 | **Abstract Syntax Tree (AST)** | Shared Core + Extensions | `src/common/ast/` (`ast.h`, `ast.c`) | Hierarchical AST inspection |
 | **Symbol Table & Scoping** | Shared Core + OOP scopes | `src/common/symbol_table/` | Nested scopes & class table tests |
 | **Semantic Analysis** | Language-specific rules | `src/semantic/` | Type & scope constraint checks |
 | **Intermediate Code (TAC)** | Shared Unified IR | `src/common/tac/` | Clean Three-Address Code output |
 | **Testing Suite** | All three languages | `tests/` (`tests/run_tests.py`) | Automated multi-language runner |
 | **Toolchain & Build** | Unified Build | `Makefile` | Multi-target build and clean recipes |
+| **Visual Interface (Front-End)** | Visual Web/Desktop UI | `frontend/` | [Planned] Interactive visualization UI component |
+| **Visual Interface (Back-End)** | Interface API / Service | `backend/` | [Planned] Language service & compilation API component |
 
 ---
 

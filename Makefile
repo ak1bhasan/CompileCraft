@@ -70,13 +70,13 @@ test-lexer: $(LEXER_BIN)
 # ------------------------------------------------------------------------------
 # C-Subset Lexer (Milestone 2.1)
 # ------------------------------------------------------------------------------
-$(BUILD_C_DIR)/lex.yy.c: src/frontend_c/lexer.l src/frontend_c/tokens.h src/frontend_c/tokens.def
+$(BUILD_C_DIR)/lex.yy.c: C_Compiler/lexer.l C_Compiler/tokens.h C_Compiler/tokens.def
 	@mkdir -p $(BUILD_C_DIR)
-	$(FLEX) -o $(BUILD_C_DIR)/lex.yy.c src/frontend_c/lexer.l
+	$(FLEX) -o $(BUILD_C_DIR)/lex.yy.c C_Compiler/lexer.l
 
-$(LEXER_C_BIN): $(BUILD_C_DIR)/lex.yy.c src/frontend_c/tokens.c src/frontend_c/tokens.h src/frontend_c/tokens.def src/frontend_c/main_c.c
+$(LEXER_C_BIN): $(BUILD_C_DIR)/lex.yy.c C_Compiler/tokens.c C_Compiler/tokens.h C_Compiler/tokens.def C_Compiler/main_c.c
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) -Isrc/frontend_c -Isrc -o $(LEXER_C_BIN) $(BUILD_C_DIR)/lex.yy.c src/frontend_c/tokens.c src/frontend_c/main_c.c
+	$(CC) $(CFLAGS) -IC_Compiler -Isrc -o $(LEXER_C_BIN) $(BUILD_C_DIR)/lex.yy.c C_Compiler/tokens.c C_Compiler/main_c.c
 
 lexer-c: $(LEXER_C_BIN)
 
@@ -86,13 +86,13 @@ test-c: $(LEXER_C_BIN)
 # ------------------------------------------------------------------------------
 # C++-Subset Lexer (Milestone 2.2)
 # ------------------------------------------------------------------------------
-$(BUILD_CPP_DIR)/lex.yy.c: src/frontend_cpp/lexer.l src/frontend_cpp/tokens.h src/frontend_cpp/tokens.def
+$(BUILD_CPP_DIR)/lex.yy.c: CPP_Compiler/lexer.l CPP_Compiler/tokens.h CPP_Compiler/tokens.def
 	@mkdir -p $(BUILD_CPP_DIR)
-	$(FLEX) -o $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/lexer.l
+	$(FLEX) -o $(BUILD_CPP_DIR)/lex.yy.c CPP_Compiler/lexer.l
 
-$(LEXER_CPP_BIN): $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/tokens.c src/frontend_cpp/tokens.h src/frontend_cpp/tokens.def src/frontend_cpp/main_cpp.c
+$(LEXER_CPP_BIN): $(BUILD_CPP_DIR)/lex.yy.c CPP_Compiler/tokens.c CPP_Compiler/tokens.h CPP_Compiler/tokens.def CPP_Compiler/main_cpp.c
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) -Isrc/frontend_cpp -Isrc -o $(LEXER_CPP_BIN) $(BUILD_CPP_DIR)/lex.yy.c src/frontend_cpp/tokens.c src/frontend_cpp/main_cpp.c
+	$(CC) $(CFLAGS) -ICPP_Compiler -Isrc -o $(LEXER_CPP_BIN) $(BUILD_CPP_DIR)/lex.yy.c CPP_Compiler/tokens.c CPP_Compiler/main_cpp.c
 
 lexer-cpp: $(LEXER_CPP_BIN)
 
