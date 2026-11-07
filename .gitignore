@@ -1,0 +1,97 @@
+# ==============================================================================
+# CompileCraft - .gitignore
+# ==============================================================================
+
+# Executables and binary outputs
+*.exe
+*.out
+*.app
+bin/
+build/
+compilecraft
+compilecraft.exe
+
+# Object files and intermediate compile artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+
+# Flex / Lex generated files (generated from .l sources)
+lex.yy.c
+lex.yy.h
+lexer.c
+lexer.h
+src/lexer/lex.yy.c
+src/lexer/lex.yy.h
+src/lexer/lexer.c
+src/lexer/lexer.h
+
+# Bison / Yacc generated files (generated from .y sources)
+y.tab.c
+y.tab.h
+y.output
+parser.c
+parser.h
+parser.tab.c
+parser.tab.h
+parser.output
+src/parser/y.tab.c
+src/parser/y.tab.h
+src/parser/y.output
+src/parser/parser.c
+src/parser/parser.h
+src/parser/parser.tab.c
+src/parser/parser.tab.h
+src/parser/parser.output
+
+# Test run artifacts and actual outputs (expected outputs in tests/*.expected are preserved)
+*.actual
+*.actual.tac
+*.actual.out
+tests/*.actual
+tests/*.actual.tac
+tests/*.actual.out
+tests/run_tests.log
+
+# Temporary files and log files
+*.tmp
+*.temp
+*.log
+*.bak
+
+# Visualization generated outputs (Graphviz rendered images)
+*.png
+*.svg
+*.pdf.tmp
+
+# Course manual and proprietary instructional materials (keep local)
+*.pdf
+docs/*.pdf
+*Manual*.pdf
+*manual*.pdf
+
+# Editor and IDE configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.directory
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+desktop.ini
+.DS_Store
+
+# Explicitly ensure source specifications and expected test outputs are NEVER ignored
+!src/lexer/*.l
+!src/parser/*.y
+!tests/**/*.expected
+!tests/**/*.mc
+!tests/**/*.txt
+!examples/**/*.mc
+!examples/**/*.txt
