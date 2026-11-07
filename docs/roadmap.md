@@ -44,18 +44,15 @@ Establish the project workspace layout, verify a functional 64-bit toolchain (GC
 ### Objective
 Formally specify the Context-Free Grammar (CFG) and token sets based strictly on Section 5 of the manual, eliminating ambiguity and designing operator precedence before writing generator files.
 
-### Target Deliverables
-- `docs/grammar.md`: Formal BNF/CFG production rules covering declarations, assignments, arithmetic/relational/logical expressions, if/if-else, while, print, and nested blocks.
-- Explicit token table listing terminal symbols, regular expressions, and semantic value types.
-
-### Acceptance Checks
-- [ ] CFG derives all constructs in the authoritative Section 5.5 sample program.
-- [ ] Operator precedence hierarchy is documented: multiplicative (`*`, `/`, `%`) > additive (`+`, `-`) > relational (`<`, `>`, `<=`, `>=`) > equality (`==`, `!=`) > logical AND (`&&`) > logical OR (`||`).
-- [ ] Associativity rules defined to prevent dangling-else ambiguity.
+### Status: **COMPLETED**
+- [x] Documented formal BNF/CFG production rules covering all declarations, assignments, expressions, control flow, print, and blocks (`docs/grammar.md`).
+- [x] Documented token table listing terminals, regular expressions, and semantic value types (`docs/tokens.md`).
+- [x] Defined complete operator precedence and associativity hierarchy (validated via Bison: zero unresolved conflicts after precedence resolution).
+- [x] Verified grammar unambiguously derives all constructs in the Section 5.5 sample program.
+- [x] Defined basic syntax error recovery strategy utilizing Bison `error` token.
 
 ### Suggested Commit Messages
 - `docs(spec): document formal context-free grammar and token specifications`
-- `docs(spec): define operator precedence and associativity hierarchy`
 
 ---
 

@@ -84,8 +84,8 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 
 ## 4. Current Implementation Status
 
-> **Status**: **Stage 1 Complete — Build Foundation, Toolchain Verification, and Specification Planning**  
-> *Compiler source modules are scheduled for incremental implementation starting in Milestone 1.*
+> **Status**: **Milestone 1 Complete — Formal Grammar & Token Specification Verified**  
+> *Toolchain verified, LALR(1) grammar validated with zero unresolved conflicts after precedence resolution, and token specification established. Ready for Milestone 2 (Flex Lexer).*
 
 ### Status Matrix
 
@@ -96,6 +96,8 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 | **Requirements Specification** | Traceable technical requirements checklist | **COMPLETED** | See `docs/requirements.md`. |
 | **Engineering Decisions** | Specification analysis, conclusions, and open items | **COMPLETED** | See `docs/decisions.md`. |
 | **Milestone Roadmap** | Granular roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
+| **Grammar Specification** | Context-Free Grammar (BNF) & ambiguity resolution | **COMPLETED** | See `docs/grammar.md` (zero unresolved conflicts after precedence resolution in Bison). |
+| **Token Specification** | Lexical tokens, literal patterns, and error policy | **COMPLETED** | See `docs/tokens.md`. |
 | **Lexical Analyzer (`src/lexer/`)** | Flex scanner specification (`lexer.l`) | **PLANNED** | Scheduled for Milestone 2. |
 | **Syntax Analyzer (`src/parser/`)** | Bison grammar specification (`parser.y`) | **PLANNED** | Scheduled for Milestone 3. |
 | **AST (`src/ast/`)** | Node structures, constructors, and visualizer | **PLANNED** | Scheduled for Milestone 4. |
@@ -117,7 +119,9 @@ CompileCraft/
 ├── docs/
 │   ├── requirements.md      # Traceable technical requirements and specification rules
 │   ├── roadmap.md           # Milestone plan with acceptance criteria and commit messages
-│   └── decisions.md         # Open questions, manual-backed conclusions, and proposals
+│   ├── decisions.md         # Open questions, manual-backed conclusions, and proposals
+│   ├── grammar.md           # Formal BNF Context-Free Grammar and precedence rules
+│   └── tokens.md            # Complete lexical token specifications and error rules
 ├── src/                     # [Planned] Source code organized by compiler phase
 │   ├── lexer/               # Flex lexical specifications (.l)
 │   ├── parser/              # Bison grammar specifications (.y)

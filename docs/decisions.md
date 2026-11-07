@@ -11,7 +11,7 @@
 | ID | Topic | Manual References | Manual-Supported Conclusion vs Open Question | Working Engineering Default | Status |
 |---|---|---|---|---|:---:|
 | **DEC-01** | Variable Initialization in Declaration | Sec 5.2, 5.5 vs Sec 4.5 | **Ambiguity**: Sec 5.2 specifies `Variable declaration (e.g., int x;)` and `Assignment (e.g., x = 5;)` as separate statements. Sec 5.5 sample program uses strictly separate statements. However, Sec 4.5 table shows `bool b = 5 + 3.2;`. | Support both `type ID;` and optional `type ID = expr;` in grammar to allow flexibility while remaining strictly compatible with Sec 5.5 programs. | **OPEN** |
-| **DEC-02** | Type Widening vs Strict Equivalence | Sec 4.5, 5.1 | **Ambiguity**: Sec 4.5 forbids `bool` with numeric types (`bool = int + float` is a type mismatch). It does not define implicit type promotion between `int` and `float` (e.g. `1 + 2.5`). No casting syntax is specified in Section 5. | Strict type checking by default. Disallow implicit narrowing (`int = float`). For mixed arithmetic (`int + float`), promote to `float` if widening is accepted; otherwise flag as type mismatch. | **OPEN** |
+| **DEC-02** | Type Widening vs Strict Equivalence | Sec 4.5, 5.1 | **Ambiguity**: Sec 4.5 forbids `bool` with numeric types (`bool = int + float` is a type mismatch). It does not define implicit type promotion between `int` and `float` (e.g. `1 + 2.5`). No casting syntax is specified in Section 5. | Strict type checking by default. Disallow implicit narrowing (float-to-int conversion: `int = float`). For mixed arithmetic (`int + float`), allow widening (int-to-float conversion) if widening is accepted; otherwise flag as type mismatch. | **OPEN** |
 | **DEC-03** | Modulo Operator Domain | Sec 5.3 | **Supported Conclusion**: `%` is listed under arithmetic operators. Standard compiler semantics restrict modulo to integer types (`int % int -> int`). Float modulo is not defined. | Restrict `%` strictly to integer operands. Flag floating-point modulo (`float % ...`) as a semantic error. | **SUPPORTED** |
 | **DEC-04** | Equality Operators on Booleans | Sec 5.3, 5.5 | **Supported Conclusion**: Sec 5.5 explicitly includes `if (flag == true)`. Equality operators (`==`, `!=`) therefore legally apply to boolean operands (`bool == bool`). | Allow `==` and `!=` on `bool`. Restrict ordering operators (`<`, `>`, `<=`, `>=`) strictly to numeric types (`int`, `float`). | **SUPPORTED** |
 | **DEC-05** | Control Flow Statement Bodies & Braces | Sec 5.2, 5.5 | **Supported Conclusion**: Sec 5.2 lists "Nested blocks ({ ... }), with proper scoping". Sec 5.5 encloses all `while` and `if-else` bodies in `{ ... }`. | Grammar rules allow both single statements and compound blocks `{ ... }`, with new lexical scope frames generated exclusively on `{ ... }` blocks. | **SUPPORTED** |
@@ -21,6 +21,7 @@
 | **DEC-09** | Multi-Variable Declarations | Sec 4.6, 5.2, 5.5 | **Supported Conclusion**: All declarations in Sec 4.6 and Sec 5.5 declare a single variable per statement (`int a; int b; int c;`). | Support single declaration per statement (`type ID;`) strictly adhering to Section 5.2. | **SUPPORTED** |
 | **DEC-10** | Error Recovery Strategy & CLI Exit Code | Sec 4.2, 4.5 | **Supported Conclusion**: Sec 4.2 requires basic error recovery via Bison `error` token to continue parsing. Sec 4.5 requires detecting all semantic violations. | Continue parsing and semantic analysis to collect and report all diagnostic errors; exit with code 0 on clean build, non-zero (code 1) if errors are detected. | **SUPPORTED** |
 | **DEC-11** | Compilation Pipeline Boundary | Sec 4.6, 6 | **Supported Conclusion**: Sec 4.6 and Sec 6 explicitly mandate terminating at Three-Address Code (TAC). Assembly, machine code, register allocation, and linking are strictly out of scope. | The compiler pipeline terminates at Three-Address Code (TAC) generation. | **SUPPORTED** |
+| **DEC-12** | Unary Minus Handling | Sec 5.3 vs Sec 14 | **Ambiguity**: Sec 5.3 lists `-` under arithmetic operators, while Sec 14 lists "Unary operators, increment/decrement" as bonus features. However, expressions like `x = -1;` or `-a` are common. | In the grammar, support unary minus (`- <expr> %prec UMINUS`) while excluding full unary extensions (increment/decrement `++`, `--`). Literals in the lexer remain unsigned (`[0-9]+`). | **PROPOSED** |
 
 ---
 
@@ -67,8 +68,8 @@
   The manual explicitly isolates `bool` from numeric types. However, it does not explicitly state whether `int` implicitly promotes to `float` in mixed arithmetic (e.g., `10 + 3.14`), or whether assigning an `int` to a `float` (`float f; f = 10;`) is legal. Explicit type-casting syntax is not defined anywhere in Section 5.
 - **Proposed Default for CompileCraft**:
   1. `bool` is completely incompatible with numeric types (no conversion or comparison with `int`/`float`).
-  2. Assigning `float` to `int` is strictly forbidden (Invalid Assignment).
-  3. Mixed arithmetic `int + float` will promote to `float`, and assigning `int` to `float` will be permitted as lossless widening, unless strict type equivalence is explicitly chosen.
+  2. Float-to-int conversion is described as narrowing (`int = float`), which is strictly forbidden and rejected as an Invalid Assignment error.
+  3. Int-to-float conversion is described as widening (`float = int` or `int + float -> float`), which is treated as lossless widening promotion in mixed arithmetic and assignment unless strict type equivalence is explicitly enforced.
 
 ---
 
@@ -126,3 +127,14 @@
   - Sequential temporary naming: `t1`, `t2`, `t3`, ...
   - Sequential label naming: `L1`, `L2`, `L3`, ...
   - Clear linear text emission format matching the Section 4.6 specification.
+
+---
+
+### DEC-12: Unary Minus vs Negative Literals
+- **Manual Evidence**:
+  - Section 5.3 lists `-` under arithmetic operators.
+  - Section 14 lists "Unary operators, increment/decrement" under optional bonus features.
+- **Analysis**:
+  If negative literals (e.g. `-10`) are tokenized as negative numbers by the lexer, expressions like `x-5` or `x - 5` introduce lexical ambiguity between subtraction and signed integers. Standard compiler design tokenizes unsigned numbers and parses `-` as either binary subtraction or unary negation based on grammar context.
+- **Proposed Default for CompileCraft**:
+  The lexer tokenizes non-negative integer and floating-point literals. The grammar supports unary minus (`- <expr>`) with high precedence (`%prec UMINUS`). Increment/decrement (`++`, `--`) is deferred to Milestone 10 bonus features.
