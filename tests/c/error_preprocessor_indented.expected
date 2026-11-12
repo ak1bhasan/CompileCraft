@@ -1,0 +1,11 @@
+Line 1: KW_INT 'int'
+Line 1: IDENTIFIER 'ready'
+Line 1: ASSIGN '='
+Line 1: INT_LITERAL '1'
+Line 1: SEMICOLON ';'
+Lexical Error at line 2: Unsupported language feature: Preprocessing directive
+Line 3: KW_INT 'int'
+Line 3: IDENTIFIER 'after'
+Line 3: ASSIGN '='
+Line 3: INT_LITERAL '2'
+Line 3: SEMICOLON ';'

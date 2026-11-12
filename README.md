@@ -1,20 +1,23 @@
 # CompileCraft
 
-> **A Multi-Language Compiler Front-End Supporting C, C++, and Java Subsets with Unified Three-Address Code (TAC) Intermediate Representation**
+> **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
+> **Current focus**: lexical analysis. Later milestones add parsing, AST, semantics, and TAC.
 
 ---
 
 ## 1. Project Overview
 
-**CompileCraft** is a modular compiler front-end developed in **C**, **Flex**, and **Bison**. The project processes source code written in distinct subsets of **C**, **C++**, and **Java**, performs lexical, syntactic, and semantic validation across separate language front ends, and emits linear **Three-Address Code (TAC)** through a shared intermediate representation.
+**CompileCraft** is a modular compiler front-end developed in **C**, **Flex**, and **Bison**. It targets distinct subsets of **C**, **C++**, and **Java** through separate language front ends that will eventually share AST, symbol-table, and Three-Address Code (TAC) infrastructure.
 
-The primary architectural goal of CompileCraft is to showcase a decoupled, multi-frontend compiler pipeline where each language front end maps its idiosyncratic syntax (procedural C, object-oriented C++, and class-centric Java) into shared intermediate structures (Abstract Syntax Trees, scoped symbol tables, and TAC instructions) while emitting human-readable diagnostic messages with line numbers.
+**Implemented today (Milestone 2.4):** four standalone Flex lexers (baseline mini-language, C, C++, and Java), Makefile integration, and automated regression tests with optional semantic-value verification.
+
+**Planned (not yet implemented):** Bison parsers, AST construction, scoped symbol tables, semantic analysis, TAC generation, and a unified CLI driver.
 
 ---
 
-## 2. Compiler Pipeline Architecture
+## 2. Target Compiler Pipeline Architecture
 
-CompileCraft supports three language front ends feeding into a shared intermediate representation and TAC generator:
+The diagram below is the **target** architecture. Only the lexer stage of each front end is implemented so far.
 
 ```
   ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
@@ -24,36 +27,31 @@ CompileCraft supports three language front ends feeding into a shared intermedia
            ▼                        ▼                          ▼
   ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
   │  C Front-End     │    │   C++ Front-End    │    │   Java Front-End    │
-  │  - Lexer (Flex)  │    │   - Lexer (Flex)   │    │   - Lexer (Flex)    │
-  │  - Parser (Bison)│    │   - Parser (Bison) │    │   - Parser (Bison)  │
-  │  - AST Mapper    │    │   - AST Mapper     │    │   - AST Mapper      │
+  │  - Lexer (DONE)  │    │   - Lexer (DONE)   │    │   - Lexer (DONE)    │
+  │  - Parser (PLAN) │    │   - Parser (PLAN)  │    │   - Parser (PLAN)   │
+  │  - AST (PLAN)    │    │   - AST (PLAN)     │    │   - AST (PLAN)      │
   └────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
            │                        │                          │
            └───────────────────┐    │    ┌─────────────────────┘
                                ▼    ▼    ▼
                     ┌──────────────────────────────┐
-                    │      Shared Core AST &       │
-                    │   Scoped Symbol Table Engine │
+                    │ Shared Core AST & Symbol     │
+                    │ Table (PLANNED)              │
                     └──────────────┬───────────────┘
                                    │
                                    ▼
                     ┌──────────────────────────────┐
-                    │      Semantic Analyzer       │
-                    │   (Type & Scope Validation)  │
+                    │ Semantic Analyzer (PLANNED)  │
                     └──────────────┬───────────────┘
                                    │
                                    ▼
                     ┌──────────────────────────────┐
-                    │ Intermediate Code Generator  │
-                    │  Three-Address Code (TAC)    │
-                    └──────────────┬───────────────┘
-                                   │
-                                   ▼
-                        Three-Address Code (TAC)
+                    │ TAC Generator (PLANNED)      │
+                    └──────────────────────────────┘
 ```
 
 ### Out-of-Scope Architecture Boundaries
-By design, backend machine code generation, hardware assembly, native linking, hardware register allocation, and executable binary generation are explicitly out of scope. The compiler pipeline intentionally terminates at intermediate Three-Address Code (TAC).
+By design, backend machine code generation, hardware assembly, native linking, hardware register allocation, and executable binary generation are explicitly out of scope. The eventual compiler pipeline intentionally terminates at intermediate Three-Address Code (TAC).
 
 ---
 
@@ -77,22 +75,22 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 
 ## 4. Current Implementation Status
 
-> **Status**: **Milestone 2.3 Complete — Java-Subset Lexical Analyzer Verified**
-> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`C_Compiler/`) verified (19/19 tests). C++-subset lexical analyzer (`CPP_Compiler/`) verified (18/18 tests). Java-subset lexical analyzer (`Java_Compiler/`) verified (16/16 tests). Total 70 automated tests passing across all four suites.*
+> **Status**: **Milestone 2.4 — Lexer Integration and Final Verification**
+> *Four Flex lexers integrated (baseline, C, C++, Java). Preprocessor line-start policy, escape-subset validation, semantic-value dump mode, and expanded regression coverage. Parsers/AST/semantics/TAC remain planned.*
 
 ### Status Matrix
 
 | Module / Component | Description | Status | Current Details |
 |---|---|:---:|---|
-| **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, and Make verification | **COMPLETED** | Verified 64-bit UCRT64 GCC 16.2.0, Flex 2.6.4, Bison 3.8.2. |
+| **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, Make, and Python verification | **COMPLETED** | Verified 64-bit UCRT64 GCC 16.2.0, Flex 2.6.4, Bison 3.8.2; Python checked via `toolchain-check`. |
 | **Build Foundation** | Modular `Makefile` with tool overrides & multi-targets | **COMPLETED** | Supports `toolchain-check`, `lexer`, `lexer-c`, `lexer-cpp`, `lexer-java`, `test-lexer`, `test-c`, `test-cpp`, `test-java`, `test`, `clean`. |
 | **Requirements Specification** | Multi-language technical requirements checklist | **COMPLETED** | See `docs/requirements.md`. |
 | **Engineering Decisions** | Language subset definitions, analysis, decisions | **COMPLETED** | See `docs/decisions.md` (DEC-13 Multi-Language Architecture). |
 | **Milestone Roadmap** | Multi-language roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
-| **Core Lexer Baseline (`src/lexer/`)** | Baseline scanner specification, driver, tests | **COMPLETED** | 17/17 automated tests passing via `tests/run_tests.py`. |
-| **C Lexical Analyzer (`C_Compiler/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | 19/19 automated tests passing via `tests/run_tests.py`. |
-| **C++ Lexical Analyzer (`CPP_Compiler/`)** | ISO C++98/C++11 OOP subset lexer, driver, tests | **COMPLETED** | 18/18 automated tests passing via `tests/run_tests.py`. |
-| **Java Lexical Analyzer (`Java_Compiler/`)** | Java SE class-enclosed subset lexer, driver, tests | **COMPLETED** | 16/16 automated tests passing via `tests/run_tests.py`. |
+| **Core Lexer Baseline (`src/lexer/`)** | Baseline scanner specification, driver, tests | **COMPLETED** | Baseline suite via `tests/run_tests.py`. |
+| **C Lexical Analyzer (`C_Compiler/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | Includes line-start preprocessor rejection and escape validation. |
+| **C++ Lexical Analyzer (`CPP_Compiler/`)** | ISO C++98/C++11 OOP subset lexer, driver, tests | **COMPLETED** | Includes line-start preprocessor rejection and escape validation. |
+| **Java Lexical Analyzer (`Java_Compiler/`)** | Java SE class-enclosed subset lexer, driver, tests | **COMPLETED** | Includes escape-subset validation (`\0` retained as subset extension). |
 | **Visual Interface Front-End (`frontend/`)** | Visual user interface component | **PLANNED** | Planned visual-interface component. |
 | **Visual Interface Back-End (`backend/`)** | Visual interface API / service component | **PLANNED** | Planned visual-interface component. |
 | **Shared Core AST (`src/common/ast/`)** | Common AST node structures & visualizer | **PLANNED** | Scheduled for Milestone 4. |
@@ -100,7 +98,7 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 | **Semantic Analyzer (`src/semantic/`)** | Scope, type, and OOP constraint checks | **PLANNED** | Scheduled for Milestone 6. |
 | **Shared TAC Generator (`src/common/tac/`)** | Three-Address Code intermediate representation | **PLANNED** | Scheduled for Milestone 7. |
 | **CLI Driver (`src/main.c`)** | Universal multi-language CLI (`compilecraft`) | **PLANNED** | Scheduled for Milestone 8. |
-| **Regression Test Suite (`tests/`)** | Multi-language test suites | **COMPLETED (Lexer)** | Baseline (17), C (19), C++ (18), and Java (16) operational (70 total passing). |
+| **Regression Test Suite (`tests/`)** | Multi-language lexer test suites | **COMPLETED (Lexer M2.4)** | 87 automated tests (baseline 18, C 25, C++ 24, Java 20), including preprocessor, escape, and semantic-value cases. |
 
 ---
 

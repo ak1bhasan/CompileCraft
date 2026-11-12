@@ -59,7 +59,7 @@ Keywords are reserved, case-sensitive, and lowercase:
 ### 2.4 Character Literals (`CHAR_LITERAL`)
 - **Format**: Delimited by single quotes (`'...'`).
 - **Characters**: Printable characters except `'`, `\`, and newline `\n`.
-- **Supported Escape Sequences**:
+- **Supported Escape Sequences** (CompileCraft Java subset; `\0` is retained as a subset extension rather than full Java octal escapes):
   - `\'` : Single quote (ASCII 39)
   - `\"` : Double quote (ASCII 34)
   - `\\` : Backslash (ASCII 92)
@@ -67,10 +67,11 @@ Keywords are reserved, case-sensitive, and lowercase:
   - `\t` : Tab (ASCII 9)
   - `\r` : Carriage return (ASCII 13)
   - `\0` : Null byte (ASCII 0)
+- Unsupported escapes (for example `\q`) are rejected with `Invalid escape sequence`.
 
 ### 2.5 String Literals (`STRING_LITERAL`)
 - **Format**: Delimited by double quotes (`"..."`).
-- **Contents**: Printable characters and supported escape sequences (`\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `\0`).
+- **Contents**: Printable characters and the supported escape subset above.
 - **Memory**: The scanner preserves the lexeme string safely on the heap (`strdup`), released by the driver.
 
 ### 2.6 Operators
@@ -134,7 +135,8 @@ Keywords are reserved, case-sensitive, and lowercase:
 
 | Fault Condition | Scanner Behavior | Diagnostic Output |
 |---|---|---|
-| Invalid character (`@`, `$`, `~`) | Report error, skip character | `Lexical Error at line %d: Unrecognized character '%c'` |
+| Invalid character (`@`, `$`, `~`, mid-line `#`) | Report error, skip character | `Lexical Error at line %d: Unrecognized character '%c'` |
+| Invalid escape sequence (`\q`, etc.) | Report error, skip literal | `Lexical Error at line %d: Invalid escape sequence` |
 | Unterminated block comment | Report error at comment start line, exit scanning | `Lexical Error at line %d: Unterminated block comment` |
 | Unterminated string literal | Report error, skip to end of line | `Lexical Error at line %d: Unterminated string literal` |
 | Unterminated character literal | Report error, skip to end of line | `Lexical Error at line %d: Unterminated character literal` |

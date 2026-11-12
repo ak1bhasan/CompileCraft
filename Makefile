@@ -31,7 +31,7 @@ LEXER_JAVA_BIN  ?= $(BIN_DIR)/compilecraft-lexer-java.exe
 all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (Milestone 2.3: Java Lexical Analyzer)"
+	@echo " CompileCraft - Build Succeeded (Milestone 2.4: Lexer Integration)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -53,6 +53,7 @@ toolchain-check:
 	@$(CC) --version | head -n 1
 	@$(FLEX) --version
 	@$(BISON) --version | head -n 1
+	@$(PYTHON) --version
 
 # ------------------------------------------------------------------------------
 # Baseline Mini-Language Lexer (Milestone 2.0 reference)
@@ -132,7 +133,7 @@ help:
 	@echo "=============================================================================="
 	@echo " Targets:"
 	@echo "   all              Default: checks toolchain and builds all lexers"
-	@echo "   toolchain-check  Verifies GCC, Flex, and Bison executable paths and versions"
+	@echo "   toolchain-check  Verifies GCC, Flex, Bison, and Python executable paths and versions"
 	@echo "   lexer            Builds baseline lexer (bin/compilecraft-lexer.exe)"
 	@echo "   lexer-c          Builds C-subset lexer (bin/compilecraft-lexer-c.exe)"
 	@echo "   lexer-cpp        Builds C++-subset lexer (bin/compilecraft-lexer-cpp.exe)"

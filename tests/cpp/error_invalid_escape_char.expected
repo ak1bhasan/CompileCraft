@@ -1,0 +1,5 @@
+Line 1: KW_CHAR 'char'
+Line 1: IDENTIFIER 'c'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Invalid escape sequence
+Line 1: SEMICOLON ';'

@@ -13,6 +13,16 @@
 int java_lexical_error_count = 0;
 static int comment_start_line = 1;
 
+static int is_supported_escape(char c) {
+    switch (c) {
+        case 'n': case 't': case 'r': case '0':
+        case '\\': case '\'': case '\"':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 static char parse_escape_char(char c) {
     switch (c) {
         case 'n':  return '\n';
@@ -24,6 +34,27 @@ static char parse_escape_char(char c) {
         case '\"': return '\"';
         default:   return c;
     }
+}
+
+/* Scan a quoted string lexeme for unsupported escape sequences. */
+static int string_has_invalid_escape(const char *text) {
+    const char *p = text;
+    if (*p == '\"') {
+        p++;
+    }
+    while (*p && *p != '\"') {
+        if (*p == '\\') {
+            p++;
+            if (*p == '\0') {
+                return 1;
+            }
+            if (!is_supported_escape(*p)) {
+                return 1;
+            }
+        }
+        p++;
+    }
+    return 0;
 }
 %}
 
@@ -145,11 +176,19 @@ static char parse_escape_char(char c) {
 
 '([^'\\\n]|\\.)'        {
                             if (yytext[1] == '\\') {
-                                yylval.cval = parse_escape_char(yytext[2]);
+                                if (!is_supported_escape(yytext[2])) {
+                                    fflush(stdout);
+                                    fprintf(stderr, "Lexical Error at line %d: Invalid escape sequence\n", yylineno);
+                                    fflush(stderr);
+                                    java_lexical_error_count++;
+                                } else {
+                                    yylval.cval = parse_escape_char(yytext[2]);
+                                    return CHAR_LITERAL;
+                                }
                             } else {
                                 yylval.cval = yytext[1];
+                                return CHAR_LITERAL;
                             }
-                            return CHAR_LITERAL;
                         }
 
 '([^'\\\n]|\\.)+'       {
@@ -171,8 +210,15 @@ static char parse_escape_char(char c) {
      * -------------------------------------------------------------------------- */
 
 \"([^\"\\\n]|\\.)*\"    {
-                            yylval.sval = strdup(yytext);
-                            return STRING_LITERAL;
+                            if (string_has_invalid_escape(yytext)) {
+                                fflush(stdout);
+                                fprintf(stderr, "Lexical Error at line %d: Invalid escape sequence\n", yylineno);
+                                fflush(stderr);
+                                java_lexical_error_count++;
+                            } else {
+                                yylval.sval = strdup(yytext);
+                                return STRING_LITERAL;
+                            }
                         }
 
 \"([^\"\\\n]|\\.)*      {

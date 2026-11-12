@@ -63,9 +63,15 @@ def main():
         expects_error = test_file.startswith("error_")
         expected_exit = 1 if expects_error else 0
 
+        # Tests named with 'semantic_' prefix request YYSTYPE payload dumping
+        cmd = [lexer_bin]
+        if test_file.startswith("semantic_"):
+            cmd.append("--semantic")
+        cmd.append(test_path)
+
         # Execute lexer driver on test file
         proc = subprocess.run(
-            [lexer_bin, test_path],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True

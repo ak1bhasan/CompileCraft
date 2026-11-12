@@ -1,0 +1,9 @@
+Line 1: INT_LITERAL '42' ival=42
+Line 1: FLOAT_LITERAL '3.5' fval=3.500000
+Line 1: KW_TRUE 'true' bval=1
+Line 1: KW_FALSE 'false' bval=0
+Line 2: CHAR_LITERAL ''A'' cval=65
+Line 2: CHAR_LITERAL ''\n'' cval=10
+Line 2: CHAR_LITERAL ''\0'' cval=0
+Line 3: STRING_LITERAL '"hi"' sval="hi"
+Line 3: IDENTIFIER 'name' sval=name

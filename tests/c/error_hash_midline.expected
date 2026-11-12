@@ -1,0 +1,7 @@
+Line 1: KW_INT 'int'
+Line 1: IDENTIFIER 'x'
+Line 1: ASSIGN '='
+Line 1: INT_LITERAL '10'
+Lexical Error at line 1: Unrecognized character '#'
+Line 1: INT_LITERAL '20'
+Line 1: SEMICOLON ';'

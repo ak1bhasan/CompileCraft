@@ -125,9 +125,15 @@ Keywords are reserved, case-sensitive, and lowercase:
 ### 3.3 Preprocessing Directives
 CompileCraft operates on a directive-free C subset:
 - Preprocessor directives (such as `#include`, `#define`, `#pragma`) are not supported in this subset.
-- Any preprocessing line starting with `#` is recognized and explicitly rejected:
+- A `#` at the beginning of a physical line, optionally preceded only by spaces or tabs, is recognized as an unsupported preprocessing directive and rejected:
   `Lexical Error at line %d: Unsupported language feature: Preprocessing directive`
+- A `#` appearing mid-line in ordinary code is an unrecognized character. It does not consume the remainder of the line; subsequent tokens continue to be scanned.
 - This directive-free subset policy ensures unsupported preprocessor directives are explicitly diagnosed rather than silently ignored or requiring an external preprocessor pass.
+
+### 3.4 Escape Sequences
+Supported escapes in character and string literals: `\n`, `\t`, `\r`, `\0`, `\\`, `\'`, `\"`.
+Any other escape sequence is rejected with:
+`Lexical Error at line %d: Invalid escape sequence`
 
 ---
 
@@ -135,8 +141,10 @@ CompileCraft operates on a directive-free C subset:
 
 | Fault Condition | Scanner Behavior | Diagnostic Output |
 |---|---|---|
-| Preprocessor directive (`#include`, etc.) | Report error, skip directive line | `Lexical Error at line %d: Unsupported language feature: Preprocessing directive` |
+| Line-start preprocessor directive (`#include`, indented `#define`, etc.) | Report error, skip directive line | `Lexical Error at line %d: Unsupported language feature: Preprocessing directive` |
+| Mid-line `#` | Report unrecognized character, continue scanning | `Lexical Error at line %d: Unrecognized character '#'` |
 | Invalid character (`@`, `$`, `~`) | Report error, skip character | `Lexical Error at line %d: Unrecognized character '%c'` |
+| Invalid escape sequence (`\q`, etc.) | Report error, skip literal | `Lexical Error at line %d: Invalid escape sequence` |
 | Unterminated block comment | Report error at comment start line, exit scanning | `Lexical Error at line %d: Unterminated block comment` |
 | Unterminated string literal | Report error, skip to end of line | `Lexical Error at line %d: Unterminated string literal` |
 | Unterminated character literal | Report error, skip to end of line | `Lexical Error at line %d: Unterminated character literal` |

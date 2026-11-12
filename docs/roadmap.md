@@ -61,13 +61,14 @@ Formally specify the Context-Free Grammar (CFG) and token sets based strictly on
 ### Objective
 Implement production-grade lexical analyzers using Flex to convert source characters into token streams, skip comments and whitespace, and report lexical errors with line numbers across three target languages: C, C++, and Java.
 
-### Current Status: Baseline, C, C++, and Java Front-End Lexers Completed
-- [x] **Baseline Lexer (`src/lexer/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main.c` (17/17 tests).
-- [x] **C-Subset Lexer (`C_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_c.c` (19/19 tests).
-- [x] **C++-Subset Lexer (`CPP_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_cpp.c` (18/18 tests).
-- [x] **Java-Subset Lexer (`Java_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_java.c` (16/16 tests).
-- [x] **Automated Regression Suite**: 70 total automated tests passing via `tests/run_tests.py` across baseline (17), C (19), C++ (18), and Java (16).
-- [ ] **Next Phase**: Milestone 3 Syntax Analyzer & Error Recovery (Bison) — deferred until front-end lexical coverage is reviewed.
+### Current Status: Milestone 2.4 Lexer Integration Complete
+- [x] **Baseline Lexer (`src/lexer/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main.c`.
+- [x] **C-Subset Lexer (`C_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_c.c`.
+- [x] **C++-Subset Lexer (`CPP_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_cpp.c`.
+- [x] **Java-Subset Lexer (`Java_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_java.c`.
+- [x] **Automated Regression Baseline**: Original 70 tests retained; Milestone 2.4 expands coverage to 87 total tests (baseline 18, C 25, C++ 24, Java 20).
+- [x] **Milestone 2.4 hardening**: line-start preprocessor policy, escape-subset validation, semantic-value verification, documentation accuracy, and expanded regression coverage.
+- [ ] **Next Phase**: Milestone 3 Syntax Analyzer & Error Recovery (Bison).
 
 ### Revised Milestone 2 Execution Sequence
 
@@ -96,10 +97,16 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 - [x] Build standalone Java lexer driver `bin/compilecraft-lexer-java.exe`.
 - [x] Add automated Java lexical test suite (`tests/java/`) with 16/16 passing tests covering keywords, identifiers, operators, literals, delimiters, comments/whitespace, CRLF, sample programs, and error conditions.
 
-#### Milestone 2.4: Unified Test Runner & Build Integration [COMPLETED]
+#### Milestone 2.4: Lexer Integration and Final Verification [COMPLETED]
 - [x] Update `Makefile` with targets: `lexer-c`, `lexer-cpp`, `lexer-java`, `test-c`, `test-cpp`, `test-java`, `test`.
 - [x] Integrate multi-language dispatching into `tests/run_tests.py` supporting `.mc`, `.c`, `.cpp`, and `.java`.
 - [x] Add `lexer-java` and `test-java` targets upon completion of Milestone 2.3.
+- [x] Align documentation so implemented vs planned stages are unambiguous.
+- [x] Enforce line-start-only preprocessor rejection for C/C++; mid-line `#` is an invalid character.
+- [x] Enforce supported escape subset (`\n \t \r \0 \\ \' \"`) for C/C++/Java.
+- [x] Add optional `--semantic` payload dumping and dedicated semantic regression cases.
+- [x] Verify Python in `toolchain-check`.
+- [x] Keep Flex symbol prefixing, reentrant scanners, and YYSTYPE/Bison guard work deferred.
 
 ---
 

@@ -1,10 +1,12 @@
 /* ==============================================================================
  * CompileCraft - Standalone C++-Subset Lexical Analyzer Driver
  * Reads a C++ source program and prints deterministic token stream information
+ * Optional --semantic flag appends YYSTYPE payloads without changing default output
  * ============================================================================== */
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "tokens.h"
 
 extern FILE *yyin;
@@ -14,15 +16,55 @@ extern char *yytext;
 extern int cpp_lexical_error_count;
 int yylex_destroy(void);
 
+static void print_semantic_payload(int token) {
+    switch (token) {
+        case INT_LITERAL:
+            printf(" ival=%d", yylval.ival);
+            break;
+        case FLOAT_LITERAL:
+            printf(" fval=%.6f", yylval.fval);
+            break;
+        case CHAR_LITERAL:
+            printf(" cval=%d", (unsigned char)yylval.cval);
+            break;
+        case KW_TRUE:
+        case KW_FALSE:
+            printf(" bval=%d", yylval.bval);
+            break;
+        case IDENTIFIER:
+        case STRING_LITERAL:
+            if (yylval.sval != NULL) {
+                printf(" sval=%s", yylval.sval);
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <source-file>\n", argv[0]);
+    int dump_semantic = 0;
+    const char *source_path = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--semantic") == 0) {
+            dump_semantic = 1;
+        } else if (argv[i][0] != '-') {
+            source_path = argv[i];
+        } else {
+            fprintf(stderr, "Usage: %s [--semantic] <source-file>\n", argv[0]);
+            return 1;
+        }
+    }
+
+    if (source_path == NULL) {
+        fprintf(stderr, "Usage: %s [--semantic] <source-file>\n", argv[0]);
         return 1;
     }
 
-    FILE *file = fopen(argv[1], "r");
+    FILE *file = fopen(source_path, "r");
     if (!file) {
-        fprintf(stderr, "Error: Cannot open source file '%s'\n", argv[1]);
+        fprintf(stderr, "Error: Cannot open source file '%s'\n", source_path);
         return 1;
     }
 
@@ -32,7 +74,11 @@ int main(int argc, char **argv) {
 
     int token;
     while ((token = yylex()) != 0) {
-        printf("Line %d: %s '%s'\n", yylineno, cpp_token_name(token), yytext);
+        printf("Line %d: %s '%s'", yylineno, cpp_token_name(token), yytext);
+        if (dump_semantic) {
+            print_semantic_payload(token);
+        }
+        printf("\n");
         fflush(stdout);
 
         /* Clean up heap-allocated token strings */
@@ -51,4 +97,3 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-
