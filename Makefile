@@ -15,21 +15,23 @@ PYTHON ?= python
 CFLAGS ?= -Wall -Wextra -pedantic -std=c11
 TARGET ?= compilecraft.exe
 
-BIN_DIR       ?= bin
-BUILD_DIR     ?= build
-BUILD_C_DIR   ?= $(BUILD_DIR)/c
-BUILD_CPP_DIR ?= $(BUILD_DIR)/cpp
+BIN_DIR         ?= bin
+BUILD_DIR       ?= build
+BUILD_C_DIR     ?= $(BUILD_DIR)/c
+BUILD_CPP_DIR   ?= $(BUILD_DIR)/cpp
+BUILD_JAVA_DIR  ?= $(BUILD_DIR)/java
 
-LEXER_BIN     ?= $(BIN_DIR)/compilecraft-lexer.exe
-LEXER_C_BIN   ?= $(BIN_DIR)/compilecraft-lexer-c.exe
-LEXER_CPP_BIN ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
+LEXER_BIN       ?= $(BIN_DIR)/compilecraft-lexer.exe
+LEXER_C_BIN     ?= $(BIN_DIR)/compilecraft-lexer-c.exe
+LEXER_CPP_BIN   ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
+LEXER_JAVA_BIN  ?= $(BIN_DIR)/compilecraft-lexer-java.exe
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp test-lexer test-c test-cpp test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java test-lexer test-c test-cpp test-java test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (Milestone 2.2: C++ Lexical Analyzer)"
+	@echo " CompileCraft - Build Succeeded (Milestone 2.3: Java Lexical Analyzer)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -41,6 +43,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN)
 	@echo "   Baseline Lexer: $(LEXER_BIN)"
 	@echo "   C Lexer       : $(LEXER_C_BIN)"
 	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
+	@echo "   Java Lexer    : $(LEXER_JAVA_BIN)"
 	@echo ""
 	@echo " Run 'mingw32-make test' to execute all regression test suites."
 	@echo "=============================================================================="
@@ -99,11 +102,27 @@ lexer-cpp: $(LEXER_CPP_BIN)
 test-cpp: $(LEXER_CPP_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_CPP_BIN) tests/cpp
 
-test: test-lexer test-c test-cpp
+# ------------------------------------------------------------------------------
+# Java-Subset Lexer (Milestone 2.3)
+# ------------------------------------------------------------------------------
+$(BUILD_JAVA_DIR)/lex.yy.c: Java_Compiler/lexer.l Java_Compiler/tokens.h Java_Compiler/tokens.def
+	@mkdir -p $(BUILD_JAVA_DIR)
+	$(FLEX) -o $(BUILD_JAVA_DIR)/lex.yy.c Java_Compiler/lexer.l
+
+$(LEXER_JAVA_BIN): $(BUILD_JAVA_DIR)/lex.yy.c Java_Compiler/tokens.c Java_Compiler/tokens.h Java_Compiler/tokens.def Java_Compiler/main_java.c
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -IJava_Compiler -Isrc -o $(LEXER_JAVA_BIN) $(BUILD_JAVA_DIR)/lex.yy.c Java_Compiler/tokens.c Java_Compiler/main_java.c
+
+lexer-java: $(LEXER_JAVA_BIN)
+
+test-java: $(LEXER_JAVA_BIN)
+	$(PYTHON) tests/run_tests.py $(LEXER_JAVA_BIN) tests/java
+
+test: test-lexer test-c test-cpp test-java
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -117,10 +136,12 @@ help:
 	@echo "   lexer            Builds baseline lexer (bin/compilecraft-lexer.exe)"
 	@echo "   lexer-c          Builds C-subset lexer (bin/compilecraft-lexer-c.exe)"
 	@echo "   lexer-cpp        Builds C++-subset lexer (bin/compilecraft-lexer-cpp.exe)"
+	@echo "   lexer-java       Builds Java-subset lexer (bin/compilecraft-lexer-java.exe)"
 	@echo "   test-lexer       Runs automated tests for baseline lexer (tests/lexer)"
 	@echo "   test-c           Runs automated tests for C-subset lexer (tests/c)"
 	@echo "   test-cpp         Runs automated tests for C++-subset lexer (tests/cpp)"
-	@echo "   test             Runs all automated test suites (baseline + C + C++)"
+	@echo "   test-java        Runs automated tests for Java-subset lexer (tests/java)"
+	@echo "   test             Runs all automated test suites (baseline + C + C++ + Java)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

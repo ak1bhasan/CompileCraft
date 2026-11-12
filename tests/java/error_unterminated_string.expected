@@ -1,0 +1,9 @@
+Line 1: IDENTIFIER 'String'
+Line 1: IDENTIFIER 's'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Unterminated string literal
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'x'
+Line 2: ASSIGN '='
+Line 2: INT_LITERAL '20'
+Line 2: SEMICOLON ';'

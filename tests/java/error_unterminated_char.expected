@@ -1,0 +1,9 @@
+Line 1: KW_CHAR 'char'
+Line 1: IDENTIFIER 'c'
+Line 1: ASSIGN '='
+Lexical Error at line 1: Unterminated character literal
+Line 2: KW_INT 'int'
+Line 2: IDENTIFIER 'x'
+Line 2: ASSIGN '='
+Line 2: INT_LITERAL '10'
+Line 2: SEMICOLON ';'

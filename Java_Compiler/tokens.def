@@ -1,0 +1,76 @@
+/* ==============================================================================
+ * CompileCraft - Authoritative Token Definitions for Java Subset
+ * Conforming to Java SE Class-Enclosed Object-Oriented Subset (docs/tokens_java.md)
+ * Compatible with GNU Bison token generation (parser.tab.h)
+ * ============================================================================== */
+
+/* Keywords */
+TOKEN_DEF(KW_INT,          258, "KW_INT")
+TOKEN_DEF(KW_FLOAT,        259, "KW_FLOAT")
+TOKEN_DEF(KW_CHAR,         260, "KW_CHAR")
+TOKEN_DEF(KW_VOID,         261, "KW_VOID")
+TOKEN_DEF(KW_BOOLEAN,      262, "KW_BOOLEAN")
+TOKEN_DEF(KW_TRUE,         263, "KW_TRUE")
+TOKEN_DEF(KW_FALSE,        264, "KW_FALSE")
+TOKEN_DEF(KW_IF,           265, "KW_IF")
+TOKEN_DEF(KW_ELSE,         266, "KW_ELSE")
+TOKEN_DEF(KW_WHILE,        267, "KW_WHILE")
+TOKEN_DEF(KW_FOR,          268, "KW_FOR")
+TOKEN_DEF(KW_RETURN,       269, "KW_RETURN")
+TOKEN_DEF(KW_CLASS,        270, "KW_CLASS")
+TOKEN_DEF(KW_PUBLIC,       271, "KW_PUBLIC")
+TOKEN_DEF(KW_STATIC,       272, "KW_STATIC")
+TOKEN_DEF(KW_NEW,          273, "KW_NEW")
+TOKEN_DEF(KW_THIS,         274, "KW_THIS")
+
+/* Identifiers & Constants */
+TOKEN_DEF(IDENTIFIER,      275, "IDENTIFIER")
+TOKEN_DEF(INT_LITERAL,     276, "INT_LITERAL")
+TOKEN_DEF(FLOAT_LITERAL,   277, "FLOAT_LITERAL")
+TOKEN_DEF(CHAR_LITERAL,    278, "CHAR_LITERAL")
+TOKEN_DEF(STRING_LITERAL,  279, "STRING_LITERAL")
+
+/* Member Access */
+TOKEN_DEF(DOT,             280, "DOT")
+
+/* Arithmetic Operators */
+TOKEN_DEF(PLUS,            281, "PLUS")
+TOKEN_DEF(MINUS,           282, "MINUS")
+TOKEN_DEF(STAR,            283, "STAR")
+TOKEN_DEF(SLASH,           284, "SLASH")
+TOKEN_DEF(MOD,             285, "MOD")
+
+/* Relational Operators */
+TOKEN_DEF(LT,              286, "LT")
+TOKEN_DEF(GT,              287, "GT")
+TOKEN_DEF(LE,              288, "LE")
+TOKEN_DEF(GE,              289, "GE")
+TOKEN_DEF(EQ,              290, "EQ")
+TOKEN_DEF(NE,              291, "NE")
+
+/* Logical Operators */
+TOKEN_DEF(AND,             292, "AND")
+TOKEN_DEF(OR,              293, "OR")
+TOKEN_DEF(NOT,             294, "NOT")
+
+/* Assignment Operators */
+TOKEN_DEF(ASSIGN,          295, "ASSIGN")
+TOKEN_DEF(PLUS_ASSIGN,     296, "PLUS_ASSIGN")
+TOKEN_DEF(MINUS_ASSIGN,    297, "MINUS_ASSIGN")
+TOKEN_DEF(STAR_ASSIGN,     298, "STAR_ASSIGN")
+TOKEN_DEF(SLASH_ASSIGN,    299, "SLASH_ASSIGN")
+TOKEN_DEF(MOD_ASSIGN,      300, "MOD_ASSIGN")
+
+/* Increment / Decrement */
+TOKEN_DEF(INC,             301, "INC")
+TOKEN_DEF(DEC,             302, "DEC")
+
+/* Delimiters & Punctuation */
+TOKEN_DEF(LBRACE,          303, "LBRACE")
+TOKEN_DEF(RBRACE,          304, "RBRACE")
+TOKEN_DEF(LPAREN,          305, "LPAREN")
+TOKEN_DEF(RPAREN,          306, "RPAREN")
+TOKEN_DEF(LBRACKET,        307, "LBRACKET")
+TOKEN_DEF(RBRACKET,        308, "RBRACKET")
+TOKEN_DEF(SEMICOLON,       309, "SEMICOLON")
+TOKEN_DEF(COMMA,           310, "COMMA")

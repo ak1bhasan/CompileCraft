@@ -61,12 +61,13 @@ Formally specify the Context-Free Grammar (CFG) and token sets based strictly on
 ### Objective
 Implement production-grade lexical analyzers using Flex to convert source characters into token streams, skip comments and whitespace, and report lexical errors with line numbers across three target languages: C, C++, and Java.
 
-### Current Status: Baseline, C, and C++ Front-End Lexers Completed
+### Current Status: Baseline, C, C++, and Java Front-End Lexers Completed
 - [x] **Baseline Lexer (`src/lexer/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main.c` (17/17 tests).
 - [x] **C-Subset Lexer (`C_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_c.c` (19/19 tests).
 - [x] **C++-Subset Lexer (`CPP_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_cpp.c` (18/18 tests).
-- [x] **Automated Regression Suite**: 54 total automated tests passing via `tests/run_tests.py` across baseline (17), C (19), and C++ (18).
-- [ ] **Next Phase**: Milestone 2.3 Java Lexical Analyzer (`Java_Compiler/`).
+- [x] **Java-Subset Lexer (`Java_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_java.c` (16/16 tests).
+- [x] **Automated Regression Suite**: 70 total automated tests passing via `tests/run_tests.py` across baseline (17), C (19), C++ (18), and Java (16).
+- [ ] **Next Phase**: Milestone 3 Syntax Analyzer & Error Recovery (Bison) — deferred until front-end lexical coverage is reviewed.
 
 ### Revised Milestone 2 Execution Sequence
 
@@ -74,7 +75,7 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 - [x] Defined realistic, bounded subsets for C, C++, and Java (DEC-13).
 - [x] Documented formal token specification and preprocessor policy for C subset (`docs/tokens_c.md`).
 - [x] Documented formal token specification and preprocessor policy for C++ subset (`docs/tokens_cpp.md`).
-- [ ] Document token tables for Java (`docs/tokens_java.md` [Planned]).
+- [x] Document token tables for Java (`docs/tokens_java.md`).
 - [ ] Structure shared compiler infrastructure directories (`src/common/ast/`, `src/common/symbol_table/`, `src/common/tac/` [Planned]).
 
 #### Milestone 2.1: C Lexical Analyzer (`CompileCraft-C` / `C_Compiler/`) [COMPLETED]
@@ -89,16 +90,16 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 - [x] Build standalone C++ lexer driver `bin/compilecraft-lexer-cpp.exe`.
 - [x] Add automated C++ lexical test suite (`tests/cpp/`) with 18/18 passing tests covering all token categories, keyword boundaries, scope resolution, stream I/O, classes, CRLF endings, empty input, and error conditions.
 
-#### Milestone 2.3: Java Lexical Analyzer (`CompileCraft-Java` / `Java_Compiler/` [Reserved])
-- [ ] Implement `Java_Compiler/tokens.def`, `tokens.h`, `tokens.c`.
-- [ ] Implement `Java_Compiler/lexer.l` adding Java subset tokens (`class`, `public`, `static`, `void`, `boolean`, `new`, `this`, etc.). (Note: `System`, `out`, `println`, and `String` are standard identifiers).
-- [ ] Build standalone Java lexer driver `bin/compilecraft-lexer-java.exe`.
-- [ ] Add automated Java lexical test suite (`tests/java/`).
+#### Milestone 2.3: Java Lexical Analyzer (`CompileCraft-Java` / `Java_Compiler/`) [COMPLETED]
+- [x] Implement `Java_Compiler/tokens.def`, `tokens.h`, `tokens.c`.
+- [x] Implement `Java_Compiler/lexer.l` adding Java subset tokens (`class`, `public`, `static`, `void`, `boolean`, `new`, `this`, etc.). (Note: `System`, `out`, `println`, and `String` are standard identifiers).
+- [x] Build standalone Java lexer driver `bin/compilecraft-lexer-java.exe`.
+- [x] Add automated Java lexical test suite (`tests/java/`) with 16/16 passing tests covering keywords, identifiers, operators, literals, delimiters, comments/whitespace, CRLF, sample programs, and error conditions.
 
-#### Milestone 2.4: Unified Test Runner & Build Integration [IN PROGRESS]
-- [x] Update `Makefile` with targets: `lexer-c`, `lexer-cpp`, `test-c`, `test-cpp`, `test`.
-- [x] Integrate multi-language dispatching into `tests/run_tests.py` supporting `.mc`, `.c`, and `.cpp`.
-- [ ] Add `lexer-java` and `test-java` targets upon completion of Milestone 2.3.
+#### Milestone 2.4: Unified Test Runner & Build Integration [COMPLETED]
+- [x] Update `Makefile` with targets: `lexer-c`, `lexer-cpp`, `lexer-java`, `test-c`, `test-cpp`, `test-java`, `test`.
+- [x] Integrate multi-language dispatching into `tests/run_tests.py` supporting `.mc`, `.c`, `.cpp`, and `.java`.
+- [x] Add `lexer-java` and `test-java` targets upon completion of Milestone 2.3.
 
 ---
 

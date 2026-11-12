@@ -160,7 +160,7 @@
      - *Classes & Objects*: `class Name { public: private: protected: ... };`, object instantiation via `new`, destruction via `delete`, member access `obj.field`, pointer access `ptr->method()`, scope resolution `Scope::Name`.
      - *I/O*: Stream insertion operator: `cout << expr;` and extraction `cin >> var;`.
      - *Exclusions*: Templates, multiple inheritance, operator overloading, virtual tables/dynamic dispatch, exceptions, STL containers.
-  3. **Java Subset (`CompileCraft-Java` / `Java_Compiler/` [Reserved])**:
+  3. **Java Subset (`CompileCraft-Java` / `Java_Compiler/`)**:
      - *Paradigm*: Strictly class-enclosed object-oriented.
      - *Structure*: `public class Main { public static void main(String[] args) { ... } }`.
      - *Keywords*: `class`, `public`, `static`, `void`, `boolean`, `int`, `float`, `char`, `if`, `else`, `while`, `for`, `return`, `new`, `this`, `true`, `false`. Note: `System`, `out`, `println`, and `String` are class, field, and method identifiers (`IDENTIFIER`), not keywords.

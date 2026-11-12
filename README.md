@@ -77,22 +77,22 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 
 ## 4. Current Implementation Status
 
-> **Status**: **Milestone 2.2 Complete — C++-Subset Lexical Analyzer Verified**  
-> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`C_Compiler/`) verified (19/19 tests). C++-subset lexical analyzer (`CPP_Compiler/`) verified (18/18 tests). Total 54 automated tests passing across all three suites.*
+> **Status**: **Milestone 2.3 Complete — Java-Subset Lexical Analyzer Verified**
+> *Baseline Flex lexical analyzer (`src/lexer/`) verified (17/17 tests). C-subset lexical analyzer (`C_Compiler/`) verified (19/19 tests). C++-subset lexical analyzer (`CPP_Compiler/`) verified (18/18 tests). Java-subset lexical analyzer (`Java_Compiler/`) verified (16/16 tests). Total 70 automated tests passing across all four suites.*
 
 ### Status Matrix
 
 | Module / Component | Description | Status | Current Details |
 |---|---|:---:|---|
 | **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, and Make verification | **COMPLETED** | Verified 64-bit UCRT64 GCC 16.2.0, Flex 2.6.4, Bison 3.8.2. |
-| **Build Foundation** | Modular `Makefile` with tool overrides & multi-targets | **COMPLETED** | Supports `toolchain-check`, `lexer`, `lexer-c`, `lexer-cpp`, `test-lexer`, `test-c`, `test-cpp`, `test`, `clean`. |
+| **Build Foundation** | Modular `Makefile` with tool overrides & multi-targets | **COMPLETED** | Supports `toolchain-check`, `lexer`, `lexer-c`, `lexer-cpp`, `lexer-java`, `test-lexer`, `test-c`, `test-cpp`, `test-java`, `test`, `clean`. |
 | **Requirements Specification** | Multi-language technical requirements checklist | **COMPLETED** | See `docs/requirements.md`. |
 | **Engineering Decisions** | Language subset definitions, analysis, decisions | **COMPLETED** | See `docs/decisions.md` (DEC-13 Multi-Language Architecture). |
 | **Milestone Roadmap** | Multi-language roadmap with verification criteria | **COMPLETED** | See `docs/roadmap.md`. |
 | **Core Lexer Baseline (`src/lexer/`)** | Baseline scanner specification, driver, tests | **COMPLETED** | 17/17 automated tests passing via `tests/run_tests.py`. |
 | **C Lexical Analyzer (`C_Compiler/`)** | ISO C99/C11 subset lexer, driver, tests | **COMPLETED** | 19/19 automated tests passing via `tests/run_tests.py`. |
 | **C++ Lexical Analyzer (`CPP_Compiler/`)** | ISO C++98/C++11 OOP subset lexer, driver, tests | **COMPLETED** | 18/18 automated tests passing via `tests/run_tests.py`. |
-| **Java Lexical Analyzer (`Java_Compiler/`)** | Java subset lexer & driver | **RESERVED** | Reserved for Milestone 2.3. |
+| **Java Lexical Analyzer (`Java_Compiler/`)** | Java SE class-enclosed subset lexer, driver, tests | **COMPLETED** | 16/16 automated tests passing via `tests/run_tests.py`. |
 | **Visual Interface Front-End (`frontend/`)** | Visual user interface component | **PLANNED** | Planned visual-interface component. |
 | **Visual Interface Back-End (`backend/`)** | Visual interface API / service component | **PLANNED** | Planned visual-interface component. |
 | **Shared Core AST (`src/common/ast/`)** | Common AST node structures & visualizer | **PLANNED** | Scheduled for Milestone 4. |
@@ -100,7 +100,7 @@ CompileCraft is configured to use the 64-bit MSYS2 toolchain located at `E:\msys
 | **Semantic Analyzer (`src/semantic/`)** | Scope, type, and OOP constraint checks | **PLANNED** | Scheduled for Milestone 6. |
 | **Shared TAC Generator (`src/common/tac/`)** | Three-Address Code intermediate representation | **PLANNED** | Scheduled for Milestone 7. |
 | **CLI Driver (`src/main.c`)** | Universal multi-language CLI (`compilecraft`) | **PLANNED** | Scheduled for Milestone 8. |
-| **Regression Test Suite (`tests/`)** | Multi-language test suites | **IN PROGRESS** | Baseline (17), C (19), and C++ (18) operational (54 total passing). |
+| **Regression Test Suite (`tests/`)** | Multi-language test suites | **COMPLETED (Lexer)** | Baseline (17), C (19), C++ (18), and Java (16) operational (70 total passing). |
 
 ---
 
@@ -118,7 +118,8 @@ CompileCraft/
 │   ├── grammar.md               # Context-Free Grammar specifications
 │   ├── tokens.md                # Authoritative baseline token specifications
 │   ├── tokens_c.md              # Authoritative C subset token specifications
-│   └── tokens_cpp.md            # Authoritative C++ subset token specifications
+│   ├── tokens_cpp.md            # Authoritative C++ subset token specifications
+│   └── tokens_java.md           # Authoritative Java subset token specifications
 ├── C_Compiler/                  # [Milestone 2.1 Complete] C-subset compiler front end
 │   ├── tokens.def               # C subset token definitions
 │   ├── tokens.h / tokens.c      # C token enum and resolver
@@ -129,7 +130,11 @@ CompileCraft/
 │   ├── tokens.h / tokens.c      # C++ token enum and resolver
 │   ├── lexer.l                  # C++ Flex scanner (ISO C++98/C++11 OOP subset)
 │   └── main_cpp.c               # Standalone C++ lexer CLI driver
-├── Java_Compiler/               # [Reserved for M2.3] Java subset compiler front end
+├── Java_Compiler/               # [Milestone 2.3 Complete] Java subset compiler front end
+│   ├── tokens.def               # Java subset token definitions
+│   ├── tokens.h / tokens.c      # Java token enum and resolver
+│   ├── lexer.l                  # Java Flex scanner (class-enclosed OOP subset)
+│   └── main_java.c              # Standalone Java lexer CLI driver
 ├── frontend/                    # [Planned] Visual interface front end (UI component)
 ├── backend/                     # [Planned] Visual interface back end (API / service component)
 ├── src/
@@ -144,11 +149,11 @@ CompileCraft/
 │   │   └── main.c               # Standalone baseline lexer driver
 │   └── main.c                   # [Planned M8] Universal compiler CLI driver
 └── tests/
-    ├── run_tests.py             # Multi-suite regression test runner (.mc, .c, .cpp)
+    ├── run_tests.py             # Multi-suite regression test runner (.mc, .c, .cpp, .java)
     ├── lexer/                   # Baseline 17 test cases (.mc / .expected)
     ├── c/                       # C-subset 19 test cases (.c / .expected)
     ├── cpp/                     # C++-subset 18 test cases (.cpp / .expected)
-    └── java/                    # [Planned M2.3] Java test cases (.java / .expected)
+    └── java/                    # Java-subset 16 test cases (.java / .expected)
 ```
 
 ---
@@ -167,24 +172,26 @@ To verify that all required build tools resolve to functional 64-bit binaries:
 To build the standalone lexer binaries:
 
 ```powershell
-# Build baseline, C-subset, and C++-subset lexers:
+# Build baseline, C-subset, C++-subset, and Java-subset lexers:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" all
 
 # Or build individual targets:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-c
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-cpp
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-java
 ```
 
 ### 6.3 Running Regression Tests
 To execute the automated regression test suites:
 
 ```powershell
-# Run all test suites (baseline + C subset + C++ subset):
+# Run all test suites (baseline + C + C++ + Java):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
 # Or run individual test suites:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-lexer
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java
 ```
