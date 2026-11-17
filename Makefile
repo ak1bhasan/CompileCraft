@@ -20,18 +20,24 @@ BUILD_DIR       ?= build
 BUILD_C_DIR     ?= $(BUILD_DIR)/c
 BUILD_CPP_DIR   ?= $(BUILD_DIR)/cpp
 BUILD_JAVA_DIR  ?= $(BUILD_DIR)/java
+BUILD_PARSER_DIR ?= $(BUILD_DIR)/parser
 
 LEXER_BIN       ?= $(BIN_DIR)/compilecraft-lexer.exe
 LEXER_C_BIN     ?= $(BIN_DIR)/compilecraft-lexer-c.exe
 LEXER_CPP_BIN   ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
 LEXER_JAVA_BIN  ?= $(BIN_DIR)/compilecraft-lexer-java.exe
+PARSER_BIN      ?= $(BIN_DIR)/compilecraft-parser.exe
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java test-lexer test-c test-cpp test-java test clean help
+PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
+PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
+BISONFLAGS      ?= -d -v
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN)
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test clean help
+
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (Milestone 2.4: Lexer Integration)"
+	@echo " CompileCraft - Build Succeeded (Milestone 3.2: Parser Integration)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -44,6 +50,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   C Lexer       : $(LEXER_C_BIN)"
 	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
 	@echo "   Java Lexer    : $(LEXER_JAVA_BIN)"
+	@echo "   Parser        : $(PARSER_BIN)"
 	@echo ""
 	@echo " Run 'mingw32-make test' to execute all regression test suites."
 	@echo "=============================================================================="
@@ -61,6 +68,10 @@ toolchain-check:
 $(BUILD_DIR)/lex.yy.c: src/lexer/lexer.l src/lexer/tokens.h src/lexer/tokens.def
 	@mkdir -p $(BUILD_DIR)
 	$(FLEX) -o $(BUILD_DIR)/lex.yy.c src/lexer/lexer.l
+
+$(BUILD_DIR)/lex.yy.o: $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc -c $(BUILD_DIR)/lex.yy.c -o $@
 
 $(LEXER_BIN): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def src/lexer/main.c
 	@mkdir -p $(BIN_DIR)
@@ -119,11 +130,39 @@ lexer-java: $(LEXER_JAVA_BIN)
 test-java: $(LEXER_JAVA_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_JAVA_BIN) tests/java
 
-test: test-lexer test-c test-cpp test-java
+# ------------------------------------------------------------------------------
+# Baseline Mini-Language Parser (Milestone 3.2)
+# ------------------------------------------------------------------------------
+$(BUILD_PARSER_DIR)/%.tab.c $(BUILD_PARSER_DIR)/%.tab.h: src/parser/%.y
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(BISON) $(BISONFLAGS) -o $(BUILD_PARSER_DIR)/$*.tab.c $<
+
+$(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H)
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H)
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(BUILD_DIR)/lex.yy.o $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+parser: $(PARSER_BIN)
+
+test-parser: $(PARSER_BIN)
+	$(PYTHON) tests/run_tests.py $(PARSER_BIN) tests/parser
+
+test: test-lexer test-c test-cpp test-java test-parser
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -132,17 +171,19 @@ help:
 	@echo " CompileCraft Makefile Help"
 	@echo "=============================================================================="
 	@echo " Targets:"
-	@echo "   all              Default: checks toolchain and builds all lexers"
+	@echo "   all              Default: checks toolchain and builds all lexers and parser"
 	@echo "   toolchain-check  Verifies GCC, Flex, Bison, and Python executable paths and versions"
 	@echo "   lexer            Builds baseline lexer (bin/compilecraft-lexer.exe)"
 	@echo "   lexer-c          Builds C-subset lexer (bin/compilecraft-lexer-c.exe)"
 	@echo "   lexer-cpp        Builds C++-subset lexer (bin/compilecraft-lexer-cpp.exe)"
 	@echo "   lexer-java       Builds Java-subset lexer (bin/compilecraft-lexer-java.exe)"
+	@echo "   parser           Builds baseline parser (bin/compilecraft-parser.exe)"
 	@echo "   test-lexer       Runs automated tests for baseline lexer (tests/lexer)"
 	@echo "   test-c           Runs automated tests for C-subset lexer (tests/c)"
 	@echo "   test-cpp         Runs automated tests for C++-subset lexer (tests/cpp)"
 	@echo "   test-java        Runs automated tests for Java-subset lexer (tests/java)"
-	@echo "   test             Runs all automated test suites (baseline + C + C++ + Java)"
+	@echo "   test-parser      Runs automated tests for baseline parser (tests/parser)"
+	@echo "   test             Runs all automated test suites (baseline + C + C++ + Java + parser)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

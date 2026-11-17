@@ -61,9 +61,11 @@ typedef enum yytokentype yytoken_kind_t;
 #define RPAREN          RPAREN
 #define SEMICOLON       SEMICOLON
 
-/* Semantic Value Union for Standalone Lexer Mode */
-#ifndef YYSTYPE_DEFINED
-#define YYSTYPE_DEFINED
+/* Semantic Value Union: Compatible with Standalone Lexer and GNU Bison (parser.tab.h) */
+#if !defined(YYSTYPE_DEFINED) && !defined(YYSTYPE_IS_DECLARED) && !defined(YYSTYPE)
+#define YYSTYPE_DEFINED 1
+#define YYSTYPE_IS_DECLARED 1
+#define YYSTYPE_IS_TRIVIAL 1
 typedef union YYSTYPE {
     int ival;
     double fval;
