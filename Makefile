@@ -30,14 +30,17 @@ PARSER_BIN      ?= $(BIN_DIR)/compilecraft-parser.exe
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
-BISONFLAGS      ?= -d -v
+# -d: header, -v: parser.output
+# Fail the build on unresolved shift/reduce or reduce/reduce conflicts.
+# Do not use %expect — conflicts must fail the build, not be hidden.
+BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
 .PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test clean help
 
 all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (Milestone 3.2: Parser Integration)"
+	@echo " CompileCraft - Build Succeeded (Milestone 3.3: Parser Hardening)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -131,7 +134,7 @@ test-java: $(LEXER_JAVA_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_JAVA_BIN) tests/java
 
 # ------------------------------------------------------------------------------
-# Baseline Mini-Language Parser (Milestone 3.2)
+# Baseline Mini-Language Parser (Milestone 3.3: Hardening)
 # ------------------------------------------------------------------------------
 $(BUILD_PARSER_DIR)/%.tab.c $(BUILD_PARSER_DIR)/%.tab.h: src/parser/%.y
 	@mkdir -p $(BUILD_PARSER_DIR)
@@ -171,19 +174,19 @@ help:
 	@echo " CompileCraft Makefile Help"
 	@echo "=============================================================================="
 	@echo " Targets:"
-	@echo "   all              Default: checks toolchain and builds all lexers and parser"
+	@echo "   all              Default: checks toolchain and builds all lexers and parser (M3.3)"
 	@echo "   toolchain-check  Verifies GCC, Flex, Bison, and Python executable paths and versions"
 	@echo "   lexer            Builds baseline lexer (bin/compilecraft-lexer.exe)"
 	@echo "   lexer-c          Builds C-subset lexer (bin/compilecraft-lexer-c.exe)"
 	@echo "   lexer-cpp        Builds C++-subset lexer (bin/compilecraft-lexer-cpp.exe)"
 	@echo "   lexer-java       Builds Java-subset lexer (bin/compilecraft-lexer-java.exe)"
-	@echo "   parser           Builds baseline parser (bin/compilecraft-parser.exe)"
+	@echo "   parser           Builds baseline parser (bin/compilecraft-parser.exe); conflicts fail build"
 	@echo "   test-lexer       Runs automated tests for baseline lexer (tests/lexer)"
 	@echo "   test-c           Runs automated tests for C-subset lexer (tests/c)"
 	@echo "   test-cpp         Runs automated tests for C++-subset lexer (tests/cpp)"
 	@echo "   test-java        Runs automated tests for Java-subset lexer (tests/java)"
 	@echo "   test-parser      Runs automated tests for baseline parser (tests/parser)"
-	@echo "   test             Runs all automated test suites (baseline + C + C++ + Java + parser)"
+	@echo "   test             Runs all automated test suites (87 lexer + parser hardening suite)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

@@ -45,16 +45,16 @@
 - [x] **REQ-LEX-14 (Sec 4.1 Tip)**: Define keyword patterns before general identifier patterns to leverage Flex's longest-match rule. *(Verified in Milestone 2 via `02_keyword_boundaries.mc`)*
 
 ### 2.2 Syntax Analyzer Module (Bison)
-- [ ] **REQ-SYN-01 (Sec 4.2, 5)**: Implement a complete, formal, unambiguous Context-Free Grammar (CFG) for the language defined in Section 5.
-- [ ] **REQ-SYN-02 (Sec 4.2)**: Eliminate shift/reduce and reduce/reduce conflicts through explicit operator precedence and associativity rules (`%left`, `%right`, `%nonassoc`).
-- [ ] **REQ-SYN-03 (Sec 4.2)**: Support variable declarations (`int x;`, `float y;`, `bool flag;`).
-- [ ] **REQ-SYN-04 (Sec 4.2)**: Support assignment statements (`x = 10;`, `flag = true;`).
-- [ ] **REQ-SYN-05 (Sec 4.2)**: Support expression statements containing arithmetic, relational, and logical operations with standard algebraic precedence.
-- [ ] **REQ-SYN-06 (Sec 4.2, 5.2)**: Support control flow statements: `if (cond) stmt`, `if (cond) stmt else stmt`, and `while (cond) stmt`.
-- [ ] **REQ-SYN-07 (Sec 4.2, 5.2)**: Support `print` statement (e.g., `print expr;`).
-- [ ] **REQ-SYN-08 (Sec 4.2, 5.2)**: Support nested block statements enclosed in braces (`{ ... }`).
-- [ ] **REQ-SYN-09 (Sec 4.2)**: Detect syntax violations and report human-readable syntax errors with exact line numbers (`yyerror`).
-- [ ] **REQ-SYN-10 (Sec 4.2)**: Implement basic syntax error recovery (using Bison's `error` token) to avoid halting compilation on the first syntax fault.
+- [x] **REQ-SYN-01 (Sec 4.2, 5)**: Implement a complete, formal, unambiguous Context-Free Grammar (CFG) for the language defined in Section 5. *(baseline M3.2)*
+- [x] **REQ-SYN-02 (Sec 4.2)**: Eliminate shift/reduce and reduce/reduce conflicts through explicit operator precedence and associativity rules (`%left`, `%right`, `%nonassoc`). *(enforced M3.3)*
+- [x] **REQ-SYN-03 (Sec 4.2)**: Support variable declarations (`int x;`, `float y;`, `bool flag;`). *(baseline parser M3.2)*
+- [x] **REQ-SYN-04 (Sec 4.2)**: Support assignment statements (`x = 10;`, `flag = true;`). *(baseline parser M3.2)*
+- [x] **REQ-SYN-05 (Sec 4.2)**: Support expression statements containing arithmetic, relational, and logical operations with standard algebraic precedence. *(baseline parser M3.2)*
+- [x] **REQ-SYN-06 (Sec 4.2, 5.2)**: Support control flow statements: `if (cond) stmt`, `if (cond) stmt else stmt`, and `while (cond) stmt`. *(baseline parser M3.2)*
+- [x] **REQ-SYN-07 (Sec 4.2, 5.2)**: Support `print` statement (e.g., `print expr;`). *(baseline parser M3.2)*
+- [x] **REQ-SYN-08 (Sec 4.2, 5.2)**: Support nested block statements enclosed in braces (`{ ... }`). *(baseline parser M3.2)*
+- [x] **REQ-SYN-09 (Sec 4.2)**: Detect syntax violations and report human-readable syntax errors with exact line numbers (`yyerror`). *(M3.3 detailed + LAC)*
+- [x] **REQ-SYN-10 (Sec 4.2)**: Implement basic syntax error recovery (using Bison's `error` token) to avoid halting compilation on the first syntax fault. *(M3.3 `;`/`}`/EOF sync)*
 
 ### 2.3 Abstract Syntax Tree (AST) Module
 - [ ] **REQ-AST-01 (Sec 4.3)**: Construct AST nodes dynamically during parsing as grammar productions succeed.
@@ -131,7 +131,7 @@
 - [ ] **REQ-TST-01 (Sec 15)**: Maintain all test cases in the `tests/` directory with structured folders.
 - [ ] **REQ-TST-02 (Sec 15)**: Provide at least one non-trivial valid program that compiles cleanly all the way through to TAC.
 - [ ] **REQ-TST-03 (Sec 15)**: Provide at least one program containing an invalid token, verifying correct lexical error detection and line reporting.
-- [ ] **REQ-TST-04 (Sec 15)**: Provide at least one program violating the grammar, verifying correct syntax error detection and reporting.
+- [x] **REQ-TST-04 (Sec 15)**: Provide at least one program violating the grammar, verifying correct syntax error detection and reporting. *(parser suite includes 19 error cases)*
 - [ ] **REQ-TST-05 (Sec 15)**: Provide at least one dedicated test program for **Undeclared variable use** (Rule 1).
 - [ ] **REQ-TST-06 (Sec 15)**: Provide at least one dedicated test program for **Redeclaration error** (Rule 2).
 - [ ] **REQ-TST-07 (Sec 15)**: Provide at least one dedicated test program for **Scope violation** (Rule 3).

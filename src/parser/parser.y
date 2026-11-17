@@ -2,7 +2,7 @@
 /* ==============================================================================
  * CompileCraft - LALR(1) Syntax Analyzer Grammar (GNU Bison)
  * Conforms to Section 4.2 and Section 5 of the Language Specification
- * Milestone 3.2: Baseline Mini-Language Parser
+ * Milestone 3.3: Parser Hardening (diagnostics + recovery)
  * ============================================================================== */
 
 #include <stdio.h>
@@ -18,6 +18,10 @@ extern FILE *yyin;
 extern int syntax_error_count;
 
 void yyerror(const char *msg);
+
+/* Deduplicate consecutive identical diagnostics at the same line. */
+static int last_syntax_error_line = -1;
+static char last_syntax_error_msg[256];
 %}
 
 /* Semantic Value Types */
@@ -27,6 +31,10 @@ void yyerror(const char *msg);
     int bval;
     char *sval;
 }
+
+/* Detailed diagnostics with LAC for accurate expected-token sets (Bison 3.6+) */
+%define parse.error detailed
+%define parse.lac full
 
 /* ==============================================================================
  * Explicit Token Declarations
@@ -110,14 +118,21 @@ void yyerror(const char *msg);
  * Grammar Rules
  * ============================================================================== */
 
-/* 1. Program & Statements */
+/* 1. Program & Statements
+ * Top-level error production recovers at EOF after an incomplete construct
+ * (e.g. missing closing brace) without inventing phantom statements.
+ */
 program:
     statement_list
-    ;
+  | statement_list error
+    {
+        yyerrok;
+    }
+  ;
 
 statement_list:
     statement_list statement
-  | /* empty */
+  | %empty
   ;
 
 statement:
@@ -163,19 +178,40 @@ expr_stmt:
     expression SEMICOLON
     ;
 
-/* 5. Compound Block Statements (Section 5.2, DEC-05) */
+/* 5. Compound Block Statements (Section 5.2, DEC-05)
+ * Brace synchronization: recover malformed content inside a block at '}'.
+ */
 block_stmt:
     LBRACE statement_list RBRACE
-    ;
+  | LBRACE statement_list error RBRACE
+    {
+        yyerrok;
+    }
+  ;
 
-/* 6. Control Flow Statements (Section 5.2) */
+/* 6. Control Flow Statements (Section 5.2)
+ * Condition recovery: sync at ')' so an empty/malformed condition does not
+ * cascade into a spurious brace diagnostic for the following statement body.
+ */
 if_stmt:
     KW_IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE
   | KW_IF LPAREN expression RPAREN statement KW_ELSE statement
+  | KW_IF LPAREN error RPAREN statement %prec LOWER_THAN_ELSE
+    {
+        yyerrok;
+    }
+  | KW_IF LPAREN error RPAREN statement KW_ELSE statement
+    {
+        yyerrok;
+    }
   ;
 
 while_stmt:
     KW_WHILE LPAREN expression RPAREN statement
+  | KW_WHILE LPAREN error RPAREN statement
+    {
+        yyerrok;
+    }
   ;
 
 /* 7. Output Statements (Section 5.2, DEC-06) */
@@ -183,7 +219,9 @@ print_stmt:
     KW_PRINT expression SEMICOLON
   ;
 
-/* 8. Error Recovery Statement (Section 4.2, DEC-10) */
+/* 8. Error Recovery Statement (Section 4.2, DEC-10)
+ * Semicolon synchronization: discard tokens until ';' then resume.
+ */
 error_stmt:
     error SEMICOLON
     {
@@ -223,9 +261,20 @@ expression:
 
 /* ==============================================================================
  * Diagnostic Error Reporter
+ * Bison (parse.error detailed + LAC) supplies unexpected/expected token text.
+ * Lexical errors are reported separately by the Flex scanner.
  * ============================================================================== */
 
 void yyerror(const char *msg) {
+    /* Suppress only exact duplicate consecutive reports (same line + same text). */
+    if (yylineno == last_syntax_error_line &&
+        last_syntax_error_msg[0] != '\0' &&
+        strcmp(last_syntax_error_msg, msg) == 0) {
+        return;
+    }
+    last_syntax_error_line = yylineno;
+    strncpy(last_syntax_error_msg, msg, sizeof(last_syntax_error_msg) - 1);
+    last_syntax_error_msg[sizeof(last_syntax_error_msg) - 1] = '\0';
     syntax_error_count++;
     fprintf(stderr, "Syntax Error at line %d: %s\n", yylineno, msg);
 }

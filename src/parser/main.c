@@ -1,6 +1,6 @@
 /* ==============================================================================
  * CompileCraft - LALR(1) Syntax Analyzer Standalone Driver
- * Milestone 3.2: Baseline Mini-Language Parser Driver
+ * Milestone 3.3: Parser Hardening Driver
  * ============================================================================== */
 
 #include <stdio.h>

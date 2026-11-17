@@ -11,10 +11,10 @@
 [DONE] M0: Scaffolding & Toolchain Verification
            │
            ▼
-M1: Formal Grammar (CFG) ──► M2: Lexer (Flex) ──► M3: Parser (Bison)
-                                                        │
-                                                        ▼
-M6: Semantic Analysis ◄── M5: Symbol Table ◄── M4: AST Construction
+[DONE] M1: Formal Grammar (CFG) ──► [DONE] M2: Lexer (Flex) ──► [DONE] M3: Parser (Bison)
+                                                                    │  M3.2 baseline + M3.3 hardening
+                                                                    ▼
+M6: Semantic Analysis ◄── M5: Symbol Table ◄── M4: AST Construction  ← NEXT
        │
        ▼
 M7: TAC Generation ──► M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
@@ -68,7 +68,7 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 - [x] **Java-Subset Lexer (`Java_Compiler/`)**: Implemented authoritative `tokens.def`, `tokens.h`, `tokens.c`, Flex specification `lexer.l`, and standalone driver `main_java.c`.
 - [x] **Automated Regression Baseline**: Original 70 tests retained; Milestone 2.4 expands coverage to 87 total tests (baseline 18, C 25, C++ 24, Java 20).
 - [x] **Milestone 2.4 hardening**: line-start preprocessor policy, escape-subset validation, semantic-value verification, documentation accuracy, and expanded regression coverage.
-- [ ] **Next Phase**: Milestone 3 Syntax Analyzer & Error Recovery (Bison).
+- [x] **Next Phase**: Milestone 3 Syntax Analyzer completed (see Milestone 3 below).
 
 ### Revised Milestone 2 Execution Sequence
 
@@ -113,17 +113,31 @@ Implement production-grade lexical analyzers using Flex to convert source charac
 ## Milestone 3: Syntax Analyzer & Error Recovery (Bison)
 
 ### Objective
-Implement the LALR(1) parser using Bison to parse the token stream according to the Section 5 grammar, report syntax errors with line numbers, and provide basic error recovery.
+Implement the LALR(1) parser using Bison to parse the token stream according to the Section 5 grammar, report syntax errors with line numbers, and provide resilient error recovery.
 
-### Target Deliverables
-- `src/parser/parser.y`: Bison grammar file with `%union`, `%token`, `%type`, `%left`, `%right`, `%nonassoc` declarations.
-- Custom `yyerror(const char *msg)` reporting line number from `yylineno`.
+### Status: **COMPLETED** (M3.2 baseline + M3.3 hardening)
+
+#### Milestone 3.2: Baseline Parser Integration [COMPLETED]
+- [x] `src/parser/parser.y` with `%union`, `%token`, precedence, dangling-else resolution.
+- [x] Standalone driver `bin/compilecraft-parser.exe`; success message `Syntax validation successful.`
+- [x] Token IDs locked to `src/lexer/tokens.def` via `_Static_assert`.
+- [x] Initial 18 parser tests (12 valid + 6 error).
+
+#### Milestone 3.3: Parser Hardening [COMPLETED]
+- [x] Detailed diagnostics (`%define parse.error detailed` + `%define parse.lac full`).
+- [x] Recovery at semicolon, closing paren (conditions), closing brace, and EOF.
+- [x] Multi-error continuation verified by hardening tests.
+- [x] Empty/malformed `if`/`while` conditions do not cascade into brace diagnostics.
+- [x] Lexical errors cannot produce false parser success.
+- [x] Zero S/R and R/R conflicts enforced via `-Werror=conflicts-sr -Werror=conflicts-rr` (no `%expect`).
+- [x] Parser suite expanded to 34 tests (18 original + 16 hardening).
+- [x] Documentation synced (`README.md`, `docs/roadmap.md`, `docs/parser.md`, `docs/grammar.md`).
 
 ### Acceptance Checks
-- [ ] Bison compiles `parser.y` with zero shift/reduce and zero reduce/reduce conflicts.
-- [ ] Parses valid programs, including variable declarations, assignments, arithmetic expressions, control flow, and nested blocks.
-- [ ] Reports syntax errors with line numbers when grammar rules are violated.
-- [ ] Basic error recovery (using Bison `error` tokens) allows the parser to recover and continue past an invalid statement to report subsequent issues.
+- [x] Bison compiles `parser.y` with zero shift/reduce and zero reduce/reduce conflicts.
+- [x] Parses valid programs, including variable declarations, assignments, arithmetic expressions, control flow, and nested blocks.
+- [x] Reports syntax errors with line numbers when grammar rules are violated.
+- [x] Error recovery allows the parser to continue past invalid statements and report subsequent independent issues.
 
 ### Suggested Commit Messages
 - `feat(parser): implement bison grammar skeleton and token declarations`
@@ -131,6 +145,7 @@ Implement the LALR(1) parser using Bison to parse the token stream according to 
 - `feat(parser): add statement rules for declarations, assignments, if-else, while, and print`
 - `feat(parser): implement syntax error reporting with line numbers and basic error recovery`
 - `test(parser): add valid and invalid syntax test cases`
+- `feat(parser): harden diagnostics, recovery, and conflict enforcement (M3.3)`
 
 ---
 

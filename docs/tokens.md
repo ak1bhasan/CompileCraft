@@ -217,5 +217,5 @@ TOKEN_DEF(SEMICOLON,       289, "SEMICOLON")
 From this single source of truth:
 1. `src/lexer/tokens.h` defines the Bison-compatible `enum yytokentype` guarded by `YYTOKENTYPE` (preventing macro collision and duplicate type errors when Bison's `parser.tab.h` is generated).
 2. `src/lexer/tokens.c` automatically implements `const char *token_name(int token)` with 100% complete switch coverage and zero duplication.
-3. The future Bison grammar (`src/parser/parser.y`) maps directly to these canonical token IDs, ensuring seamless, zero-conflict integration in Milestone 3.
+3. The baseline Bison grammar (`src/parser/parser.y`) maps directly to these canonical token IDs (verified by `_Static_assert` in the parser driver).
 

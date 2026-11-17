@@ -3,7 +3,7 @@
 
 /* ==============================================================================
  * CompileCraft - Parser External Interface
- * Milestone 3.2: Syntax Analyzer Driver Declarations
+ * Milestone 3.3: Syntax Analyzer Driver Declarations
  * ============================================================================== */
 
 #ifdef __cplusplus
