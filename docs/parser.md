@@ -1,7 +1,9 @@
 # CompileCraft Baseline Parser Notes
 
-> **Milestone**: 3.3 — Parser Hardening  
-> **Artifact**: `bin/compilecraft-parser.exe`  
+> **Milestone**: 3.3 — Parser Hardening
+>
+> **Artifact**: `bin/compilecraft-parser.exe`
+>
 > **Grammar**: `src/parser/parser.y` (baseline mini-language only)
 
 ---
