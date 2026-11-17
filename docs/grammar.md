@@ -14,7 +14,7 @@ The CompileCraft grammar defines the syntactic structure of an imperative, block
 1. **Section 5 Authority**: Conforms strictly to the language specification in Section 5. Where other manual sections contain conflicting examples, Section 5 prevails.
 2. **Deterministic LALR(1) Parsing**: Designed with unambiguous productions and precedence directives, achieving **zero unresolved conflicts after precedence resolution** (0 shift/reduce, 0 reduce/reduce conflicts) under Bison analysis, without claiming this alone proves the grammar is unambiguous.
 3. **Clean Phase Separation**: Grammatical rules strictly govern structural validity (token sequencing, nesting, and statement boundaries). Context-dependent properties (such as type matching, variable declaration before use, and scope visibility) are deliberately deferred to the Semantic Analysis phase (Milestone 6).
-4. **Resilient Error Recovery**: Employs synchronization productions (`error ';'`) to recover gracefully from malformed statements and continue parsing.
+4. **Resilient Error Recovery (M3.3)**: Synchronizes at `;`, `}`, and EOF so parsing can continue after recoverable faults and report later independent errors.
 
 ---
 
@@ -135,12 +135,25 @@ Expressions are stratified by operator precedence. In the Bison implementation, 
                      | '(' <expression> ')'
 ```
 
-### 2.9 Syntax Error Recovery (Section 4.2)
-To fulfill the requirement for basic syntax error recovery:
+### 2.9 Syntax Error Recovery (Section 4.2, Milestone 3.3)
 ```bnf
-<error_stmt>       ::= error ';'
+<program>          ::= <statement_list>
+                     | <statement_list> error          /* EOF / incomplete construct */
+
+<error_stmt>       ::= error ';'                       /* semicolon synchronization */
+
+<block_stmt>       ::= '{' <statement_list> '}'
+                     | '{' <statement_list> error '}'  /* brace synchronization */
+
+<if_stmt>          ::= 'if' '(' <expression> ')' <statement>
+                     | 'if' '(' <expression> ')' <statement> 'else' <statement>
+                     | 'if' '(' error ')' <statement>           /* condition sync */
+                     | 'if' '(' error ')' <statement> 'else' <statement>
+
+<while_stmt>       ::= 'while' '(' <expression> ')' <statement>
+                     | 'while' '(' error ')' <statement>        /* condition sync */
 ```
-When an invalid statement is encountered, the parser issues a syntax error diagnostic, skips erroneous tokens until the next semicolon (`;`), and resumes normal parsing.
+When an invalid construct is encountered, the parser issues a detailed syntax diagnostic (unexpected / expected tokens via Bison LAC), discards tokens until a synchronization point (`;`, `)`, `}`, or EOF), calls `yyerrok`, and resumes so later independent errors can still be reported.
 
 ---
 
@@ -267,11 +280,11 @@ if (c) {
 int a
 int b;
 ```
-*Validation Result*: **DETECTED** (`Syntax Error at line 2: syntax error`, exit code 1).
+*Validation Result*: **DETECTED** (detailed syntax diagnostic with unexpected/expected tokens, exit code 1).
 
 #### Test 4: Malformed Expression Detection (Invalid Syntax)
 ```c
 int x;
 x = + * 5;
 ```
-*Validation Result*: **DETECTED** (`Syntax Error at line 2: syntax error`, exit code 1).
+*Validation Result*: **DETECTED** (detailed syntax diagnostic, exit code 1; cascading suppressed to a single primary fault where possible).

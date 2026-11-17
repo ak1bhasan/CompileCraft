@@ -1,0 +1,2 @@
+Syntax Error at line 2: syntax error, unexpected KW_INT, expecting ASSIGN or SEMICOLON
+Syntax Error at line 5: syntax error, unexpected KW_PRINT, expecting ASSIGN or SEMICOLON
