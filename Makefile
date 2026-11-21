@@ -30,6 +30,10 @@ PARSER_BIN      ?= $(BIN_DIR)/compilecraft-parser.exe
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
+# Parser-linked Flex object (distinct from standalone build/lex.yy.o).
+PARSER_LEX_O    := $(BUILD_PARSER_DIR)/lex.yy.o
+# AST core object (M4.1); linked into the parser binary only (M4.2.2).
+AST_O           := $(BUILD_DIR)/ast/ast.o
 # -d: header, -v: parser.output
 # Fail the build on unresolved shift/reduce or reduce/reduce conflicts.
 # Do not use %expect — conflicts must fail the build, not be hidden.
@@ -134,7 +138,15 @@ test-java: $(LEXER_JAVA_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_JAVA_BIN) tests/java
 
 # ------------------------------------------------------------------------------
-# Baseline Mini-Language Parser (Milestone 3.3: Hardening)
+# AST core (Milestone 4.1 sources; build integration Milestone 4.2.2)
+# Linked into the parser only — not the standalone lexer.
+# ------------------------------------------------------------------------------
+$(AST_O): src/ast/ast.c src/ast/ast.h
+	@mkdir -p $(BUILD_DIR)/ast
+	$(CC) $(CFLAGS) -Isrc/ast -Isrc -c src/ast/ast.c -o $@
+
+# ------------------------------------------------------------------------------
+# Baseline Mini-Language Parser (Milestone 3.3 + M4.2.2 AST build link)
 # ------------------------------------------------------------------------------
 $(BUILD_PARSER_DIR)/%.tab.c $(BUILD_PARSER_DIR)/%.tab.h: src/parser/%.y
 	@mkdir -p $(BUILD_PARSER_DIR)
@@ -144,6 +156,16 @@ $(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H)
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
+# Parser-specific lexer object: reuse Flex output from build/lex.yy.c, but
+# force-include Bison's parser.tab.h before tokens.h (via -include) so the
+# parser binary and lexer share one YYSTYPE layout when %union grows in M4.2+.
+# Standalone compilecraft-lexer.exe keeps using tokens.h's fallback unchanged.
+$(PARSER_LEX_O): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc \
+		-include parser.tab.h \
+		-c $(BUILD_DIR)/lex.yy.c -o $@
+
 $(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
@@ -152,7 +174,7 @@ $(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
-$(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(BUILD_DIR)/lex.yy.o $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o
+$(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o $(AST_O)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
