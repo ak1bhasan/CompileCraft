@@ -152,28 +152,29 @@ $(BUILD_PARSER_DIR)/%.tab.c $(BUILD_PARSER_DIR)/%.tab.h: src/parser/%.y
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(BISON) $(BISONFLAGS) -o $(BUILD_PARSER_DIR)/$*.tab.c $<
 
-$(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H)
+$(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
 # Parser-specific lexer object: reuse Flex output from build/lex.yy.c, but
 # force-include Bison's parser.tab.h before tokens.h (via -include) so the
 # parser binary and lexer share one YYSTYPE / YYLTYPE layout (M4.2.2+).
 # That inclusion defines YYLTYPE_IS_DECLARED, enabling YY_USER_ACTION location
-# tracking in lexer.l. Standalone compilecraft-lexer.exe omits parser.tab.h.
-$(PARSER_LEX_O): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
+# tracking in lexer.l. parser.tab.h also pulls ast.h for extended %union.
+# Standalone compilecraft-lexer.exe omits parser.tab.h.
+$(PARSER_LEX_O): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc \
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc \
 		-include parser.tab.h \
 		-c $(BUILD_DIR)/lex.yy.c -o $@
 
-$(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
+$(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
-$(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H)
+$(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
 $(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o $(AST_O)
 	@mkdir -p $(BIN_DIR)
