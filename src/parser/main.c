@@ -1,6 +1,7 @@
 /* ==============================================================================
  * CompileCraft - LALR(1) Syntax Analyzer Standalone Driver
  * Milestone 3.3: Parser Hardening Driver
+ * Milestone 4.3.2: Optional --ast CLI (production AST dump)
  * ============================================================================== */
 
 #include <stdio.h>
@@ -16,7 +17,7 @@
 /* 3. Parser driver interface */
 #include "parser.h"
 
-/* 4. AST core (M4.3.1 root lifecycle; no public --ast yet) */
+/* 4. AST core (M4.3.1 root lifecycle; M4.3.2 --ast printing) */
 #include "ast.h"
 
 /* ==============================================================================
@@ -38,22 +39,33 @@ int yylex_destroy(void);
 /* Single authoritative definition of syntax error counter */
 int syntax_error_count = 0;
 
+static void usage(const char *argv0) {
+    fprintf(stderr, "Usage: %s [--ast] <source-file>\n", argv0);
+}
+
 int main(int argc, char **argv) {
     const char *source_path = NULL;
+    int print_ast = 0;
     int parse_status;
     int ok;
 
     for (int i = 1; i < argc; i++) {
-        if (argv[i][0] != '-') {
+        if (strcmp(argv[i], "--ast") == 0) {
+            print_ast = 1;
+        } else if (argv[i][0] != '-') {
+            if (source_path != NULL) {
+                usage(argv[0]);
+                return 1;
+            }
             source_path = argv[i];
         } else {
-            fprintf(stderr, "Usage: %s <source-file>\n", argv[0]);
+            usage(argv[0]);
             return 1;
         }
     }
 
     if (source_path == NULL) {
-        fprintf(stderr, "Usage: %s <source-file>\n", argv[0]);
+        usage(argv[0]);
         return 1;
     }
 
@@ -76,9 +88,24 @@ int main(int argc, char **argv) {
     fclose(file);
     yylex_destroy();
 
+    /*
+     * Clean success requires yyparse success and zero error counters.
+     * Recovery can yield yyparse()==0 with a non-authoritative tree.
+     */
     ok = (parse_status == 0 && syntax_error_count == 0 && lexical_error_count == 0);
 
-    /* Sole owner of the program AST after yyparse; free on every path. */
+    if (ok && print_ast) {
+        if (compilecraft_ast_root == NULL) {
+            /* Constructor/allocation failure: treat as unsuccessful. */
+            return 1;
+        }
+        ast_print(compilecraft_ast_root, stdout);
+        ast_free(compilecraft_ast_root);
+        compilecraft_ast_root = NULL;
+        return 0;
+    }
+
+    /* Default mode, and all failure paths: free root exactly once. */
     ast_free(compilecraft_ast_root);
     compilecraft_ast_root = NULL;
 
