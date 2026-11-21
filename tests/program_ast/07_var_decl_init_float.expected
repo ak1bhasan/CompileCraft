@@ -1,0 +1,4 @@
+Program
+  VarDecl float
+    Identifier y
+    Literal float 2.5

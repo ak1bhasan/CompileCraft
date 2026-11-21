@@ -20,13 +20,18 @@ int yyparse(void);
 void compilecraft_loc_reset(void);
 
 /*
- * M4.2.5 expression-AST test hook (production CLI leaves enable at 0).
- * When enable is non-zero, the first expr_stmt transfers its expression
- * ownership into compilecraft_expr_capture. Caller must ast_free it.
+ * Test-only AST capture hooks (production CLI leaves enables at 0).
+ * Expression: first expr_stmt transfers its expression into
+ *   compilecraft_expr_capture (no ExprStmt wrapper / shared ownership).
+ * Program: successful program reduction transfers AST_PROGRAM into
+ *   compilecraft_program_capture instead of freeing it.
+ * Caller must ast_free the captured tree.
  */
 struct AstNode;
 extern int compilecraft_capture_expr_enable;
 extern struct AstNode *compilecraft_expr_capture;
+extern int compilecraft_capture_program_enable;
+extern struct AstNode *compilecraft_program_capture;
 
 #ifdef __cplusplus
 }

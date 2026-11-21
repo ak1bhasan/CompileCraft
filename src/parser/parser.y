@@ -6,6 +6,7 @@
  * Milestone 4.2.3: %locations
  * Milestone 4.2.4: AST semantic-value types + destructors
  * Milestone 4.2.5: Expression AST construction
+ * Milestone 4.2.6: Statement and program AST construction
  * ============================================================================== */
 
 #include <stdio.h>
@@ -28,14 +29,21 @@ static int last_syntax_error_line = -1;
 static char last_syntax_error_msg[256];
 
 /*
- * Narrow M4.2.5 test hook (default off for the production parser CLI).
- * When compilecraft_capture_expr_enable is non-zero, the first successful
- * expr_stmt transfers ownership of its expression into
- * compilecraft_expr_capture instead of freeing it. Subsequent expressions
- * are still freed. The capture slot starts NULL; the harness frees it.
+ * Test-only capture hooks (default off for the production parser CLI).
+ *
+ * Expression capture (M4.2.5): when enabled, the first expr_stmt transfers the
+ * raw expression tree into compilecraft_expr_capture and yields a NULL
+ * statement (no AST_EXPR_STMT / shared ownership). The harness frees it.
+ *
+ * Program capture (M4.2.6): when enabled, a successful program reduction
+ * transfers the AST_PROGRAM root into compilecraft_program_capture instead of
+ * freeing it. Production parses still construct then free the tree so the
+ * default CLI stays leak-free without a public --ast option.
  */
 int compilecraft_capture_expr_enable = 0;
 AstNode *compilecraft_expr_capture = NULL;
+int compilecraft_capture_program_enable = 0;
+AstNode *compilecraft_program_capture = NULL;
 %}
 
 /* Expose AST types to parser.tab.h (and thus the parser-linked lexer). */
@@ -113,7 +121,7 @@ AstNode *compilecraft_expr_capture = NULL;
 %token SEMICOLON       289
 
 /* Nonterminal semantic types (docs/ast.md §12.2).
- * M4.2.5: expression builds real nodes; statement productions stay placeholders.
+ * M4.2.6: expressions and statements build real nodes; recovery yields NULL.
  */
 %type <node> program statement var_decl_stmt assign_stmt if_stmt while_stmt
 %type <node> print_stmt block_stmt expr_stmt error_stmt expression
@@ -161,17 +169,27 @@ AstNode *compilecraft_expr_capture = NULL;
  * Top-level error production recovers at EOF after an incomplete construct
  * (e.g. missing closing brace) without inventing phantom statements.
  *
- * M4.2.4: no AST root yet — free the (currently empty) statement list and
- * yield a NULL program node so typed $$ is always initialized.
+ * M4.2.6: successful program builds AST_PROGRAM; $$ is always left NULL so the
+ * typed start symbol never double-owns the tree. Capture (test-only) or
+ * ast_free (production) takes the sole remaining ownership.
  */
 program:
     statement_list
     {
-        ast_free($1.head);
+        AstNode *prog = ast_program($1, @$.first_line, @$.first_column);
+        /* ast_program consumed $1 (owns list on success, frees it on failure). */
+        if (compilecraft_capture_program_enable &&
+            compilecraft_program_capture == NULL &&
+            prog != NULL) {
+            compilecraft_program_capture = prog;
+        } else {
+            ast_free(prog);
+        }
         $$ = NULL;
     }
   | statement_list error
     {
+        /* Do not fabricate a program root from a recovered error. */
         ast_free($1.head);
         yyerrok;
         $$ = NULL;
@@ -181,11 +199,14 @@ program:
 statement_list:
     statement_list statement
     {
-        /* Keep the accumulating list; drop placeholder statement (NULL today). */
         $$ = $1;
         if ($2 != NULL) {
-            ast_free($2);
+            /* Success: list owns $2. Failure: caller still owns $2 — free it. */
+            if (!ast_list_append(&$$, $2)) {
+                ast_free($2);
+            }
         }
+        /* NULL statements (recovery placeholders) are skipped intentionally. */
     }
   | %empty
     {
@@ -201,24 +222,27 @@ statement:
   | print_stmt      { $$ = $1; }
   | block_stmt      { $$ = $1; }
   | expr_stmt       { $$ = $1; }
-  | SEMICOLON       { $$ = NULL; }
+  | SEMICOLON
+    {
+        $$ = ast_empty_stmt(@1.first_line, @1.first_column);
+    }
   | error_stmt      { $$ = $1; }
   ;
 
-/* 2. Variable Declarations (Section 5.1, 5.2, DEC-01) */
+/* 2. Variable Declarations (Section 5.1, 5.2, DEC-01)
+ * Name string ownership: IDENTIFIER sval → ast_identifier → AST_VAR_DECL.
+ * On any constructor failure the failing API frees its would-be children.
+ */
 var_decl_stmt:
     type_spec IDENTIFIER SEMICOLON
     {
-        free($2);
-        $$ = NULL;
+        AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+        $$ = ast_var_decl($1, name, NULL, @$.first_line, @$.first_column);
     }
   | type_spec IDENTIFIER ASSIGN expression SEMICOLON
     {
-        free($2);
-        if ($4 != NULL) {
-            ast_free($4);
-        }
-        $$ = NULL;
+        AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+        $$ = ast_var_decl($1, name, $4, @$.first_line, @$.first_column);
     }
   ;
 
@@ -228,22 +252,22 @@ type_spec:
   | KW_BOOL   { $$ = AST_TYPE_BOOL; }
   ;
 
-/* 3. Assignment Statements (Section 5.2) */
+/* 3. Assignment Statements (Section 5.2)
+ * Target is an AST_IDENTIFIER child (docs/ast.md). sval ownership transfers
+ * into that node; value expression ownership transfers into AST_ASSIGN.
+ */
 assign_stmt:
     IDENTIFIER ASSIGN expression SEMICOLON
     {
-        free($1);
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        AstNode *target = ast_identifier($1, @1.first_line, @1.first_column);
+        $$ = ast_assign(target, $3, @$.first_line, @$.first_column);
     }
   ;
 
 /* 4. Expression Statements
- * M4.2.5: expression trees are real; statement node remains a placeholder.
- * Optional test capture (see compilecraft_capture_expr_enable) steals the
- * first expression for structural tests without changing default CLI output.
+ * Default: wrap expression in AST_EXPR_STMT (takes ownership of $1).
+ * Expr-capture tests: transfer $1 to compilecraft_expr_capture and yield NULL
+ * so the expression is not also owned by an ExprStmt / program list.
  */
 expr_stmt:
     expression SEMICOLON
@@ -251,22 +275,22 @@ expr_stmt:
         if (compilecraft_capture_expr_enable &&
             compilecraft_expr_capture == NULL &&
             $1 != NULL) {
-            compilecraft_expr_capture = $1; /* ownership transfer to harness */
-        } else if ($1 != NULL) {
-            ast_free($1);
+            compilecraft_expr_capture = $1;
+            $$ = NULL;
+        } else {
+            $$ = ast_expr_stmt($1, @$.first_line, @$.first_column);
         }
-        $$ = NULL;
     }
   ;
 
 /* 5. Compound Block Statements (Section 5.2, DEC-05)
  * Brace synchronization: recover malformed content inside a block at '}'.
+ * Recovery does not fabricate a Block node.
  */
 block_stmt:
     LBRACE statement_list RBRACE
     {
-        ast_free($2.head);
-        $$ = NULL;
+        $$ = ast_block($2, @$.first_line, @$.first_column);
     }
   | LBRACE statement_list error RBRACE
     {
@@ -279,30 +303,16 @@ block_stmt:
 /* 6. Control Flow Statements (Section 5.2)
  * Condition recovery: sync at ')' so an empty/malformed condition does not
  * cascade into a spurious brace diagnostic for the following statement body.
+ * Recovery productions free any valid body nodes and yield NULL (no If/While).
  */
 if_stmt:
     KW_IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE
     {
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        if ($5 != NULL) {
-            ast_free($5);
-        }
-        $$ = NULL;
+        $$ = ast_if($3, $5, NULL, @$.first_line, @$.first_column);
     }
   | KW_IF LPAREN expression RPAREN statement KW_ELSE statement
     {
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        if ($5 != NULL) {
-            ast_free($5);
-        }
-        if ($7 != NULL) {
-            ast_free($7);
-        }
-        $$ = NULL;
+        $$ = ast_if($3, $5, $7, @$.first_line, @$.first_column);
     }
   | KW_IF LPAREN error RPAREN statement %prec LOWER_THAN_ELSE
     {
@@ -328,13 +338,7 @@ if_stmt:
 while_stmt:
     KW_WHILE LPAREN expression RPAREN statement
     {
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        if ($5 != NULL) {
-            ast_free($5);
-        }
-        $$ = NULL;
+        $$ = ast_while($3, $5, @$.first_line, @$.first_column);
     }
   | KW_WHILE LPAREN error RPAREN statement
     {
@@ -350,15 +354,13 @@ while_stmt:
 print_stmt:
     KW_PRINT expression SEMICOLON
     {
-        if ($2 != NULL) {
-            ast_free($2);
-        }
-        $$ = NULL;
+        $$ = ast_print_stmt($2, @$.first_line, @$.first_column);
     }
   ;
 
 /* 8. Error Recovery Statement (Section 4.2, DEC-10)
  * Semicolon synchronization: discard tokens until ';' then resume.
+ * No fabricated statement node.
  */
 error_stmt:
     error SEMICOLON

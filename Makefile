@@ -27,8 +27,9 @@ LEXER_C_BIN     ?= $(BIN_DIR)/compilecraft-lexer-c.exe
 LEXER_CPP_BIN   ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
 LEXER_JAVA_BIN  ?= $(BIN_DIR)/compilecraft-lexer-java.exe
 PARSER_BIN      ?= $(BIN_DIR)/compilecraft-parser.exe
-# M4.2.5: test-only expression AST printer (not part of the public CLI).
+# M4.2.5/M4.2.6: test-only AST printers (not part of the public CLI).
 EXPR_AST_BIN    ?= $(BIN_DIR)/compilecraft-expr-ast.exe
+PROGRAM_AST_BIN ?= $(BIN_DIR)/compilecraft-program-ast.exe
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
@@ -41,9 +42,9 @@ AST_O           := $(BUILD_DIR)/ast/ast.o
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN)
 	@echo ""
 	@echo "=============================================================================="
 	@echo " CompileCraft - Build Succeeded (Milestone 3.3: Parser Hardening)"
@@ -61,6 +62,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   Java Lexer    : $(LEXER_JAVA_BIN)"
 	@echo "   Parser        : $(PARSER_BIN)"
 	@echo "   Expr AST test : $(EXPR_AST_BIN)"
+	@echo "   Program AST   : $(PROGRAM_AST_BIN)"
 	@echo ""
 	@echo " Run 'mingw32-make test' to execute all regression test suites."
 	@echo "=============================================================================="
@@ -192,6 +194,15 @@ $(EXPR_AST_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
+# Program AST structural harness (M4.2.6): same parser objects, different main.
+$(BUILD_PARSER_DIR)/program_ast_harness.o: tests/program_ast/support/harness.c src/parser/parser.h $(PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(PROGRAM_AST_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/program_ast_harness.o $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
 parser: $(PARSER_BIN)
 
 test-parser: $(PARSER_BIN)
@@ -200,11 +211,14 @@ test-parser: $(PARSER_BIN)
 test-expr-ast: $(EXPR_AST_BIN)
 	$(PYTHON) tests/run_tests.py $(EXPR_AST_BIN) tests/expr_ast
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast
+test-program-ast: $(PROGRAM_AST_BIN)
+	$(PYTHON) tests/run_tests.py $(PROGRAM_AST_BIN) tests/program_ast
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -226,7 +240,8 @@ help:
 	@echo "   test-java        Runs automated tests for Java-subset lexer (tests/java)"
 	@echo "   test-parser      Runs automated tests for baseline parser (tests/parser)"
 	@echo "   test-expr-ast    Runs expression AST structure tests (tests/expr_ast; M4.2.5)"
-	@echo "   test             Runs all automated test suites (lexer + parser + expr AST)"
+	@echo "   test-program-ast Runs program/statement AST structure tests (tests/program_ast; M4.2.6)"
+	@echo "   test             Runs all automated test suites (lexer + parser + AST suites)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

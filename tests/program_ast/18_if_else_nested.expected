@@ -1,0 +1,9 @@
+Program
+  If
+    Identifier a
+    If
+      Identifier b
+      Print
+        Identifier a
+      Print
+        Identifier b

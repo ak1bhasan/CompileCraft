@@ -517,7 +517,7 @@ M4 must not require those annotation fields to exist yet.
 | **M4.1** | `src/ast/ast.h`, `src/ast/ast.c` (constructors, lists, `ast_free`, `ast_print`) | Compiles; no parser wiring yet (or minimal smoke only) |
 | **M4.2** | `%locations`, `%union`/`%type`/actions/destructors; lexer `yylloc`; YYSTYPE include-order fix for parser lex.o | Trees for valid programs; **all existing tests still pass** |
 | **M4.2.5** | Expression actions build real `AST_LITERAL` / `AST_IDENTIFIER` / `AST_BINARY_OP` / `AST_UNARY_OP` nodes; parentheses remain transparent | `tests/expr_ast/` structural suite via capture harness |
-| **M4.2.6** | Statement / program AST construction | Deferred |
+| **M4.2.6** | Statement / program AST construction (`AST_PROGRAM`, blocks, decls, assign, if/while/print, empty/expr stmts) | `tests/program_ast/` structural suite; production still frees trees (no public `--ast`) |
 | **M4.3** | Driver `--ast`; root lifecycle | Default CLI unchanged |
 | **M4.4** | `tests/ast/` + make target | Golden pretty-prints |
 | **M4.5** | Roadmap/README/parser notes sync | M4 complete; M5 next |
@@ -526,8 +526,15 @@ M4 must not require those annotation fields to exist yet.
 
 - Binary location uses `@$` (start of the reduced expression); unary uses the operator token `@1`; literals/identifiers use their token `@1`.
 - Constructor failure frees transferred arguments; actions must not `free`/`ast_free` children again after a successful call.
-- Until M4.2.6, statement productions still free completed expression trees after reduce (placeholder statements).
-- Structural checks use `bin/compilecraft-expr-ast.exe` with the narrow `compilecraft_capture_expr_enable` hook — not a permanent public `--ast` CLI (that remains M4.3).
+- Structural checks use `bin/compilecraft-expr-ast.exe` with `compilecraft_capture_expr_enable` — not a permanent public `--ast` CLI (that remains M4.3).
+- When expression capture is enabled, `expr_stmt` transfers the raw expression and yields a NULL statement (no shared ownership with `AST_EXPR_STMT`).
+
+### Statement / program construction notes (M4.2.6)
+
+- Statement locations use `@$` (start of the reduced construct); bare `;` uses `@1`.
+- `statement_list` uses `ast_list_append`; NULL recovery placeholders are skipped; append failure frees the rejected node.
+- Successful `program` builds `AST_PROGRAM`, then either transfers it to `compilecraft_program_capture` (tests) or `ast_free`s it (production). The start-symbol `$$` remains NULL either way.
+- Recovery productions (`error` arms) free partial children/lists and yield NULL — no fabricated statement/program nodes.
 
 ---
 

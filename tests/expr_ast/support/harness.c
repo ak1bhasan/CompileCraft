@@ -54,6 +54,8 @@ int main(int argc, char **argv) {
     syntax_error_count = 0;
     compilecraft_expr_capture = NULL;
     compilecraft_capture_expr_enable = 1;
+    compilecraft_program_capture = NULL;
+    compilecraft_capture_program_enable = 0;
 
     parse_status = yyparse();
 

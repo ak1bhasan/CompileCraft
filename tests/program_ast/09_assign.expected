@@ -1,0 +1,4 @@
+Program
+  Assign
+    Identifier x
+    Literal int 42

@@ -1,0 +1,6 @@
+Program
+  Assign
+    Identifier x
+    Binary +
+      Identifier a
+      Identifier b

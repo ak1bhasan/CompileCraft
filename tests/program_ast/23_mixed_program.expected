@@ -1,0 +1,21 @@
+Program
+  VarDecl int
+    Identifier x
+    Literal int 0
+  VarDecl float
+    Identifier y
+    Literal float 1.5
+  Assign
+    Identifier x
+    Binary +
+      Identifier x
+      Literal int 1
+  Print
+    Identifier x
+  EmptyStmt
+  Block
+    VarDecl bool
+      Identifier flag
+      Literal bool true
+    Print
+      Identifier flag

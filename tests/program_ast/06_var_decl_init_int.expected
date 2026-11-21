@@ -1,0 +1,4 @@
+Program
+  VarDecl int
+    Identifier x
+    Literal int 1

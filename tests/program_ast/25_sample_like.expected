@@ -1,0 +1,19 @@
+Program
+  VarDecl int
+    Identifier n
+    Literal int 3
+  VarDecl int
+    Identifier i
+    Literal int 0
+  While
+    Binary <
+      Identifier i
+      Identifier n
+    Block
+      Print
+        Identifier i
+      Assign
+        Identifier i
+        Binary +
+          Identifier i
+          Literal int 1
