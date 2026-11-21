@@ -166,6 +166,9 @@ struct AstNode {
     int line;       /* first line of the construct (from Bison location) */
     int column;     /* optional; 0 if unused */
     AstNode *next;  /* next statement in a list; NULL if not a list element */
+    /* Internal membership: set when owned by any AstList / statement chain.
+     * Rejects cross-list append of tails/sole members (next may be NULL). */
+    unsigned char in_stmt_list;
 
     union {
         struct {
@@ -240,6 +243,7 @@ struct AstNode {
 ### Parent–child rules
 - Children are exclusive pointers owned by the parent node.
 - Statement sequences use **`next`** sibling links; containers hold **`stmts` (head)** and **`stmts_tail`** for O(1) append.
+- `in_stmt_list` marks exclusive list ownership so a node cannot sit in two `AstList`s (including when it is a tail or sole member with `next == NULL`).
 - No parent back-pointers in M4 (keeps construction simple).
 - Expressions form trees via `left` / `right` / `operand` / `expr` / `cond` / etc.
 - `AST_ASSIGN.target` and `AST_VAR_DECL.name` are **`AST_IDENTIFIER`** nodes.
@@ -260,14 +264,23 @@ typedef struct AstList {
 } AstList;
 
 AstList ast_list_empty(void);
-AstList ast_list_append(AstList list, AstNode *stmt); /* O(1); links stmt->next */
+int ast_list_append(AstList *list, AstNode *stmt); /* O(1); see ownership below */
 AstNode *ast_list_head(AstList list);
 ```
+
+Ownership rules for `ast_list_append`:
+
+| Result | List metadata | Node ownership |
+|---|---|---|
+| Success (`1`) | `stmt` linked at tail; `in_stmt_list` set | Ownership transfers to the list exactly once |
+| Failure (`0`) | `*list` unchanged (no head/tail/`next` writes) | Caller retains ownership; node is **not** freed |
+
+Rejection reasons: `list`/`stmt` is NULL; `stmt->next != NULL`; or `stmt->in_stmt_list != 0` (already owned by this or another list — covers middle nodes, tails, and sole members). The public list API cannot create cycles.
 
 Usage in Bison (conceptual):
 
 - `%empty` statement_list → empty list.
-- `statement_list statement` → `ast_list_append($1, $2)`.
+- `statement_list statement` → copy `$1` into `$$`, then `ast_list_append(&$$, $2)`; on failure free `$2` (or equivalent) and recover.
 - `AST_PROGRAM` / `AST_BLOCK` store head and tail from the finished list.
 
 Empty programs and empty blocks are valid (null head/tail).
@@ -289,7 +302,9 @@ AstNode *ast_empty_stmt(int line, int column);
 AstNode *ast_if(AstNode *cond, AstNode *then_branch, AstNode *else_branch,
                 int line, int column);
 AstNode *ast_while(AstNode *cond, AstNode *body, int line, int column);
-AstNode *ast_print(AstNode *expr, int line, int column);
+/* Print-statement constructor — named ast_print_stmt to avoid clashing
+ * with the pretty-printer ast_print. */
+AstNode *ast_print_stmt(AstNode *expr, int line, int column);
 AstNode *ast_binary(AstBinOp op, AstNode *left, AstNode *right,
                     int line, int column);
 AstNode *ast_unary(AstUnOp op, AstNode *operand, int line, int column);
@@ -299,7 +314,7 @@ AstNode *ast_literal_float(double value, int line, int column);
 AstNode *ast_literal_bool(int value, int line, int column);
 
 void ast_free(AstNode *node);           /* recursive; walks next lists */
-void ast_print(const AstNode *node, FILE *out);
+void ast_print(const AstNode *node, FILE *out); /* pretty-printer */
 void ast_print_indent(const AstNode *node, FILE *out, int depth);
 ```
 
@@ -348,9 +363,9 @@ Printer must not emit parentheses, braces, or semicolons as structural nodes (ex
 `ast_free`:
 1. Recursively free children for the active `kind`.
 2. Free `identifier.name` when present.
-3. Free the `next` chain only from list heads (containers free the chain once; children must not be double-linked into two lists).
+3. Free the `next` chain only from list heads (containers free the chain once; `in_stmt_list` prevents a node from belonging to two lists).
 
-Invariant: every heap node has exactly one owner pointer.
+Invariant: every heap node has exactly one owner pointer. `ast_free` remains compatible with list membership: it walks `next` from a head, frees each node once, and does not require clearing `in_stmt_list` first.
 
 ---
 
@@ -401,7 +416,14 @@ Notes:
 ```yacc
 statement_list
     : %empty                         { $$ = ast_list_empty(); }
-    | statement_list statement       { $$ = ast_list_append($1, $2); }
+    | statement_list statement
+      {
+        $$ = $1;
+        if (!ast_list_append(&$$, $2)) {
+          ast_free($2); /* append rejected; caller still owned $2 */
+          YYERROR;      /* or other recovery — sketch only */
+        }
+      }
     ;
 
 statement
