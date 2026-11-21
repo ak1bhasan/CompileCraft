@@ -16,6 +16,9 @@ extern int lexical_error_count;
 void yyerror(const char *msg);
 int yyparse(void);
 
+/* Reset lexer source-location cursor (M4.2.3); no-op in standalone lexer builds. */
+void compilecraft_loc_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

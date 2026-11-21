@@ -32,6 +32,9 @@ static char last_syntax_error_msg[256];
     char *sval;
 }
 
+/* Token / nonterminal source spans (YYLTYPE); filled by the parser-linked lexer */
+%locations
+
 /* Detailed diagnostics with LAC for accurate expected-token sets (Bison 3.6+) */
 %define parse.error detailed
 %define parse.lac full

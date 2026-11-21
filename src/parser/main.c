@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
     /* Initialize scanner and parser state */
     yyin = file;
     yylineno = 1;
+    compilecraft_loc_reset();
     lexical_error_count = 0;
     syntax_error_count = 0;
 

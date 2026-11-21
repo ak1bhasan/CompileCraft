@@ -158,8 +158,9 @@ $(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H)
 
 # Parser-specific lexer object: reuse Flex output from build/lex.yy.c, but
 # force-include Bison's parser.tab.h before tokens.h (via -include) so the
-# parser binary and lexer share one YYSTYPE layout when %union grows in M4.2+.
-# Standalone compilecraft-lexer.exe keeps using tokens.h's fallback unchanged.
+# parser binary and lexer share one YYSTYPE / YYLTYPE layout (M4.2.2+).
+# That inclusion defines YYLTYPE_IS_DECLARED, enabling YY_USER_ACTION location
+# tracking in lexer.l. Standalone compilecraft-lexer.exe omits parser.tab.h.
 $(PARSER_LEX_O): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(CC) $(CFLAGS) -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc \

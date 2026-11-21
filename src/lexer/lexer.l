@@ -2,6 +2,11 @@
 /* ==============================================================================
  * CompileCraft - Lexical Analyzer Specification (Flex)
  * Conforms to Section 4.1, 5.3, and 5.4 of the Language Specification
+ *
+ * Milestone 4.2.3: Source location tracking for the parser-linked build.
+ * When compiled with Bison's parser.tab.h first (YYLTYPE_IS_DECLARED),
+ * YY_USER_ACTION maintains 1-based inclusive yylloc spans. The standalone
+ * lexer build does not include parser.tab.h, so location code is inactive.
  * ============================================================================== */
 
 #include <stdio.h>
@@ -11,6 +16,86 @@
 
 int lexical_error_count = 0;
 static int comment_start_line = 1;
+
+/*
+ * Parser-linked location state (gated on YYLTYPE from parser.tab.h).
+ *
+ * Column policy:
+ *   - Positions are 1-based and inclusive (last_column is the final character).
+ *   - Every non-newline character, including tab and space, advances one column.
+ *   - LF (\n) and lone CR (\r) each start a new line at column 1.
+ *   - CRLF (\r\n) counts as a single line break: CR is ignored for advance,
+ *     LF performs the break (also matched as one pattern where possible).
+ */
+#if defined(YYLTYPE_IS_DECLARED)
+
+static int cc_loc_line = 1;
+static int cc_loc_column = 1;
+
+void compilecraft_loc_reset(void) {
+    cc_loc_line = 1;
+    cc_loc_column = 1;
+    yylloc.first_line = 1;
+    yylloc.first_column = 1;
+    yylloc.last_line = 1;
+    yylloc.last_column = 1;
+}
+
+static void cc_loc_set_eof(void) {
+    yylloc.first_line = cc_loc_line;
+    yylloc.first_column = cc_loc_column;
+    yylloc.last_line = cc_loc_line;
+    yylloc.last_column = cc_loc_column;
+}
+
+static void cc_yy_user_action(void) {
+    int i;
+
+    yylloc.first_line = cc_loc_line;
+    yylloc.first_column = cc_loc_column;
+
+    if (yyleng <= 0) {
+        yylloc.last_line = cc_loc_line;
+        yylloc.last_column = cc_loc_column;
+        return;
+    }
+
+    for (i = 0; i < yyleng; i++) {
+        unsigned char c = (unsigned char)yytext[i];
+
+        /* Inclusive: current character occupies (cc_loc_line, cc_loc_column). */
+        yylloc.last_line = cc_loc_line;
+        yylloc.last_column = cc_loc_column;
+
+        if (c == '\r') {
+            /*
+             * CRLF is normally one Flex match (\r\n). When both bytes appear in
+             * yytext, ignore CR for advance and let LF break the line once.
+             * A lone CR (end of yytext or not followed by LF) is its own break.
+             */
+            if (i + 1 < yyleng && yytext[i + 1] == '\n') {
+                continue;
+            }
+            cc_loc_line++;
+            cc_loc_column = 1;
+        } else if (c == '\n') {
+            cc_loc_line++;
+            cc_loc_column = 1;
+        } else {
+            cc_loc_column++;
+        }
+    }
+}
+
+#define YY_USER_ACTION cc_yy_user_action();
+
+#else /* !YYLTYPE_IS_DECLARED — standalone lexer */
+
+void compilecraft_loc_reset(void) {
+    /* No-op: standalone lexer has no YYLTYPE / yylloc. */
+}
+
+#endif /* YYLTYPE_IS_DECLARED */
 %}
 
 %option noyywrap
@@ -25,15 +110,21 @@ static int comment_start_line = 1;
 
     /* --------------------------------------------------------------------------
      * 1. Comments & Whitespace (Discarded per Section 4.1)
+     * Newlines accept CRLF as a single line break for location tracking.
      * -------------------------------------------------------------------------- */
 
-"//"[^\n]*              { /* Single-line comment: discard until end of line */ }
+"//"[^\r\n]*            { /* Single-line comment: stop before CR or LF */ }
 
 "/*"                    { comment_start_line = yylineno; BEGIN(COMMENT); }
 <COMMENT>"*/"           { BEGIN(INITIAL); }
-<COMMENT>\n             { /* yylineno handles newline tracking automatically */ }
+<COMMENT>\r\n           { /* CRLF inside block comment: one line break */ }
+<COMMENT>\n             { /* LF inside block comment */ }
+<COMMENT>\r             { /* lone CR inside block comment */ }
 <COMMENT>.              { /* Discard comment characters */ }
 <COMMENT><<EOF>>        {
+#if defined(YYLTYPE_IS_DECLARED)
+                            cc_loc_set_eof();
+#endif
                             fflush(stdout);
                             fprintf(stderr, "Lexical Error at line %d: Unterminated block comment\n", comment_start_line);
                             fflush(stderr);
@@ -42,8 +133,10 @@ static int comment_start_line = 1;
                             return 0;
                         }
 
-[ \t\r]+                { /* Discard spaces, tabs, and carriage returns */ }
-\n                      { /* Newlines handled by %option yylineno */ }
+[ \t]+                  { /* Horizontal whitespace: space and tab (1 column each) */ }
+\r\n                    { /* CRLF: one logical newline */ }
+\n                      { /* LF newline */ }
+\r                      { /* Lone CR newline */ }
 
     /* --------------------------------------------------------------------------
      * 2. Keywords (Section 4.1, 5.1, 5.2)
@@ -126,6 +219,13 @@ static int comment_start_line = 1;
                                     yylineno, yytext[0]);
                             fflush(stderr);
                             lexical_error_count++;
+                        }
+
+<<EOF>>                 {
+#if defined(YYLTYPE_IS_DECLARED)
+                            cc_loc_set_eof();
+#endif
+                            return 0;
                         }
 
 %%
