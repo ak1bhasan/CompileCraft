@@ -4,7 +4,8 @@
  * Conforms to Section 4.2 and Section 5 of the Language Specification
  * Milestone 3.3: Parser Hardening (diagnostics + recovery)
  * Milestone 4.2.3: %locations
- * Milestone 4.2.4: AST semantic-value types + destructors (no tree build yet)
+ * Milestone 4.2.4: AST semantic-value types + destructors
+ * Milestone 4.2.5: Expression AST construction
  * ============================================================================== */
 
 #include <stdio.h>
@@ -25,6 +26,16 @@ void yyerror(const char *msg);
 /* Deduplicate consecutive identical diagnostics at the same line. */
 static int last_syntax_error_line = -1;
 static char last_syntax_error_msg[256];
+
+/*
+ * Narrow M4.2.5 test hook (default off for the production parser CLI).
+ * When compilecraft_capture_expr_enable is non-zero, the first successful
+ * expr_stmt transfers ownership of its expression into
+ * compilecraft_expr_capture instead of freeing it. Subsequent expressions
+ * are still freed. The capture slot starts NULL; the harness frees it.
+ */
+int compilecraft_capture_expr_enable = 0;
+AstNode *compilecraft_expr_capture = NULL;
 %}
 
 /* Expose AST types to parser.tab.h (and thus the parser-linked lexer). */
@@ -102,7 +113,7 @@ static char last_syntax_error_msg[256];
 %token SEMICOLON       289
 
 /* Nonterminal semantic types (docs/ast.md §12.2).
- * M4.2.4: placeholders only — nodes are NULL; lists stay empty until M4.2.5+.
+ * M4.2.5: expression builds real nodes; statement productions stay placeholders.
  */
 %type <node> program statement var_decl_stmt assign_stmt if_stmt while_stmt
 %type <node> print_stmt block_stmt expr_stmt error_stmt expression
@@ -229,11 +240,19 @@ assign_stmt:
     }
   ;
 
-/* 4. Expression Statements */
+/* 4. Expression Statements
+ * M4.2.5: expression trees are real; statement node remains a placeholder.
+ * Optional test capture (see compilecraft_capture_expr_enable) steals the
+ * first expression for structural tests without changing default CLI output.
+ */
 expr_stmt:
     expression SEMICOLON
     {
-        if ($1 != NULL) {
+        if (compilecraft_capture_expr_enable &&
+            compilecraft_expr_capture == NULL &&
+            $1 != NULL) {
+            compilecraft_expr_capture = $1; /* ownership transfer to harness */
+        } else if ($1 != NULL) {
             ast_free($1);
         }
         $$ = NULL;
@@ -349,178 +368,103 @@ error_stmt:
     }
   ;
 
-/* 9. Expressions (Section 5.3, DEC-12)
- * M4.2.4: no expression nodes yet — free any non-NULL children and yield NULL.
+/* 9. Expressions (Section 5.3, DEC-12) — M4.2.5 real AST construction
+ *
+ * Ownership: constructors take ownership of required children / identifier
+ * strings on success, and free those arguments on failure (return NULL).
+ * Successful reduces do not run %destructor on RHS symbols — do not free
+ * children again after a successful transfer into $$ .
+ *
+ * Locations: literals/identifiers use the token (@1); unary uses the operator
+ * token (@1); binary uses the start of the reduced expression (@$); parens
+ * are transparent (no node; keep the inner node's location).
  */
 expression:
     expression PLUS expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_ADD, $1, $3, @$.first_line, @$.first_column);
     }
   | expression MINUS expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_SUB, $1, $3, @$.first_line, @$.first_column);
     }
   | expression STAR expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_MUL, $1, $3, @$.first_line, @$.first_column);
     }
   | expression SLASH expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_DIV, $1, $3, @$.first_line, @$.first_column);
     }
   | expression MOD expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_MOD, $1, $3, @$.first_line, @$.first_column);
     }
   | expression EQ expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_EQ, $1, $3, @$.first_line, @$.first_column);
     }
   | expression NE expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_NE, $1, $3, @$.first_line, @$.first_column);
     }
   | expression LT expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_LT, $1, $3, @$.first_line, @$.first_column);
     }
   | expression GT expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_GT, $1, $3, @$.first_line, @$.first_column);
     }
   | expression LE expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_LE, $1, $3, @$.first_line, @$.first_column);
     }
   | expression GE expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_GE, $1, $3, @$.first_line, @$.first_column);
     }
   | expression AND expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_AND, $1, $3, @$.first_line, @$.first_column);
     }
   | expression OR expression
     {
-        if ($1 != NULL) {
-            ast_free($1);
-        }
-        if ($3 != NULL) {
-            ast_free($3);
-        }
-        $$ = NULL;
+        $$ = ast_binary(AST_OP_OR, $1, $3, @$.first_line, @$.first_column);
     }
   | NOT expression
     {
-        if ($2 != NULL) {
-            ast_free($2);
-        }
-        $$ = NULL;
+        $$ = ast_unary(AST_OP_NOT, $2, @1.first_line, @1.first_column);
     }
   | MINUS expression %prec UMINUS
     {
-        if ($2 != NULL) {
-            ast_free($2);
-        }
-        $$ = NULL;
+        $$ = ast_unary(AST_OP_NEG, $2, @1.first_line, @1.first_column);
     }
   | LPAREN expression RPAREN
     {
+        /* Parentheses are not AST nodes (docs/ast.md §4). */
         $$ = $2;
     }
   | IDENTIFIER
     {
-        free($1);
-        $$ = NULL;
+        /* ast_identifier takes ownership of $1; on failure it frees $1. */
+        $$ = ast_identifier($1, @1.first_line, @1.first_column);
     }
   | INT_LITERAL
     {
-        $$ = NULL;
+        $$ = ast_literal_int($1, @1.first_line, @1.first_column);
     }
   | FLOAT_LITERAL
     {
-        $$ = NULL;
+        $$ = ast_literal_float($1, @1.first_line, @1.first_column);
     }
   | KW_TRUE
     {
-        $$ = NULL;
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
     }
   | KW_FALSE
     {
-        $$ = NULL;
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
     }
   ;
 
