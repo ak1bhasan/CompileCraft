@@ -1,0 +1,7 @@
+Program
+  Block
+    VarDecl int
+      Identifier x
+    Assign
+      Identifier x
+      Literal int 1

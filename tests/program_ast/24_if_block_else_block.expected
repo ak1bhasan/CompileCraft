@@ -1,0 +1,9 @@
+Program
+  If
+    Identifier x
+    Block
+      Print
+        Identifier x
+    Block
+      Print
+        Identifier y

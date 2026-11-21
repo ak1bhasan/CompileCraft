@@ -1,0 +1,10 @@
+Program
+  While
+    Binary >
+      Identifier x
+      Literal int 0
+    Assign
+      Identifier x
+      Binary -
+        Identifier x
+        Literal int 1

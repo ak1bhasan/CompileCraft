@@ -1,0 +1,4 @@
+Program
+  VarDecl bool
+    Identifier flag
+    Literal bool true

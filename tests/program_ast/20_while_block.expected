@@ -1,0 +1,9 @@
+Program
+  While
+    Identifier flag
+    Block
+      Print
+        Identifier x
+      Assign
+        Identifier flag
+        Literal bool false

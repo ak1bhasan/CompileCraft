@@ -1,0 +1,7 @@
+Program
+  VarDecl int
+    Identifier a
+  VarDecl float
+    Identifier b
+  VarDecl bool
+    Identifier c

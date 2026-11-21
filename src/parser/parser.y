@@ -3,6 +3,10 @@
  * CompileCraft - LALR(1) Syntax Analyzer Grammar (GNU Bison)
  * Conforms to Section 4.2 and Section 5 of the Language Specification
  * Milestone 3.3: Parser Hardening (diagnostics + recovery)
+ * Milestone 4.2.3: %locations
+ * Milestone 4.2.4: AST semantic-value types + destructors
+ * Milestone 4.2.5: Expression AST construction
+ * Milestone 4.2.6: Statement and program AST construction
  * ============================================================================== */
 
 #include <stdio.h>
@@ -10,6 +14,7 @@
 #include <string.h>
 #include "parser.tab.h"
 #include "tokens.h"
+#include "ast.h"
 
 extern int yylex(void);
 extern int yylineno;
@@ -22,15 +27,43 @@ void yyerror(const char *msg);
 /* Deduplicate consecutive identical diagnostics at the same line. */
 static int last_syntax_error_line = -1;
 static char last_syntax_error_msg[256];
+
+/*
+ * AST ownership handoff (M4.3.1) and test-only expression capture.
+ *
+ * Production root: successful program reduction transfers AST_PROGRAM into
+ * compilecraft_ast_root. The driver (or harness) is the sole owner and must
+ * ast_free it exactly once. The start-symbol $$ stays NULL so Bison
+ * destructors never free the live root.
+ *
+ * Expression capture (M4.2.5, test-only): when enabled, the first expr_stmt
+ * transfers the raw expression into compilecraft_expr_capture and yields a
+ * NULL statement (no AST_EXPR_STMT / shared ownership). The harness frees it.
+ * Production leaves enable at 0.
+ */
+int compilecraft_capture_expr_enable = 0;
+AstNode *compilecraft_expr_capture = NULL;
+AstNode *compilecraft_ast_root = NULL;
 %}
 
-/* Semantic Value Types */
+/* Expose AST types to parser.tab.h (and thus the parser-linked lexer). */
+%code requires {
+#include "ast.h"
+}
+
+/* Semantic Value Types (docs/ast.md §12.1) */
 %union {
     int ival;
     double fval;
     int bval;
     char *sval;
+    AstNode *node;
+    AstTypeTag type_tag;
+    AstList list;
 }
+
+/* Token / nonterminal source spans (YYLTYPE); filled by the parser-linked lexer */
+%locations
 
 /* Detailed diagnostics with LAC for accurate expected-token sets (Bison 3.6+) */
 %define parse.error detailed
@@ -87,6 +120,14 @@ static char last_syntax_error_msg[256];
 %token RPAREN          288
 %token SEMICOLON       289
 
+/* Nonterminal semantic types (docs/ast.md §12.2).
+ * M4.2.6: expressions and statements build real nodes; recovery yields NULL.
+ */
+%type <node> program statement var_decl_stmt assign_stmt if_stmt while_stmt
+%type <node> print_stmt block_stmt expr_stmt error_stmt expression
+%type <list> statement_list
+%type <type_tag> type_spec
+
 /* ==============================================================================
  * Operator Precedence and Associativity
  * Resolves ambiguities deterministically: 0 shift/reduce, 0 reduce/reduce
@@ -107,8 +148,14 @@ static char last_syntax_error_msg[256];
 %right    NOT
 %right    UMINUS 301
 
-/* Reclaim memory for discarded tokens during error recovery */
+/*
+ * Destructors run only when Bison discards a symbol (error recovery / unwind).
+ * They must not free values already transferred into a parent on a successful
+ * reduce (RHS symbols are not destroyed after a reduce — the action owns them).
+ */
 %destructor { free($$); } <sval>
+%destructor { ast_free($$); } <node>
+%destructor { ast_free($$.head); } <list>
 
 %start program
 
@@ -121,140 +168,307 @@ static char last_syntax_error_msg[256];
 /* 1. Program & Statements
  * Top-level error production recovers at EOF after an incomplete construct
  * (e.g. missing closing brace) without inventing phantom statements.
+ *
+ * M4.3.1: successful program builds AST_PROGRAM and transfers it to
+ * compilecraft_ast_root. $$ stays NULL so the typed start symbol never
+ * double-owns the tree. The driver frees the root after yyparse.
  */
 program:
     statement_list
+    {
+        AstNode *prog = ast_program($1, @$.first_line, @$.first_column);
+        /* ast_program consumed $1 (owns list on success, frees it on failure). */
+        compilecraft_ast_root = prog;
+        $$ = NULL;
+    }
   | statement_list error
     {
+        /* Do not fabricate a program root from a recovered error. */
+        ast_free($1.head);
         yyerrok;
+        $$ = NULL;
     }
   ;
 
 statement_list:
     statement_list statement
+    {
+        $$ = $1;
+        if ($2 != NULL) {
+            /*
+             * Success: destination list owns $2.
+             * Failure with in_stmt_list: another list already owns $2 — do not free.
+             * Failure otherwise: parser action still owns $2 — free it.
+             * Rejected append leaves $$ unchanged (ast_list_append contract).
+             */
+            if (!ast_list_append(&$$, $2)) {
+                if (!$2->in_stmt_list) {
+                    ast_free($2);
+                }
+            }
+        }
+        /* NULL statements (recovery placeholders) are skipped intentionally. */
+    }
   | %empty
+    {
+        $$ = ast_list_empty();
+    }
   ;
 
 statement:
-    var_decl_stmt
-  | assign_stmt
-  | if_stmt
-  | while_stmt
-  | print_stmt
-  | block_stmt
-  | expr_stmt
+    var_decl_stmt   { $$ = $1; }
+  | assign_stmt     { $$ = $1; }
+  | if_stmt         { $$ = $1; }
+  | while_stmt      { $$ = $1; }
+  | print_stmt      { $$ = $1; }
+  | block_stmt      { $$ = $1; }
+  | expr_stmt       { $$ = $1; }
   | SEMICOLON
-  | error_stmt
+    {
+        $$ = ast_empty_stmt(@1.first_line, @1.first_column);
+    }
+  | error_stmt      { $$ = $1; }
   ;
 
-/* 2. Variable Declarations (Section 5.1, 5.2, DEC-01) */
+/* 2. Variable Declarations (Section 5.1, 5.2, DEC-01)
+ * Name string ownership: IDENTIFIER sval → ast_identifier → AST_VAR_DECL.
+ * On any constructor failure the failing API frees its would-be children.
+ */
 var_decl_stmt:
     type_spec IDENTIFIER SEMICOLON
     {
-        free($2);
+        AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+        $$ = ast_var_decl($1, name, NULL, @$.first_line, @$.first_column);
     }
   | type_spec IDENTIFIER ASSIGN expression SEMICOLON
     {
-        free($2);
+        AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+        $$ = ast_var_decl($1, name, $4, @$.first_line, @$.first_column);
     }
   ;
 
 type_spec:
-    KW_INT
-  | KW_FLOAT
-  | KW_BOOL
+    KW_INT    { $$ = AST_TYPE_INT; }
+  | KW_FLOAT  { $$ = AST_TYPE_FLOAT; }
+  | KW_BOOL   { $$ = AST_TYPE_BOOL; }
   ;
 
-/* 3. Assignment Statements (Section 5.2) */
+/* 3. Assignment Statements (Section 5.2)
+ * Target is an AST_IDENTIFIER child (docs/ast.md). sval ownership transfers
+ * into that node; value expression ownership transfers into AST_ASSIGN.
+ */
 assign_stmt:
     IDENTIFIER ASSIGN expression SEMICOLON
     {
-        free($1);
+        AstNode *target = ast_identifier($1, @1.first_line, @1.first_column);
+        $$ = ast_assign(target, $3, @$.first_line, @$.first_column);
     }
   ;
 
-/* 4. Expression Statements */
+/* 4. Expression Statements
+ * Default: wrap expression in AST_EXPR_STMT (takes ownership of $1).
+ * Expr-capture tests: transfer $1 to compilecraft_expr_capture and yield NULL
+ * so the expression is not also owned by an ExprStmt / program list.
+ */
 expr_stmt:
     expression SEMICOLON
-    ;
+    {
+        if (compilecraft_capture_expr_enable &&
+            compilecraft_expr_capture == NULL &&
+            $1 != NULL) {
+            compilecraft_expr_capture = $1;
+            $$ = NULL;
+        } else {
+            $$ = ast_expr_stmt($1, @$.first_line, @$.first_column);
+        }
+    }
+  ;
 
 /* 5. Compound Block Statements (Section 5.2, DEC-05)
  * Brace synchronization: recover malformed content inside a block at '}'.
+ * Recovery does not fabricate a Block node.
  */
 block_stmt:
     LBRACE statement_list RBRACE
+    {
+        $$ = ast_block($2, @$.first_line, @$.first_column);
+    }
   | LBRACE statement_list error RBRACE
     {
+        ast_free($2.head);
         yyerrok;
+        $$ = NULL;
     }
   ;
 
 /* 6. Control Flow Statements (Section 5.2)
  * Condition recovery: sync at ')' so an empty/malformed condition does not
  * cascade into a spurious brace diagnostic for the following statement body.
+ * Recovery productions free any valid body nodes and yield NULL (no If/While).
  */
 if_stmt:
     KW_IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE
+    {
+        $$ = ast_if($3, $5, NULL, @$.first_line, @$.first_column);
+    }
   | KW_IF LPAREN expression RPAREN statement KW_ELSE statement
+    {
+        $$ = ast_if($3, $5, $7, @$.first_line, @$.first_column);
+    }
   | KW_IF LPAREN error RPAREN statement %prec LOWER_THAN_ELSE
     {
         yyerrok;
+        if ($5 != NULL) {
+            ast_free($5);
+        }
+        $$ = NULL;
     }
   | KW_IF LPAREN error RPAREN statement KW_ELSE statement
     {
         yyerrok;
+        if ($5 != NULL) {
+            ast_free($5);
+        }
+        if ($7 != NULL) {
+            ast_free($7);
+        }
+        $$ = NULL;
     }
   ;
 
 while_stmt:
     KW_WHILE LPAREN expression RPAREN statement
+    {
+        $$ = ast_while($3, $5, @$.first_line, @$.first_column);
+    }
   | KW_WHILE LPAREN error RPAREN statement
     {
         yyerrok;
+        if ($5 != NULL) {
+            ast_free($5);
+        }
+        $$ = NULL;
     }
   ;
 
 /* 7. Output Statements (Section 5.2, DEC-06) */
 print_stmt:
     KW_PRINT expression SEMICOLON
+    {
+        $$ = ast_print_stmt($2, @$.first_line, @$.first_column);
+    }
   ;
 
 /* 8. Error Recovery Statement (Section 4.2, DEC-10)
  * Semicolon synchronization: discard tokens until ';' then resume.
+ * No fabricated statement node.
  */
 error_stmt:
     error SEMICOLON
     {
         yyerrok;
+        $$ = NULL;
     }
   ;
 
-/* 9. Expressions (Section 5.3, DEC-12) */
+/* 9. Expressions (Section 5.3, DEC-12) — M4.2.5 real AST construction
+ *
+ * Ownership: constructors take ownership of required children / identifier
+ * strings on success, and free those arguments on failure (return NULL).
+ * Successful reduces do not run %destructor on RHS symbols — do not free
+ * children again after a successful transfer into $$ .
+ *
+ * Locations: literals/identifiers use the token (@1); unary uses the operator
+ * token (@1); binary uses the start of the reduced expression (@$); parens
+ * are transparent (no node; keep the inner node's location).
+ */
 expression:
     expression PLUS expression
+    {
+        $$ = ast_binary(AST_OP_ADD, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression MINUS expression
+    {
+        $$ = ast_binary(AST_OP_SUB, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression STAR expression
+    {
+        $$ = ast_binary(AST_OP_MUL, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression SLASH expression
+    {
+        $$ = ast_binary(AST_OP_DIV, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression MOD expression
+    {
+        $$ = ast_binary(AST_OP_MOD, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression EQ expression
+    {
+        $$ = ast_binary(AST_OP_EQ, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression NE expression
+    {
+        $$ = ast_binary(AST_OP_NE, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression LT expression
+    {
+        $$ = ast_binary(AST_OP_LT, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression GT expression
+    {
+        $$ = ast_binary(AST_OP_GT, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression LE expression
+    {
+        $$ = ast_binary(AST_OP_LE, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression GE expression
+    {
+        $$ = ast_binary(AST_OP_GE, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression AND expression
+    {
+        $$ = ast_binary(AST_OP_AND, $1, $3, @$.first_line, @$.first_column);
+    }
   | expression OR expression
+    {
+        $$ = ast_binary(AST_OP_OR, $1, $3, @$.first_line, @$.first_column);
+    }
   | NOT expression
+    {
+        $$ = ast_unary(AST_OP_NOT, $2, @1.first_line, @1.first_column);
+    }
   | MINUS expression %prec UMINUS
+    {
+        $$ = ast_unary(AST_OP_NEG, $2, @1.first_line, @1.first_column);
+    }
   | LPAREN expression RPAREN
+    {
+        /* Parentheses are not AST nodes (docs/ast.md §4). */
+        $$ = $2;
+    }
   | IDENTIFIER
     {
-        free($1);
+        /* ast_identifier takes ownership of $1; on failure it frees $1. */
+        $$ = ast_identifier($1, @1.first_line, @1.first_column);
     }
   | INT_LITERAL
+    {
+        $$ = ast_literal_int($1, @1.first_line, @1.first_column);
+    }
   | FLOAT_LITERAL
+    {
+        $$ = ast_literal_float($1, @1.first_line, @1.first_column);
+    }
   | KW_TRUE
+    {
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
   | KW_FALSE
+    {
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
   ;
 
 %%

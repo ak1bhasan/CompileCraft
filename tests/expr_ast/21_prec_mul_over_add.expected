@@ -1,0 +1,5 @@
+Binary +
+  Identifier a
+  Binary *
+    Identifier b
+    Identifier c

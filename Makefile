@@ -27,17 +27,26 @@ LEXER_C_BIN     ?= $(BIN_DIR)/compilecraft-lexer-c.exe
 LEXER_CPP_BIN   ?= $(BIN_DIR)/compilecraft-lexer-cpp.exe
 LEXER_JAVA_BIN  ?= $(BIN_DIR)/compilecraft-lexer-java.exe
 PARSER_BIN      ?= $(BIN_DIR)/compilecraft-parser.exe
+# M4.2.5/M4.2.6: test-only AST printers (not part of the public CLI).
+EXPR_AST_BIN    ?= $(BIN_DIR)/compilecraft-expr-ast.exe
+PROGRAM_AST_BIN ?= $(BIN_DIR)/compilecraft-program-ast.exe
+# M4.2.7: AST list ownership unit test (links AST core only).
+AST_OWNERSHIP_BIN ?= $(BIN_DIR)/test-ast-list-ownership.exe
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
+# Parser-linked Flex object (distinct from standalone build/lex.yy.o).
+PARSER_LEX_O    := $(BUILD_PARSER_DIR)/lex.yy.o
+# AST core object (M4.1); linked into the parser binary only (M4.2.2).
+AST_O           := $(BUILD_DIR)/ast/ast.o
 # -d: header, -v: parser.output
 # Fail the build on unresolved shift/reduce or reduce/reduce conflicts.
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast-ownership test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN)
 	@echo ""
 	@echo "=============================================================================="
 	@echo " CompileCraft - Build Succeeded (Milestone 3.3: Parser Hardening)"
@@ -54,6 +63,9 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
 	@echo "   Java Lexer    : $(LEXER_JAVA_BIN)"
 	@echo "   Parser        : $(PARSER_BIN)"
+	@echo "   Expr AST test : $(EXPR_AST_BIN)"
+	@echo "   Program AST   : $(PROGRAM_AST_BIN)"
+	@echo "   AST ownership : $(AST_OWNERSHIP_BIN)"
 	@echo ""
 	@echo " Run 'mingw32-make test' to execute all regression test suites."
 	@echo "=============================================================================="
@@ -134,25 +146,63 @@ test-java: $(LEXER_JAVA_BIN)
 	$(PYTHON) tests/run_tests.py $(LEXER_JAVA_BIN) tests/java
 
 # ------------------------------------------------------------------------------
-# Baseline Mini-Language Parser (Milestone 3.3: Hardening)
+# AST core (Milestone 4.1 sources; build integration Milestone 4.2.2)
+# Linked into the parser only — not the standalone lexer.
+# ------------------------------------------------------------------------------
+$(AST_O): src/ast/ast.c src/ast/ast.h
+	@mkdir -p $(BUILD_DIR)/ast
+	$(CC) $(CFLAGS) -Isrc/ast -Isrc -c src/ast/ast.c -o $@
+
+# ------------------------------------------------------------------------------
+# Baseline Mini-Language Parser (Milestone 3.3 + M4.2.2 AST build link)
 # ------------------------------------------------------------------------------
 $(BUILD_PARSER_DIR)/%.tab.c $(BUILD_PARSER_DIR)/%.tab.h: src/parser/%.y
 	@mkdir -p $(BUILD_PARSER_DIR)
 	$(BISON) $(BISONFLAGS) -o $(BUILD_PARSER_DIR)/$*.tab.c $<
 
-$(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H)
+$(BUILD_PARSER_DIR)/parser.tab.o: $(PARSER_TAB_C) $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
-$(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H)
+# Parser-specific lexer object: reuse Flex output from build/lex.yy.c, but
+# force-include Bison's parser.tab.h before tokens.h (via -include) so the
+# parser binary and lexer share one YYSTYPE / YYLTYPE layout (M4.2.2+).
+# That inclusion defines YYLTYPE_IS_DECLARED, enabling YY_USER_ACTION location
+# tracking in lexer.l. parser.tab.h also pulls ast.h for extended %union.
+# Standalone compilecraft-lexer.exe omits parser.tab.h.
+$(PARSER_LEX_O): $(BUILD_DIR)/lex.yy.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc \
+		-include parser.tab.h \
+		-c $(BUILD_DIR)/lex.yy.c -o $@
 
-$(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H)
+$(BUILD_PARSER_DIR)/tokens.o: src/lexer/tokens.c src/lexer/tokens.h src/lexer/tokens.def $(PARSER_TAB_H) src/ast/ast.h
 	@mkdir -p $(BUILD_PARSER_DIR)
-	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -Isrc/lexer -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
 
-$(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(BUILD_DIR)/lex.yy.o $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o
+$(BUILD_PARSER_DIR)/main.o: src/parser/main.c src/parser/parser.h $(PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(PARSER_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/main.o $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+# Expression AST structural harness (M4.2.5): same parser objects, different main.
+$(BUILD_PARSER_DIR)/expr_ast_harness.o: tests/expr_ast/support/harness.c src/parser/parser.h $(PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(EXPR_AST_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/expr_ast_harness.o $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+# Program AST structural harness (M4.2.6): same parser objects, different main.
+$(BUILD_PARSER_DIR)/program_ast_harness.o: tests/program_ast/support/harness.c src/parser/parser.h $(PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_PARSER_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(PROGRAM_AST_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_PARSER_DIR)/program_ast_harness.o $(AST_O)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
@@ -161,11 +211,29 @@ parser: $(PARSER_BIN)
 test-parser: $(PARSER_BIN)
 	$(PYTHON) tests/run_tests.py $(PARSER_BIN) tests/parser
 
-test: test-lexer test-c test-cpp test-java test-parser
+test-expr-ast: $(EXPR_AST_BIN)
+	$(PYTHON) tests/run_tests.py $(EXPR_AST_BIN) tests/expr_ast
+
+test-program-ast: $(PROGRAM_AST_BIN)
+	$(PYTHON) tests/run_tests.py $(PROGRAM_AST_BIN) tests/program_ast
+
+# M4.2.7: cross-list ownership unit test (AST core only; no parser/Flex).
+$(BUILD_DIR)/ast_ownership/test_list_ownership.o: tests/ast_ownership/test_list_ownership.c src/ast/ast.h
+	@mkdir -p $(BUILD_DIR)/ast_ownership
+	$(CC) $(CFLAGS) -Isrc/ast -Isrc -c $< -o $@
+
+$(AST_OWNERSHIP_BIN): $(BUILD_DIR)/ast_ownership/test_list_ownership.o $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test-ast-ownership: $(AST_OWNERSHIP_BIN)
+	$(AST_OWNERSHIP_BIN)
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast-ownership
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -186,7 +254,10 @@ help:
 	@echo "   test-cpp         Runs automated tests for C++-subset lexer (tests/cpp)"
 	@echo "   test-java        Runs automated tests for Java-subset lexer (tests/java)"
 	@echo "   test-parser      Runs automated tests for baseline parser (tests/parser)"
-	@echo "   test             Runs all automated test suites (87 lexer + parser hardening suite)"
+	@echo "   test-expr-ast    Runs expression AST structure tests (tests/expr_ast; M4.2.5)"
+	@echo "   test-program-ast Runs program/statement AST structure tests (tests/program_ast; M4.2.6)"
+	@echo "   test-ast-ownership Runs AST list ownership unit test (M4.2.7)"
+	@echo "   test             Runs all automated test suites (lexer + parser + AST suites)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

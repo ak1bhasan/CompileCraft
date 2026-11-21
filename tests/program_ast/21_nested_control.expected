@@ -1,0 +1,21 @@
+Program
+  If
+    Binary >
+      Identifier x
+      Literal int 0
+    Block
+      While
+        Binary >
+          Identifier y
+          Literal int 0
+        Block
+          Print
+            Identifier y
+          Assign
+            Identifier y
+            Binary -
+              Identifier y
+              Literal int 1
+    Block
+      Print
+        Identifier x
