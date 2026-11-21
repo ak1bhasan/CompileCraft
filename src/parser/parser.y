@@ -201,9 +201,16 @@ statement_list:
     {
         $$ = $1;
         if ($2 != NULL) {
-            /* Success: list owns $2. Failure: caller still owns $2 — free it. */
+            /*
+             * Success: destination list owns $2.
+             * Failure with in_stmt_list: another list already owns $2 — do not free.
+             * Failure otherwise: parser action still owns $2 — free it.
+             * Rejected append leaves $$ unchanged (ast_list_append contract).
+             */
             if (!ast_list_append(&$$, $2)) {
-                ast_free($2);
+                if (!$2->in_stmt_list) {
+                    ast_free($2);
+                }
             }
         }
         /* NULL statements (recovery placeholders) are skipped intentionally. */

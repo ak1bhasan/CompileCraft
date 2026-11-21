@@ -95,7 +95,8 @@ int ast_list_append(AstList *list, AstNode *stmt) {
     }
 
     /* Already owned by this or another statement list (covers tails and
-     * sole members where next == NULL). Caller keeps ownership. */
+     * sole members where next == NULL). Existing list remains the owner;
+     * caller must not free stmt. */
     if (stmt->in_stmt_list) {
         return 0;
     }

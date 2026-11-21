@@ -153,15 +153,20 @@ typedef struct AstList {
  * ast_list_append:
  *   On success (returns 1 / true):
  *     - Inserts stmt at the end (O(1) via tail).
- *     - Transfers ownership of stmt to the list exactly once.
+ *     - Transfers ownership of stmt to the destination list exactly once.
  *     - Sets stmt->in_stmt_list (internal membership).
  *     - Requires stmt->next == NULL and stmt not already list-owned.
  *   On failure (returns 0 / false):
  *     - Leaves *list completely unchanged (no head/tail/next writes).
- *     - Does NOT free stmt; caller retains ownership.
+ *     - Does NOT free stmt and does NOT transfer ownership to *list.
  *     - Fails if list/stmt is NULL, stmt->next != NULL, or
  *       stmt->in_stmt_list != 0 (already owned by this or another list,
  *       including tails and sole members where next is NULL).
+ *     - Ownership after rejection:
+ *         * If stmt->in_stmt_list != 0: the existing list remains the owner;
+ *           the caller must NOT free stmt.
+ *         * Otherwise the caller still owns stmt and is responsible for
+ *           releasing it (or retrying with a valid list).
  *   Public list API cannot create cycles: rejected nodes are never linked.
  * ast_list_head: returns list.head (may be NULL).
  */
