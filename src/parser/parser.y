@@ -29,21 +29,21 @@ static int last_syntax_error_line = -1;
 static char last_syntax_error_msg[256];
 
 /*
- * Test-only capture hooks (default off for the production parser CLI).
+ * AST ownership handoff (M4.3.1) and test-only expression capture.
  *
- * Expression capture (M4.2.5): when enabled, the first expr_stmt transfers the
- * raw expression tree into compilecraft_expr_capture and yields a NULL
- * statement (no AST_EXPR_STMT / shared ownership). The harness frees it.
+ * Production root: successful program reduction transfers AST_PROGRAM into
+ * compilecraft_ast_root. The driver (or harness) is the sole owner and must
+ * ast_free it exactly once. The start-symbol $$ stays NULL so Bison
+ * destructors never free the live root.
  *
- * Program capture (M4.2.6): when enabled, a successful program reduction
- * transfers the AST_PROGRAM root into compilecraft_program_capture instead of
- * freeing it. Production parses still construct then free the tree so the
- * default CLI stays leak-free without a public --ast option.
+ * Expression capture (M4.2.5, test-only): when enabled, the first expr_stmt
+ * transfers the raw expression into compilecraft_expr_capture and yields a
+ * NULL statement (no AST_EXPR_STMT / shared ownership). The harness frees it.
+ * Production leaves enable at 0.
  */
 int compilecraft_capture_expr_enable = 0;
 AstNode *compilecraft_expr_capture = NULL;
-int compilecraft_capture_program_enable = 0;
-AstNode *compilecraft_program_capture = NULL;
+AstNode *compilecraft_ast_root = NULL;
 %}
 
 /* Expose AST types to parser.tab.h (and thus the parser-linked lexer). */
@@ -169,22 +169,16 @@ AstNode *compilecraft_program_capture = NULL;
  * Top-level error production recovers at EOF after an incomplete construct
  * (e.g. missing closing brace) without inventing phantom statements.
  *
- * M4.2.6: successful program builds AST_PROGRAM; $$ is always left NULL so the
- * typed start symbol never double-owns the tree. Capture (test-only) or
- * ast_free (production) takes the sole remaining ownership.
+ * M4.3.1: successful program builds AST_PROGRAM and transfers it to
+ * compilecraft_ast_root. $$ stays NULL so the typed start symbol never
+ * double-owns the tree. The driver frees the root after yyparse.
  */
 program:
     statement_list
     {
         AstNode *prog = ast_program($1, @$.first_line, @$.first_column);
         /* ast_program consumed $1 (owns list on success, frees it on failure). */
-        if (compilecraft_capture_program_enable &&
-            compilecraft_program_capture == NULL &&
-            prog != NULL) {
-            compilecraft_program_capture = prog;
-        } else {
-            ast_free(prog);
-        }
+        compilecraft_ast_root = prog;
         $$ = NULL;
     }
   | statement_list error

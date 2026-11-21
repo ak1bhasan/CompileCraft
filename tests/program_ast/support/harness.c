@@ -1,9 +1,8 @@
 /* ==============================================================================
- * CompileCraft - Program AST structural-test harness (M4.2.6)
+ * CompileCraft - Program AST structural-test harness (M4.2.6 / M4.3.1)
  *
- * Parses a source file, captures the AST_PROGRAM root via the test-only
- * program capture hook, and prints it with ast_print. Production parser CLI
- * behaviour is unchanged (capture disabled there).
+ * Parses a source file, takes the AST_PROGRAM root from compilecraft_ast_root
+ * (production ownership handoff), and prints it with ast_print.
  * ============================================================================== */
 
 #include <stdio.h>
@@ -54,8 +53,7 @@ int main(int argc, char **argv) {
     syntax_error_count = 0;
     compilecraft_expr_capture = NULL;
     compilecraft_capture_expr_enable = 0;
-    compilecraft_program_capture = NULL;
-    compilecraft_capture_program_enable = 1;
+    compilecraft_ast_root = NULL;
 
     parse_status = yyparse();
 
@@ -63,16 +61,16 @@ int main(int argc, char **argv) {
     yylex_destroy();
 
     ok = (parse_status == 0 && syntax_error_count == 0 &&
-          lexical_error_count == 0 && compilecraft_program_capture != NULL);
+          lexical_error_count == 0 && compilecraft_ast_root != NULL);
 
     if (ok) {
-        ast_print(compilecraft_program_capture, stdout);
-        ast_free(compilecraft_program_capture);
-        compilecraft_program_capture = NULL;
+        ast_print(compilecraft_ast_root, stdout);
+        ast_free(compilecraft_ast_root);
+        compilecraft_ast_root = NULL;
         return 0;
     }
 
-    ast_free(compilecraft_program_capture);
-    compilecraft_program_capture = NULL;
+    ast_free(compilecraft_ast_root);
+    compilecraft_ast_root = NULL;
     return 1;
 }

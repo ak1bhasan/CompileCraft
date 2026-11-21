@@ -54,13 +54,17 @@ int main(int argc, char **argv) {
     syntax_error_count = 0;
     compilecraft_expr_capture = NULL;
     compilecraft_capture_expr_enable = 1;
-    compilecraft_program_capture = NULL;
-    compilecraft_capture_program_enable = 0;
+    compilecraft_ast_root = NULL;
 
     parse_status = yyparse();
 
     fclose(file);
     yylex_destroy();
+
+    /* Program root is still transferred on accept; free it separately from
+     * the stolen expression (no shared ownership with ExprStmt). */
+    ast_free(compilecraft_ast_root);
+    compilecraft_ast_root = NULL;
 
     ok = (parse_status == 0 && syntax_error_count == 0 &&
           lexical_error_count == 0 && compilecraft_expr_capture != NULL);
