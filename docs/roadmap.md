@@ -14,11 +14,16 @@
 [DONE] M1: Formal Grammar (CFG) ──► [DONE] M2: Lexer (Flex) ──► [DONE] M3: Parser (Bison)
                                                                     │  M3.2 baseline + M3.3 hardening
                                                                     ▼
-M6: Semantic Analysis ◄── M5: Symbol Table ◄── M4: AST Construction  ← NEXT
-       │
-       ▼
-M7: TAC Generation ──► M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
+[DONE] M4: AST Construction (M4.0–M4.5)
+           │
+           ▼
+M5: Symbol Table  ← NEXT ──► M6: Semantic Analysis ──► M7: TAC
+           │
+           ▼
+M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
 ```
+
+**Current project status (baseline `.mc`):** M0–M4 complete on `dev`. C / C++ / Java remain lexer-only. Next development milestone: **M5 Scoped Symbol Table**.
 
 ---
 
@@ -154,26 +159,37 @@ Implement the LALR(1) parser using Bison to parse the token stream according to 
 ### Objective
 Design and implement an explicit Abstract Syntax Tree (AST) in C that captures the semantic essence of parsed programs without syntax artifacts (parentheses, commas, semicolons).
 
-### Target Deliverables
-- `src/ast/ast.h`: AST node type definitions, union payloads, and constructor signatures.
-- `src/ast/ast.c`: Node allocation, linking, and hierarchical indentation pretty-printing (`ast_print`).
-- Updated `src/parser/parser.y`: Semantic actions creating AST nodes and attaching them to `$$`.
+### Status: **COMPLETED** (M4.0–M4.5)
+
+#### Deliverables (implemented)
+- [x] `src/ast/ast.h` / `src/ast/ast.c`: node kinds, constructors, list helpers, `ast_free`, `ast_print`.
+- [x] `src/parser/parser.y`: `%locations`, extended `%union` / destructors, semantic actions building AST nodes.
+- [x] Production root handoff via `compilecraft_ast_root` (start-symbol `$$` left `NULL`).
+- [x] Production CLI `--ast` on `bin/compilecraft-parser.exe` (default success text unchanged).
+- [x] Structural suites: `tests/expr_ast/` (30), `tests/program_ast/` (25), ownership unit test.
+- [x] Production goldens: `tests/ast/` (14) + `mingw32-make test-ast`.
+- [x] Documentation sync: `README.md`, `docs/ast.md`, `docs/parser.md`, `docs/roadmap.md` (M4.5).
+
+Also implemented (beyond the original coarse checklist): `AST_EMPTY_STMT`, `AST_EXPR_STMT`, list ownership safeguards (`in_stmt_list`), and source locations on nodes.
 
 ### Acceptance Checks
-- [ ] Dedicated AST nodes created for: `AST_PROGRAM`, `AST_VAR_DECL`, `AST_ASSIGN`, `AST_BINARY_OP`, `AST_UNARY_OP`, `AST_IF`, `AST_WHILE`, `AST_PRINT`, `AST_BLOCK`, `AST_LITERAL`, `AST_IDENTIFIER`.
-- [ ] Parser builds and returns the root `AST_PROGRAM` upon successful parse.
-- [ ] Indented text visualizer (`ast_print(root)`) cleanly displays the full program hierarchy.
-- [ ] Memory management routines (`ast_free(root)`) recursively reclaim all allocated AST nodes.
+- [x] Dedicated AST nodes created for: `AST_PROGRAM`, `AST_VAR_DECL`, `AST_ASSIGN`, `AST_BINARY_OP`, `AST_UNARY_OP`, `AST_IF`, `AST_WHILE`, `AST_PRINT`, `AST_BLOCK`, `AST_LITERAL`, `AST_IDENTIFIER` (plus `AST_EMPTY_STMT`, `AST_EXPR_STMT`).
+- [x] Parser builds and hands off the root `AST_PROGRAM` upon successful parse (`compilecraft_ast_root`).
+- [x] Indented text visualizer (`ast_print`) displays the full program hierarchy (harnesses + `--ast`).
+- [x] Memory management routines (`ast_free`) recursively reclaim allocated AST nodes; `%destructor` covers discarded values.
 
 ### Suggested Commit Messages
 - `feat(ast): define AST node structures and constructor function prototypes`
 - `feat(ast): implement AST node allocation, memory cleanup, and tree pretty-printer`
 - `feat(parser): integrate AST construction actions into grammar production rules`
 - `test(ast): verify correct AST generation and visual layout on sample programs`
+- `feat(parser): add AST output mode to the parser`
+- `test(ast): add production AST regression tests`
+- `docs: synchronize AST, parser, and roadmap notes for M4`
 
 ---
 
-## Milestone 5: Scoped Symbol Table
+## Milestone 5: Scoped Symbol Table ← **NEXT**
 
 ### Objective
 Implement a multi-scope symbol table tracking declared variables, their types, declaration line numbers, and block nesting depth.

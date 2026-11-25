@@ -1,0 +1,10 @@
+Program
+  VarDecl int
+    Identifier x
+    Literal int 1
+  VarDecl float
+    Identifier y
+    Literal float 2.5
+  VarDecl bool
+    Identifier z
+    Literal bool true

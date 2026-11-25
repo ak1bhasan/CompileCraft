@@ -44,7 +44,7 @@ AST_O           := $(BUILD_DIR)/ast/ast.o
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast-ownership test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test clean help
 
 all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN)
 	@echo ""
@@ -217,6 +217,10 @@ test-expr-ast: $(EXPR_AST_BIN)
 test-program-ast: $(PROGRAM_AST_BIN)
 	$(PYTHON) tests/run_tests.py $(PROGRAM_AST_BIN) tests/program_ast
 
+# M4.4: production --ast golden suite (compilecraft-parser.exe --ast).
+test-ast: $(PARSER_BIN)
+	$(PYTHON) tests/run_tests.py $(PARSER_BIN) tests/ast
+
 # M4.2.7: cross-list ownership unit test (AST core only; no parser/Flex).
 $(BUILD_DIR)/ast_ownership/test_list_ownership.o: tests/ast_ownership/test_list_ownership.c src/ast/ast.h
 	@mkdir -p $(BUILD_DIR)/ast_ownership
@@ -229,7 +233,7 @@ $(AST_OWNERSHIP_BIN): $(BUILD_DIR)/ast_ownership/test_list_ownership.o $(AST_O)
 test-ast-ownership: $(AST_OWNERSHIP_BIN)
 	$(AST_OWNERSHIP_BIN)
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast-ownership
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
@@ -256,6 +260,7 @@ help:
 	@echo "   test-parser      Runs automated tests for baseline parser (tests/parser)"
 	@echo "   test-expr-ast    Runs expression AST structure tests (tests/expr_ast; M4.2.5)"
 	@echo "   test-program-ast Runs program/statement AST structure tests (tests/program_ast; M4.2.6)"
+	@echo "   test-ast         Runs production --ast golden suite (tests/ast; M4.4)"
 	@echo "   test-ast-ownership Runs AST list ownership unit test (M4.2.7)"
 	@echo "   test             Runs all automated test suites (lexer + parser + AST suites)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"

@@ -1,0 +1,5 @@
+Program
+  ExprStmt
+    Binary +
+      Identifier a
+      Identifier b

@@ -64,9 +64,12 @@ def main():
         expected_exit = 1 if expects_error else 0
 
         # Tests named with 'semantic_' prefix request YYSTYPE payload dumping
+        # Directory-based: tests/ast invokes the production parser with --ast
         cmd = [lexer_bin]
         if test_file.startswith("semantic_"):
             cmd.append("--semantic")
+        if os.path.basename(os.path.normpath(tests_dir)) == "ast":
+            cmd.append("--ast")
         cmd.append(test_path)
 
         # Execute lexer driver on test file

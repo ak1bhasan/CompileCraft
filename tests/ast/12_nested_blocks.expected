@@ -1,0 +1,13 @@
+Program
+  Block
+    VarDecl int
+      Identifier x
+      Literal int 1
+    Block
+      VarDecl int
+        Identifier y
+        Literal int 2
+      Print
+        Identifier y
+    Print
+      Identifier x

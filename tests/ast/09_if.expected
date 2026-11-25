@@ -1,0 +1,7 @@
+Program
+  If
+    Binary >
+      Identifier x
+      Literal int 0
+    Print
+      Identifier x

@@ -1,0 +1,13 @@
+Program
+  While
+    Binary <
+      Identifier i
+      Identifier n
+    Block
+      Print
+        Identifier i
+      Assign
+        Identifier i
+        Binary +
+          Identifier i
+          Literal int 1

@@ -1,0 +1,9 @@
+Program
+  Assign
+    Identifier x
+    Literal int 42
+  Assign
+    Identifier y
+    Binary +
+      Identifier x
+      Literal int 1
