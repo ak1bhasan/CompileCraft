@@ -32,6 +32,15 @@ EXPR_AST_BIN    ?= $(BIN_DIR)/compilecraft-expr-ast.exe
 PROGRAM_AST_BIN ?= $(BIN_DIR)/compilecraft-program-ast.exe
 # M4.2.7: AST list ownership unit test (links AST core only).
 AST_OWNERSHIP_BIN ?= $(BIN_DIR)/test-ast-list-ownership.exe
+# M5/M6: Symbol Table and Semantic Analyzer
+SYMTAB_BIN      ?= $(BIN_DIR)/test-symbol-table.exe
+SEMANTIC_BIN    ?= $(BIN_DIR)/compilecraft-semantic.exe
+# M7: Three-Address Code Generator
+TEST_TAC_BIN    ?= $(BIN_DIR)/test-tac.exe
+
+BUILD_SYMTAB_DIR ?= $(BUILD_DIR)/symbol_table
+BUILD_SEMANTIC_DIR ?= $(BUILD_DIR)/semantic
+BUILD_TAC_DIR   ?= $(BUILD_DIR)/tac
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
@@ -39,14 +48,17 @@ PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
 PARSER_LEX_O    := $(BUILD_PARSER_DIR)/lex.yy.o
 # AST core object (M4.1); linked into the parser binary only (M4.2.2).
 AST_O           := $(BUILD_DIR)/ast/ast.o
+SYMTAB_O        := $(BUILD_SYMTAB_DIR)/symbol_table.o
+SEMANTIC_O      := $(BUILD_SEMANTIC_DIR)/semantic.o
+TAC_O           := $(BUILD_TAC_DIR)/tac.o
 # -d: header, -v: parser.output
 # Fail the build on unresolved shift/reduce or reduce/reduce conflicts.
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN)
 	@echo ""
 	@echo "=============================================================================="
 	@echo " CompileCraft - Build Succeeded (Milestone 3.3: Parser Hardening)"
@@ -233,11 +245,65 @@ $(AST_OWNERSHIP_BIN): $(BUILD_DIR)/ast_ownership/test_list_ownership.o $(AST_O)
 test-ast-ownership: $(AST_OWNERSHIP_BIN)
 	$(AST_OWNERSHIP_BIN)
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership
+# ------------------------------------------------------------------------------
+# Milestone 5: Scoped Symbol Table
+# ------------------------------------------------------------------------------
+$(BUILD_SYMTAB_DIR)/symbol_table.o: src/symbol_table/symbol_table.c src/symbol_table/symbol_table.h
+	@mkdir -p $(BUILD_SYMTAB_DIR)
+	$(CC) $(CFLAGS) -Isrc/symbol_table -Isrc -c $< -o $@
+
+$(BUILD_SYMTAB_DIR)/test_symbol_table.o: tests/symbol_table/test_symbol_table.c src/symbol_table/symbol_table.h
+	@mkdir -p $(BUILD_SYMTAB_DIR)
+	$(CC) $(CFLAGS) -Isrc/symbol_table -Isrc -c $< -o $@
+
+$(SYMTAB_BIN): $(BUILD_SYMTAB_DIR)/test_symbol_table.o $(SYMTAB_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test-symtab: $(SYMTAB_BIN)
+	$(SYMTAB_BIN)
+
+# ------------------------------------------------------------------------------
+# Milestone 6: Semantic Analyzer
+# ------------------------------------------------------------------------------
+$(BUILD_SEMANTIC_DIR)/semantic.o: src/semantic/semantic.c src/semantic/semantic.h src/ast/ast.h src/symbol_table/symbol_table.h
+	@mkdir -p $(BUILD_SEMANTIC_DIR)
+	$(CC) $(CFLAGS) -Isrc/semantic -Isrc/ast -Isrc/symbol_table -Isrc -c $< -o $@
+
+$(BUILD_SEMANTIC_DIR)/main.o: src/semantic/main.c src/semantic/semantic.h src/ast/ast.h src/symbol_table/symbol_table.h src/parser/parser.h $(PARSER_TAB_H)
+	@mkdir -p $(BUILD_SEMANTIC_DIR)
+	$(CC) $(CFLAGS) -Isrc/lexer -Isrc/parser -Isrc/ast -Isrc/symbol_table -Isrc/semantic -I$(BUILD_PARSER_DIR) -Isrc -c $< -o $@
+
+$(SEMANTIC_BIN): $(BUILD_PARSER_DIR)/parser.tab.o $(PARSER_LEX_O) $(BUILD_PARSER_DIR)/tokens.o $(BUILD_SEMANTIC_DIR)/main.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test-semantic: $(SEMANTIC_BIN)
+	$(PYTHON) tests/run_tests.py $(SEMANTIC_BIN) tests/semantic
+
+# ------------------------------------------------------------------------------
+# Milestone 7: Three-Address Code (TAC) Generator
+# ------------------------------------------------------------------------------
+$(BUILD_TAC_DIR)/tac.o: src/tac/tac.c src/tac/tac.h src/ast/ast.h
+	@mkdir -p $(BUILD_TAC_DIR)
+	$(CC) $(CFLAGS) -Isrc/tac -Isrc/ast -Isrc -c $< -o $@
+
+$(BUILD_TAC_DIR)/test_tac.o: tests/tac/test_tac.c src/tac/tac.h src/ast/ast.h
+	@mkdir -p $(BUILD_TAC_DIR)
+	$(CC) $(CFLAGS) -Isrc/tac -Isrc/ast -Isrc -c $< -o $@
+
+$(TEST_TAC_BIN): $(BUILD_TAC_DIR)/test_tac.o $(TAC_O) $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test-tac: $(TEST_TAC_BIN)
+	$(TEST_TAC_BIN)
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -262,7 +328,10 @@ help:
 	@echo "   test-program-ast Runs program/statement AST structure tests (tests/program_ast; M4.2.6)"
 	@echo "   test-ast         Runs production --ast golden suite (tests/ast; M4.4)"
 	@echo "   test-ast-ownership Runs AST list ownership unit test (M4.2.7)"
-	@echo "   test             Runs all automated test suites (lexer + parser + AST suites)"
+	@echo "   test-symtab      Runs Symbol Table unit tests (M5)"
+	@echo "   test-semantic    Runs Semantic Analyzer regression suite (M6)"
+	@echo "   test-tac         Runs Three-Address Code unit tests (M7)"
+	@echo "   test             Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

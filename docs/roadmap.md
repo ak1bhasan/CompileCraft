@@ -17,13 +17,13 @@
 [DONE] M4: AST Construction (M4.0–M4.5)
            │
            ▼
-M5: Symbol Table  ← NEXT ──► M6: Semantic Analysis ──► M7: TAC
+[DONE] M5: Symbol Table ──► [DONE] M6: Semantic Analysis ──► [DONE] M7: TAC
            │
            ▼
 M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
 ```
 
-**Current project status (baseline `.mc`):** M0–M4 complete on `dev`. C / C++ / Java remain lexer-only. Next development milestone: **M5 Scoped Symbol Table**.
+**Current project status (baseline `.mc`):** M0–M7 complete on `friend/m5-m6-semantic`. C / C++ / Java remain lexer-only. Next development milestone: **M8 Driver Integration**.
 
 ---
 
@@ -189,22 +189,22 @@ Also implemented (beyond the original coarse checklist): `AST_EMPTY_STMT`, `AST_
 
 ---
 
-## Milestone 5: Scoped Symbol Table ← **NEXT**
+## Milestone 5: Scoped Symbol Table
 
 ### Objective
 Implement a multi-scope symbol table tracking declared variables, their types, declaration line numbers, and block nesting depth.
 
-### Target Deliverables
+### Status: **COMPLETED**
 - `src/symbol_table/symbol_table.h`: Data structures for symbol entries and scope frames.
-- `src/symbol_table/symbol_table.c`: Scope push/pop, symbol insertion, current-scope lookup, and ancestral-scope lookup.
+- `src/symbol_table/symbol_table.c`: Scope push/pop, symbol insertion, current-scope lookup, ancestral-scope lookup, and historical exit tracking.
 
 ### Acceptance Checks
-- [ ] Records identifier name, data type (`TYPE_INT`, `TYPE_FLOAT`, `TYPE_BOOL`), scope level, and declaration line number.
-- [ ] `enter_scope()` creates a new nested lexical scope frame.
-- [ ] `exit_scope()` closes the current scope and frees local symbols.
-- [ ] `lookup_current_scope(name)` verifies if a symbol is already declared in the current block (for redeclaration checks).
-- [ ] `lookup_all_scopes(name)` traverses outward from the innermost block to the global scope (for resolution).
-- [ ] Verifies variable isolation: inner-scope variables cannot be accessed after exiting the block.
+- [x] Records identifier name, data type (`TYPE_INT`, `TYPE_FLOAT`, `TYPE_BOOL`), scope level, and declaration line number.
+- [x] `enter_scope()` creates a new nested lexical scope frame.
+- [x] `exit_scope()` closes the current scope and frees local symbols.
+- [x] `lookup_current_scope(name)` verifies if a symbol is already declared in the current block (for redeclaration checks).
+- [x] `lookup_all_scopes(name)` traverses outward from the innermost block to the global scope (for resolution).
+- [x] Verifies variable isolation: inner-scope variables cannot be accessed after exiting the block.
 
 ### Suggested Commit Messages
 - `feat(symbol-table): design scoped symbol entry and chained scope structures`
@@ -218,19 +218,21 @@ Implement a multi-scope symbol table tracking declared variables, their types, d
 ### Objective
 Implement an AST visitor that walks the tree, interacts with the scoped symbol table, and enforces all mandatory semantic constraints from Section 4.5.
 
-### Target Deliverables
+### Status: **COMPLETED**
 - `src/semantic/semantic.h`: Semantic analysis API.
 - `src/semantic/semantic.c`: Recursive AST visitor implementing type checking and scope verification.
+- `src/semantic/main.c`: Standalone semantic analysis driver `bin/compilecraft-semantic.exe`.
+- `tests/semantic/`: Regression test suite covering all 6 faculty rules and valid constructs (26 tests).
 
 ### Acceptance Checks
-- [ ] Detects and reports **Rule 1: Undeclared variable use** with line number.
-- [ ] Detects and reports **Rule 2: Redeclaration in same scope** with line number.
-- [ ] Detects and reports **Rule 3: Scope violation** (variable used outside its enclosing block) with line number.
-- [ ] Detects and reports **Rule 4: Type mismatch** (e.g. assigning float expression to boolean) with line number.
-- [ ] Detects and reports **Rule 5: Invalid assignment** (e.g. bool assigned to int variable) with line number.
-- [ ] Detects and reports **Rule 6: Invalid expressions** (e.g. applying `&&`, `||`, `!` to numeric operands) with line number.
-- [ ] Accurately computes expression result types during bottom-up AST traversal.
-- [ ] Emits clear, human-readable diagnostics and tracks error counts without crashing.
+- [x] Detects and reports **Rule 1: Undeclared variable use** with line number.
+- [x] Detects and reports **Rule 2: Redeclaration in same scope** with line number.
+- [x] Detects and reports **Rule 3: Scope violation** (variable used outside its enclosing block) with line number.
+- [x] Detects and reports **Rule 4: Type mismatch** (e.g. assigning float expression to boolean) with line number.
+- [x] Detects and reports **Rule 5: Invalid assignment** (e.g. bool assigned to int variable) with line number.
+- [x] Detects and reports **Rule 6: Invalid expressions** (e.g. applying `&&`, `||`, `!` to numeric operands) with line number.
+- [x] Accurately computes expression result types during bottom-up AST traversal.
+- [x] Emits clear, human-readable diagnostics and tracks error counts without crashing.
 
 ### Suggested Commit Messages
 - `feat(semantic): scaffold semantic AST visitor and expression type evaluation`
@@ -246,17 +248,18 @@ Implement an AST visitor that walks the tree, interacts with the scoped symbol t
 ### Objective
 Generate linear Three-Address Code (TAC) from the validated AST, allocating temporaries, emitting relational and arithmetic instructions, and generating control flow labels and jumps.
 
-### Target Deliverables
+### Status: **COMPLETED**
 - `src/tac/tac.h`: TAC instruction types, operand representation, and instruction list.
-- `src/tac/tac.c`: TAC instruction emission, temporary allocator (`t0`, `t1`, ...), label allocator (`L0`, `L1`, ...), and AST code generator.
+- `src/tac/tac.c`: TAC instruction emission, temporary allocator (`t1`, `t2`, ...), label allocator (`L1`, `L2`, ...), and AST code generator.
+- `tests/tac/test_tac.c`: Unit tests verifying arithmetic expressions and control flow translation.
 
 ### Acceptance Checks
-- [ ] Emits arithmetic TAC instructions with at most three operands: `t1 = b * 2`, `t2 = a + t1`.
-- [ ] Preserves operator precedence in emitted instructions.
-- [ ] Generates conditional jumps (`if t0 goto L1`) and unconditional jumps (`goto L2`) for `if`, `if-else`, and `while` loops.
-- [ ] Translates `while` loops with loop-header labels, condition evaluation, conditional exit jump, and back-jump.
-- [ ] Generates TAC for `print` statements (e.g., `print a`).
-- [ ] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC.
+- [x] Emits arithmetic TAC instructions with at most three operands: `t1 = b * 2`, `t2 = a + t1`.
+- [x] Preserves operator precedence in emitted instructions.
+- [x] Generates conditional jumps (`if t0 goto L1`) and unconditional jumps (`goto L2`) for `if`, `if-else`, and `while` loops.
+- [x] Translates `while` loops with loop-header labels, condition evaluation, conditional exit jump, and back-jump.
+- [x] Generates TAC for `print` statements (e.g., `print a`).
+- [x] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC.
 
 ### Suggested Commit Messages
 - `feat(tac): define intermediate representation data structures and instruction list`
