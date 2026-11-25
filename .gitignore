@@ -65,6 +65,8 @@ tests/run_tests.log
 # Visualization generated outputs (Graphviz rendered images)
 *.png
 *.svg
+# Keep frontend public assets trackable (overrides global *.svg / *.png above)
+!/frontend/public/**
 *.pdf.tmp
 
 # Course manual and proprietary instructional materials (keep local)
@@ -72,6 +74,15 @@ tests/run_tests.log
 docs/*.pdf
 *Manual*.pdf
 *manual*.pdf
+
+# Frontend (Vite / Node) — keep package-lock.json tracked
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+/frontend/*.local
+/frontend/.env
+/frontend/.env.*
+!/frontend/.env.example
 
 # Editor and IDE configurations
 .vscode/
