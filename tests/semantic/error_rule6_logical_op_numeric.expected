@@ -1,0 +1,1 @@
+Semantic Error at line 3: Invalid expression: Logical operator requires boolean operands, got 'int' and 'int'.

@@ -32,8 +32,8 @@ The long-term design shares AST, symbol-table, and Three-Address Code (TAC) infr
 ### Baseline mini-language (`.mc`) — current path
 
 ```
-Lexer → Parser → AST → (Symbol Table) → (Semantic Analysis) → (TAC)
-  DONE    DONE    DONE      M5               M6                  M7
+Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
+ DONE    DONE    DONE       DONE             DONE          DONE
 ```
 
 ### Multi-language target architecture
@@ -107,10 +107,10 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **AST Root + `--ast` CLI** | Production handoff and dump | **COMPLETED (M4.3.1–M4.3.2)** | See CLI section below. |
 | **Production `tests/ast/` goldens** | Parser `--ast` golden suite | **COMPLETED (M4.4)** | 14 cases; `mingw32-make test-ast`. |
 | **Docs sync** | README + AST/parser/roadmap notes | **COMPLETED (M4.5)** | |
-| **Symbol Table** | Scoped symbols | **PENDING (M5)** | Next milestone. |
-| **Semantic Analysis** | Types / rules | **PENDING (M6)** | |
-| **TAC** | Intermediate code | **PENDING (M7)** | |
-| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | |
+| **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit tests. |
+| **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
+| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Linear instructions, temporaries, labels, jumps, unit tests. |
+| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Next milestone. |
 
 ### Milestone summary (M4)
 
