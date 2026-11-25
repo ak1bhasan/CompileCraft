@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline mini-language AST complete through **M4.3.2** (production `--ast` CLI). Next: M4.3.3 / M4.4 / M4.5 documentation and golden-suite expansion, then M5 symbol table.
+> **Current focus**: baseline mini-language AST complete through **M4.5** (docs sync). Next: **M5** scoped symbol table.
 
 ---
 
@@ -14,12 +14,14 @@
 
 The long-term design shares AST, symbol-table, and Three-Address Code (TAC) infrastructure across languages. There is **no backend codegen**; the intended pipeline ends at TAC.
 
-**Implemented today (through Milestone 4.3.2):**
+**Implemented today (through Milestone 4.5):**
 
 - Four standalone Flex lexers (baseline, C, C++, Java).
 - Hardened baseline Bison parser (detailed diagnostics, recovery, zero-conflict build gate).
 - Baseline AST core under `src/ast/`, wired into the parser with source locations, ownership rules, and structural regression suites.
 - Production parser CLI with optional `--ast` output.
+- Production `tests/ast/` golden suite against `compilecraft-parser.exe --ast`.
+- Documentation synchronized with the implemented front end (`README.md`, `docs/ast.md`, `docs/parser.md`, `docs/roadmap.md`).
 
 **Not yet implemented:** C / C++ / Java parsers and language-specific ASTs, scoped symbol tables, semantic analysis, TAC generation, and the unified `compilecraft` driver (M8).
 
@@ -87,25 +89,25 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 4.3.2 — Production AST CLI (complete on `dev`)**
-> *Baseline lexer + hardened parser + AST construction + root ownership + `--ast`.*
+> **Status**: **Milestone 4.5 — Documentation Synchronization (complete on `dev`)**
+> *Baseline lexer + hardened parser + AST construction + root ownership + `--ast` + production goldens + docs sync.*
 
 ### Status matrix
 
 | Module / Component | Description | Status | Notes |
 |---|---|:---:|---|
 | **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, Make, Python | **COMPLETED** | Verified via `toolchain-check`. |
-| **Build Foundation** | Modular `Makefile` | **COMPLETED** | Lexers, parser, AST harnesses, ownership test; Bison `-Werror=conflicts-*`. |
-| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/`. Some banners still lag code (M4.5 sync). |
+| **Build Foundation** | Modular `Makefile` | **COMPLETED** | Lexers, parser, AST harnesses, ownership test, `test-ast`; Bison `-Werror=conflicts-*`. |
+| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M4.5). |
 | **Baseline Lexer (`src/lexer/`)** | Flex scanner + driver | **COMPLETED** | 18 tests. |
 | **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 25 + 24 + 20 tests. **Parsers not started.** |
 | **Baseline Parser (`src/parser/`)** | Bison LALR(1) + recovery | **COMPLETED (M3.2–M3.3)** | 34 syntax tests. See `docs/parser.md`. |
 | **AST Core (`src/ast/`)** | Nodes, constructors, lists, `ast_free`, `ast_print` | **COMPLETED (M4.0–M4.1)** | Design: `docs/ast.md`. |
 | **AST ↔ Parser Integration** | Locations, `%union`, destructors, construction | **COMPLETED (M4.2–M4.2.7)** | Expr / program suites + ownership unit test. |
 | **AST Root + `--ast` CLI** | Production handoff and dump | **COMPLETED (M4.3.1–M4.3.2)** | See CLI section below. |
-| **Production `tests/ast/` goldens** | Parser `--ast` golden suite | **PENDING (M4.3.3 / M4.4)** | Structural coverage today via `tests/expr_ast` and `tests/program_ast`. |
-| **Docs sync (README already updated)** | Remaining doc banners | **PENDING (M4.5)** | `docs/ast.md` / `docs/parser.md` banners may still look stale. |
-| **Symbol Table** | Scoped symbols | **PENDING (M5)** | |
+| **Production `tests/ast/` goldens** | Parser `--ast` golden suite | **COMPLETED (M4.4)** | 14 cases; `mingw32-make test-ast`. |
+| **Docs sync** | README + AST/parser/roadmap notes | **COMPLETED (M4.5)** | |
+| **Symbol Table** | Scoped symbols | **PENDING (M5)** | Next milestone. |
 | **Semantic Analysis** | Types / rules | **PENDING (M6)** | |
 | **TAC** | Intermediate code | **PENDING (M7)** | |
 | **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | |
@@ -122,7 +124,8 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **M4.2.7** | List ownership safeguards + unit test | Done |
 | **M4.3.1** | `compilecraft_ast_root` handoff to driver | Done |
 | **M4.3.2** | Production `--ast` CLI | Done |
-| **M4.3.3 / M4.4 / M4.5** | Production goldens + remaining docs sync | Pending |
+| **M4.4** | Production `tests/ast/` goldens + `test-ast` | Done |
+| **M4.5** | Documentation synchronization | Done |
 
 ---
 
@@ -149,7 +152,7 @@ Design authority: `docs/ast.md`. Implementation: `src/ast/`.
 - Successful `program` reduction builds `AST_PROGRAM`, stores it in `compilecraft_ast_root`, and sets start-symbol `$$` to `NULL` so Bison never double-owns the live root.
 - The production driver frees the root exactly once after `yyparse`.
 
-Expression-capture hooks remain **test-only** for `tests/expr_ast/` and are disabled in the production CLI.
+Expression-capture hooks remain **test-only** for `tests/expr_ast/` and are disabled in the production CLI. Retired program-capture hooks are **not** part of the public API.
 
 ---
 
@@ -179,7 +182,7 @@ Unknown flags, missing paths, and multiple source files print usage to stderr an
 
 ## 7. Directory Structure
 
-Reflects the repository as of M4.3.2 (planned paths that do not exist yet are omitted).
+Reflects the repository as of M4.5 (planned paths that do not exist yet are omitted).
 
 ```
 CompileCraft/
@@ -187,12 +190,12 @@ CompileCraft/
 ├── README.md
 ├── Makefile
 ├── docs/
-│   ├── ast.md                   # AST design (authoritative for M4)
+│   ├── ast.md                   # AST design + implemented status (M4)
 │   ├── requirements.md
 │   ├── roadmap.md
 │   ├── decisions.md
 │   ├── grammar.md
-│   ├── parser.md                # Baseline parser notes (M3.3; banners may lag)
+│   ├── parser.md                # Baseline parser + AST wiring notes
 │   ├── tokens.md
 │   ├── tokens_c.md
 │   ├── tokens_cpp.md
@@ -222,6 +225,7 @@ CompileCraft/
     ├── parser/                  # 34
     ├── expr_ast/                # 30 (structural; harness binary)
     ├── program_ast/             # 25 (structural; harness binary)
+    ├── ast/                     # 14 (production --ast goldens)
     └── ast_ownership/           # list-ownership unit test
 ```
 
@@ -269,11 +273,12 @@ Verified coverage:
 | Parser | 34 |
 | Expression AST | 30 |
 | Program AST | 25 |
-| **Total (golden suites)** | **176** |
+| Production AST (`--ast`) | 14 |
+| **Total (golden suites)** | **190** |
 | AST list ownership unit test | PASS (separate binary) |
 
 ```powershell
-# All suites (176 goldens + ownership unit test):
+# All suites (190 goldens + ownership unit test):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
 # Individual suites:
@@ -284,6 +289,7 @@ Verified coverage:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-parser
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-expr-ast
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-program-ast
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-ast
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-ast-ownership
 ```
 
@@ -295,9 +301,6 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 
 | Milestone | Focus |
 |---|---|
-| **M4.3.3** | Production AST regression suite (`tests/ast/` against `compilecraft-parser.exe --ast`) |
-| **M4.4** | Expanded AST golden coverage |
-| **M4.5** | Remaining documentation synchronization (`docs/ast.md`, `docs/parser.md`, roadmap banners) |
 | **M5** | Scoped symbol table |
 | **M6** | Semantic analysis |
 | **M7** | Three-Address Code |
