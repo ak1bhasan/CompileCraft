@@ -1,9 +1,13 @@
 # CompileCraft Semantic Analysis & Type Checking
 
-> **Milestone**: 6 — Semantic Analysis (M6)  
-> **Status**: Completed & Verified  
-> **Code Location**: `src/semantic/` (`semantic.h`, `semantic.c`, `main.c`)  
-> **Target Executable**: `bin/compilecraft-semantic.exe`  
+> **Milestone**: 6 — Semantic Analysis (M6)
+>
+> **Status**: Completed & Verified
+>
+> **Code Location**: `src/semantic/` (`semantic.h`, `semantic.c`, `main.c`)
+>
+> **Target Executable**: `bin/compilecraft-semantic.exe`
+>
 > **Tests**: `tests/semantic/` (26 regression tests)
 
 ---

@@ -1,8 +1,11 @@
 # CompileCraft Scoped Symbol Table Design & Implementation
 
-> **Milestone**: 5 — Scoped Symbol Table (M5)  
-> **Status**: Completed & Verified  
-> **Code Location**: `src/symbol_table/` (`symbol_table.h`, `symbol_table.c`)  
+> **Milestone**: 5 — Scoped Symbol Table (M5)
+>
+> **Status**: Completed & Verified
+>
+> **Code Location**: `src/symbol_table/` (`symbol_table.h`, `symbol_table.c`)
+>
 > **Tests**: `tests/symbol_table/test_symbol_table.c` (`bin/test-symbol-table.exe`)
 
 ---
