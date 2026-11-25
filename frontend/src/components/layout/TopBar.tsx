@@ -1,6 +1,7 @@
-import { FolderGit2, Play, Settings } from 'lucide-react'
+import { FolderGit2, Keyboard, Play, Settings } from 'lucide-react'
 import { useState } from 'react'
 import EditorSettingsMenu from '../../features/editor/EditorSettingsMenu'
+import KeyboardShortcutsMenu from '../../features/editor/KeyboardShortcutsMenu'
 import {
   LANGUAGE_OPTIONS,
   type EditorSettings,
@@ -23,6 +24,17 @@ export default function TopBar({
   onEditorSettingsChange,
 }: TopBarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  const openSettings = () => {
+    setShortcutsOpen(false)
+    setSettingsOpen((value) => !value)
+  }
+
+  const openShortcuts = () => {
+    setSettingsOpen(false)
+    setShortcutsOpen((value) => !value)
+  }
 
   return (
     <header className="relative flex h-11 shrink-0 items-center gap-3 border-b border-[var(--cc-border)] bg-[var(--cc-surface)] px-3">
@@ -77,29 +89,54 @@ export default function TopBar({
         </button>
       </div>
 
-      <div className="relative">
-        <button
-          type="button"
-          data-settings-trigger="true"
-          title="Editor settings"
-          aria-label="Editor settings"
-          aria-expanded={settingsOpen}
-          aria-haspopup="dialog"
-          onClick={() => setSettingsOpen((value) => !value)}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-            settingsOpen
-              ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
-              : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
-          }`}
-        >
-          <Settings size={15} strokeWidth={2} />
-        </button>
-        <EditorSettingsMenu
-          open={settingsOpen}
-          settings={editorSettings}
-          onChange={onEditorSettingsChange}
-          onClose={() => setSettingsOpen(false)}
-        />
+      <div className="flex items-center gap-1">
+        <div className="relative">
+          <button
+            type="button"
+            data-shortcuts-trigger="true"
+            title="Keyboard shortcuts"
+            aria-label="Keyboard shortcuts"
+            aria-expanded={shortcutsOpen}
+            aria-haspopup="dialog"
+            onClick={openShortcuts}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              shortcutsOpen
+                ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
+                : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
+            }`}
+          >
+            <Keyboard size={15} strokeWidth={2} />
+          </button>
+          <KeyboardShortcutsMenu
+            open={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
+          />
+        </div>
+
+        <div className="relative">
+          <button
+            type="button"
+            data-settings-trigger="true"
+            title="Editor settings"
+            aria-label="Editor settings"
+            aria-expanded={settingsOpen}
+            aria-haspopup="dialog"
+            onClick={openSettings}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              settingsOpen
+                ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
+                : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
+            }`}
+          >
+            <Settings size={15} strokeWidth={2} />
+          </button>
+          <EditorSettingsMenu
+            open={settingsOpen}
+            settings={editorSettings}
+            onChange={onEditorSettingsChange}
+            onClose={() => setSettingsOpen(false)}
+          />
+        </div>
       </div>
     </header>
   )

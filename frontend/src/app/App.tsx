@@ -10,6 +10,7 @@ import {
   isDocumentDirty,
   useWorkspace,
 } from '../features/editor/useWorkspace'
+import { useIdeKeyboardShortcuts } from '../features/editor/useIdeKeyboardShortcuts'
 import {
   DEFAULT_EDITOR_SETTINGS,
   type BottomTabId,
@@ -114,6 +115,34 @@ export default function App() {
     }
     workspace.updateContent(activeDocument.id, value)
   }
+
+  const cycleTab = (direction: 1 | -1) => {
+    const ids = workspace.openTabIds
+    if (ids.length < 2 || !workspace.activeTabId) {
+      return
+    }
+    const index = ids.indexOf(workspace.activeTabId)
+    if (index < 0) {
+      return
+    }
+    const nextIndex = (index + direction + ids.length) % ids.length
+    handleActivateTab(ids[nextIndex])
+  }
+
+  useIdeKeyboardShortcuts({
+    enabled: pendingAction === null,
+    handlers: {
+      onSave: handleSave,
+      onCloseActiveTab: () => {
+        if (!workspace.activeTabId) {
+          return
+        }
+        requestCloseTab(workspace.activeTabId)
+      },
+      onNextTab: () => cycleTab(1),
+      onPreviousTab: () => cycleTab(-1),
+    },
+  })
 
   const confirmPending = () => {
     if (!pendingAction) {
