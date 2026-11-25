@@ -37,7 +37,7 @@ function Field({
 }
 
 const selectClassName =
-  'h-7 min-w-[5.5rem] rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)] px-2 text-xs text-[var(--cc-text)] outline-none transition-colors hover:border-[var(--cc-primary)]/40 focus:border-[var(--cc-primary)]'
+  'h-7 min-w-[5.5rem] rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)] px-2 text-xs text-[var(--cc-text)] outline-none transition-colors hover:border-[var(--cc-primary)]/40 focus-visible:border-[var(--cc-primary)]'
 
 export default function EditorSettingsMenu({
   open,

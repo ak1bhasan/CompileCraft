@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import Sidebar from '../components/layout/Sidebar'
 import StatusBar from '../components/layout/StatusBar'
@@ -31,6 +31,7 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [bottomCollapsed, setBottomCollapsed] = useState(false)
+  const [resultsDrawerOpen, setResultsDrawerOpen] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultsTabId>('tokens')
   const [bottomTab, setBottomTab] = useState<BottomTabId>('output')
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
@@ -38,6 +39,32 @@ export default function App() {
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(
     DEFAULT_EDITOR_SETTINGS,
   )
+
+  // Auto-collapse sidebar on narrow viewports; close results drawer on desktop.
+  useEffect(() => {
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const desktopQuery = window.matchMedia('(min-width: 901px)')
+
+    const onMobileChange = () => {
+      if (mobileQuery.matches) {
+        setSidebarCollapsed(true)
+      }
+    }
+    const onDesktopChange = () => {
+      if (desktopQuery.matches) {
+        setResultsDrawerOpen(false)
+      }
+    }
+
+    onMobileChange()
+    onDesktopChange()
+    mobileQuery.addEventListener('change', onMobileChange)
+    desktopQuery.addEventListener('change', onDesktopChange)
+    return () => {
+      mobileQuery.removeEventListener('change', onMobileChange)
+      desktopQuery.removeEventListener('change', onDesktopChange)
+    }
+  }, [])
 
   const activeDocument = workspace.activeDocument
   const language: LanguageId | null = activeDocument?.language ?? null
@@ -217,6 +244,8 @@ export default function App() {
           onCursorChange={setCursor}
           resultsTab={resultsTab}
           onResultsTabChange={setResultsTab}
+          resultsDrawerOpen={resultsDrawerOpen}
+          onResultsDrawerChange={setResultsDrawerOpen}
           bottomCollapsed={bottomCollapsed}
           onBottomToggle={() => setBottomCollapsed((value) => !value)}
           bottomTab={bottomTab}

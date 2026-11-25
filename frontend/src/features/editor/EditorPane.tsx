@@ -66,10 +66,18 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
     const activeFileIdRef = useRef(fileId)
     const settingsRef = useRef(settings)
     const lastRestoredFileIdRef = useRef<string | null>(null)
+    const cursorDisposableRef = useRef<{ dispose: () => void } | null>(null)
 
     viewStateRef.current = viewState
     activeFileIdRef.current = fileId
     settingsRef.current = settings
+
+    useEffect(() => {
+      return () => {
+        cursorDisposableRef.current?.dispose()
+        cursorDisposableRef.current = null
+      }
+    }, [])
 
     useImperativeHandle(
       ref,
@@ -108,7 +116,9 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
       }
 
       updateCursor()
-      editorInstance.onDidChangeCursorPosition(updateCursor)
+      cursorDisposableRef.current?.dispose()
+      cursorDisposableRef.current =
+        editorInstance.onDidChangeCursorPosition(updateCursor)
 
       if (fileId && viewStateRef.current) {
         editorInstance.restoreViewState(viewStateRef.current)
@@ -163,7 +173,7 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
 
     if (!fileId || !language) {
       return (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 bg-[#0f0f18] px-6 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 bg-[var(--cc-editor-bg)] px-6 text-center">
           <p className="text-sm font-medium text-[var(--cc-text)]">No file open</p>
           <p className="max-w-sm text-xs leading-relaxed text-[var(--cc-text-muted)]">
             Open an in-memory example from the Explorer to start editing.
@@ -173,7 +183,7 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
     }
 
     return (
-      <div className="min-h-0 flex-1 bg-[#0f0f18]">
+      <div className="min-h-0 flex-1 bg-[var(--cc-editor-bg)]">
         <Editor
           path={fileId}
           value={value}

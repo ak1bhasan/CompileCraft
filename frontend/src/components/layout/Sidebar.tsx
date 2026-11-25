@@ -26,13 +26,23 @@ export default function Sidebar({
       className={`flex shrink-0 flex-col border-r border-[var(--cc-border)] bg-[var(--cc-surface)] transition-[width] duration-200 ${
         collapsed ? 'w-10' : 'w-60'
       }`}
+      aria-label="Explorer sidebar"
     >
-      <div className="flex h-9 items-center justify-end border-b border-[var(--cc-border)] px-1.5">
+      <div className="flex h-9 items-center gap-2 border-b border-[var(--cc-border)] px-1.5">
+        {!collapsed ? (
+          <h2 className="min-w-0 flex-1 truncate px-1.5 text-[11px] font-semibold tracking-[0.08em] text-[var(--cc-text-muted)] uppercase">
+            Explorer
+          </h2>
+        ) : (
+          <span className="flex-1" aria-hidden="true" />
+        )}
         <button
           type="button"
           onClick={onToggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--cc-text-muted)] transition-colors hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--cc-text-muted)] transition-colors hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]"
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>

@@ -73,6 +73,7 @@ export function ensureMonacoSetup(monaco: Monaco): string {
         { token: 'delimiter', foreground: '9b9bb0' },
       ],
       colors: {
+        // Keep in sync with --cc-editor-bg in styles/index.css
         'editor.background': '#0f0f18',
         'editor.foreground': '#f4f4f8',
         'editorLineNumber.foreground': '#5c5c72',

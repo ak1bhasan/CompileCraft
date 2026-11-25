@@ -90,6 +90,8 @@ function FolderNode({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label={`${open ? 'Collapse' : 'Expand'} folder ${folder.name}`}
         className="flex w-full items-center gap-1.5 py-1 pr-2 text-left text-xs text-[var(--cc-text-muted)] transition-colors hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]"
         style={{ paddingLeft }}
       >
@@ -120,6 +122,7 @@ function FolderNode({
                 key={file.id}
                 type="button"
                 onClick={() => onSelectFile(file.id)}
+                aria-current={active ? 'page' : undefined}
                 className={`flex w-full items-center gap-1.5 py-1 pr-2 text-left text-xs transition-colors ${
                   active
                     ? 'bg-[var(--cc-primary)]/15 text-[var(--cc-text)]'
@@ -136,6 +139,7 @@ function FolderNode({
                   <span
                     className="ml-auto shrink-0 text-[var(--cc-primary-hover)]"
                     title="Unsaved changes (session only)"
+                    aria-label="Unsaved changes"
                   >
                     ●
                   </span>
@@ -160,11 +164,6 @@ export default function FileExplorer({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 items-center border-b border-[var(--cc-border)] px-3">
-        <h2 className="text-[11px] font-semibold tracking-[0.08em] text-[var(--cc-text-muted)] uppercase">
-          Explorer
-        </h2>
-      </div>
       <div className="flex-1 overflow-auto py-1">
         <FolderNode
           folder={tree}

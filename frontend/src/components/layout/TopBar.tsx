@@ -66,7 +66,7 @@ export default function TopBar({
             }
             onLanguageChange(next as LanguageId)
           }}
-          className="h-8 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-xs text-[var(--cc-text)] outline-none transition-colors hover:border-[var(--cc-primary)]/50 focus:border-[var(--cc-primary)]"
+          className="h-8 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-xs text-[var(--cc-text)] outline-none transition-colors hover:border-[var(--cc-primary)]/40 focus:border-[var(--cc-primary)]"
         >
           {language === null ? (
             <option value="">Open language…</option>
@@ -81,6 +81,8 @@ export default function TopBar({
         <button
           type="button"
           disabled
+          aria-disabled="true"
+          aria-label="Run — execution is not available yet"
           title="Execution is not available yet"
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-3 text-xs font-medium text-[var(--cc-text-muted)] opacity-60"
         >
