@@ -10,11 +10,13 @@ import {
   isDocumentDirty,
   useWorkspace,
 } from '../features/editor/useWorkspace'
-import type {
-  BottomTabId,
-  CursorPosition,
-  LanguageId,
-  ResultsTabId,
+import {
+  DEFAULT_EDITOR_SETTINGS,
+  type BottomTabId,
+  type CursorPosition,
+  type EditorSettings,
+  type LanguageId,
+  type ResultsTabId,
 } from '../types/ide'
 
 type PendingAction =
@@ -32,6 +34,9 @@ export default function App() {
   const [bottomTab, setBottomTab] = useState<BottomTabId>('output')
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(
+    DEFAULT_EDITOR_SETTINGS,
+  )
 
   const activeDocument = workspace.activeDocument
   const language: LanguageId | null = activeDocument?.language ?? null
@@ -154,6 +159,8 @@ export default function App() {
         projectName={PROJECT_NAME}
         language={language}
         onLanguageChange={handleLanguageChange}
+        editorSettings={editorSettings}
+        onEditorSettingsChange={setEditorSettings}
       />
       <div className="flex min-h-0 flex-1">
         <Sidebar
@@ -170,6 +177,7 @@ export default function App() {
           activeTabId={workspace.activeTabId}
           activeDocument={activeDocument}
           editorRef={editorRef}
+          editorSettings={editorSettings}
           onActivateTab={handleActivateTab}
           onCloseTab={requestCloseTab}
           onSave={handleSave}
@@ -189,6 +197,7 @@ export default function App() {
       <StatusBar
         language={language}
         cursor={cursor}
+        editorSettings={editorSettings}
         status={
           activeDocument
             ? activeDirty

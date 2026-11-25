@@ -54,3 +54,31 @@ export function monacoLanguageFor(language: LanguageId): string {
 export function languageLabel(language: LanguageId): string {
   return LANGUAGE_OPTIONS.find((option) => option.id === language)?.label ?? language
 }
+
+export type FontSizeOption = 12 | 13 | 14 | 16 | 18
+
+export type TabSizeOption = 2 | 4 | 8
+
+export type WordWrapOption = 'on' | 'off'
+
+export type LineNumbersOption = 'on' | 'off'
+
+export interface EditorSettings {
+  fontSize: FontSizeOption
+  wordWrap: WordWrapOption
+  minimap: boolean
+  lineNumbers: LineNumbersOption
+  tabSize: TabSizeOption
+}
+
+export const FONT_SIZE_OPTIONS: FontSizeOption[] = [12, 13, 14, 16, 18]
+
+export const TAB_SIZE_OPTIONS: TabSizeOption[] = [2, 4, 8]
+
+export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  fontSize: 13,
+  wordWrap: 'on',
+  minimap: false,
+  lineNumbers: 'on',
+  tabSize: 4,
+}

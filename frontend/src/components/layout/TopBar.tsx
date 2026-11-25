@@ -1,6 +1,9 @@
 import { FolderGit2, Play, Settings } from 'lucide-react'
+import { useState } from 'react'
+import EditorSettingsMenu from '../../features/editor/EditorSettingsMenu'
 import {
   LANGUAGE_OPTIONS,
+  type EditorSettings,
   type LanguageId,
 } from '../../types/ide'
 
@@ -8,15 +11,21 @@ interface TopBarProps {
   projectName: string
   language: LanguageId | null
   onLanguageChange: (language: LanguageId) => void
+  editorSettings: EditorSettings
+  onEditorSettingsChange: (settings: EditorSettings) => void
 }
 
 export default function TopBar({
   projectName,
   language,
   onLanguageChange,
+  editorSettings,
+  onEditorSettingsChange,
 }: TopBarProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-[var(--cc-border)] bg-[var(--cc-surface)] px-3">
+    <header className="relative flex h-11 shrink-0 items-center gap-3 border-b border-[var(--cc-border)] bg-[var(--cc-surface)] px-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--cc-primary)]/20 text-[var(--cc-primary)]">
           <FolderGit2 size={15} strokeWidth={2} />
@@ -68,13 +77,30 @@ export default function TopBar({
         </button>
       </div>
 
-      <button
-        type="button"
-        title="Settings coming later"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--cc-text-muted)] transition-colors hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]"
-      >
-        <Settings size={15} strokeWidth={2} />
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          data-settings-trigger="true"
+          title="Editor settings"
+          aria-label="Editor settings"
+          aria-expanded={settingsOpen}
+          aria-haspopup="dialog"
+          onClick={() => setSettingsOpen((value) => !value)}
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            settingsOpen
+              ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
+              : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
+          }`}
+        >
+          <Settings size={15} strokeWidth={2} />
+        </button>
+        <EditorSettingsMenu
+          open={settingsOpen}
+          settings={editorSettings}
+          onChange={onEditorSettingsChange}
+          onClose={() => setSettingsOpen(false)}
+        />
+      </div>
     </header>
   )
 }

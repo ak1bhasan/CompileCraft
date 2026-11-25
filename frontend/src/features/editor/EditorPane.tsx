@@ -8,10 +8,16 @@ import {
 } from 'react'
 import type {
   CursorPosition,
+  EditorSettings,
   EditorViewState,
   LanguageId,
 } from '../../types/ide'
 import { monacoLanguageFor } from '../../types/ide'
+import {
+  applyEditorSettings,
+  toMonacoEditorOptions,
+  toMonacoModelOptions,
+} from './editorSettings'
 import { ensureMonacoSetup } from './monacoTheme'
 
 export interface EditorPaneHandle {
@@ -24,41 +30,46 @@ interface EditorPaneProps {
   value: string
   language: LanguageId | null
   viewState: EditorViewState | null
+  settings: EditorSettings
   onChange: (value: string) => void
   onCursorChange: (position: CursorPosition) => void
 }
 
-const EDITOR_OPTIONS: editor.IStandaloneEditorConstructionOptions = {
+const BASE_EDITOR_OPTIONS: editor.IStandaloneEditorConstructionOptions = {
   fontFamily: '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
-  fontSize: 13,
-  lineHeight: 20,
-  minimap: { enabled: false },
   scrollBeyondLastLine: false,
   automaticLayout: true,
-  tabSize: 4,
-  insertSpaces: true,
   detectIndentation: false,
   folding: true,
-  lineNumbers: 'on',
   renderLineHighlight: 'line',
   smoothScrolling: true,
   padding: { top: 8, bottom: 8 },
-  wordWrap: 'on',
   bracketPairColorization: { enabled: true },
+  insertSpaces: true,
 }
 
 const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
   function EditorPane(
-    { fileId, value, language, viewState, onChange, onCursorChange },
+    {
+      fileId,
+      value,
+      language,
+      viewState,
+      settings,
+      onChange,
+      onCursorChange,
+    },
     ref,
   ) {
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
     const viewStateRef = useRef(viewState)
     const activeFileIdRef = useRef(fileId)
+    const settingsRef = useRef(settings)
     const lastRestoredFileIdRef = useRef<string | null>(null)
 
     viewStateRef.current = viewState
     activeFileIdRef.current = fileId
+    settingsRef.current = settings
 
     useImperativeHandle(
       ref,
@@ -86,6 +97,7 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
     const handleMount: OnMount = (editorInstance, monaco) => {
       editorRef.current = editorInstance
       monaco.editor.setTheme('compilecraft-dark')
+      applyEditorSettings(editorInstance, settingsRef.current)
 
       const updateCursor = () => {
         const position = editorInstance.getPosition()
@@ -109,10 +121,21 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
 
     useEffect(() => {
       const editorInstance = editorRef.current
+      if (!editorInstance) {
+        return
+      }
+      applyEditorSettings(editorInstance, settings)
+    }, [settings])
+
+    useEffect(() => {
+      const editorInstance = editorRef.current
       if (!editorInstance || !fileId) {
         lastRestoredFileIdRef.current = null
         return
       }
+
+      // Keep tab size on the active model when switching documents.
+      editorInstance.getModel()?.updateOptions(toMonacoModelOptions(settingsRef.current))
 
       if (lastRestoredFileIdRef.current === fileId) {
         return
@@ -159,7 +182,11 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
           beforeMount={handleBeforeMount}
           onMount={handleMount}
           onChange={(next) => onChange(next ?? '')}
-          options={EDITOR_OPTIONS}
+          options={{
+            ...BASE_EDITOR_OPTIONS,
+            ...toMonacoEditorOptions(settings),
+            ...toMonacoModelOptions(settings),
+          }}
           loading={
             <div className="flex h-full items-center justify-center text-sm text-[var(--cc-text-muted)]">
               Loading editor…

@@ -8,6 +8,7 @@ import BottomPanel from '../../features/console/BottomPanel'
 import type {
   BottomTabId,
   CursorPosition,
+  EditorSettings,
   EditorViewState,
   LanguageId,
   ResultsTabId,
@@ -19,6 +20,7 @@ interface WorkspaceProps {
   activeTabId: string | null
   activeDocument: WorkspaceDocument | null
   editorRef: Ref<EditorPaneHandle>
+  editorSettings: EditorSettings
   onActivateTab: (fileId: string) => void
   onCloseTab: (fileId: string) => void
   onSave: () => void
@@ -40,6 +42,7 @@ export default function Workspace({
   activeTabId,
   activeDocument,
   editorRef,
+  editorSettings,
   onActivateTab,
   onCloseTab,
   onSave,
@@ -78,6 +81,7 @@ export default function Workspace({
             value={activeDocument?.content ?? ''}
             language={language}
             viewState={viewState}
+            settings={editorSettings}
             onChange={onEditorChange}
             onCursorChange={onCursorChange}
           />
