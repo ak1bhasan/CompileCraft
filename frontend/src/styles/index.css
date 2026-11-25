@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+:root {
+  --cc-bg: #0b0b12;
+  --cc-surface: #12121c;
+  --cc-surface-elevated: #1a1a28;
+  --cc-primary: #8b5cf6;
+  --cc-primary-hover: #a78bfa;
+  --cc-text: #f4f4f8;
+  --cc-text-muted: #9b9bb0;
+  --cc-border: #2a2a3c;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--cc-bg);
+  color: var(--cc-text);
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
