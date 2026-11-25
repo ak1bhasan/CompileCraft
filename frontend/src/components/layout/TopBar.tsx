@@ -6,7 +6,7 @@ import {
 
 interface TopBarProps {
   projectName: string
-  language: LanguageId
+  language: LanguageId | null
   onLanguageChange: (language: LanguageId) => void
 }
 
@@ -37,10 +37,19 @@ export default function TopBar({
         </label>
         <select
           id="language-selector"
-          value={language}
-          onChange={(event) => onLanguageChange(event.target.value as LanguageId)}
+          value={language ?? ''}
+          onChange={(event) => {
+            const next = event.target.value
+            if (!next) {
+              return
+            }
+            onLanguageChange(next as LanguageId)
+          }}
           className="h-8 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-xs text-[var(--cc-text)] outline-none transition-colors hover:border-[var(--cc-primary)]/50 focus:border-[var(--cc-primary)]"
         >
+          {language === null ? (
+            <option value="">Open language…</option>
+          ) : null}
           {LANGUAGE_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}

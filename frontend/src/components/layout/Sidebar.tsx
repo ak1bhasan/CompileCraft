@@ -6,7 +6,9 @@ interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
   files: ExampleFile[]
-  activeFileId: string
+  activeFileId: string | null
+  openFileIds: string[]
+  dirtyFileIds: string[]
   onSelectFile: (fileId: string) => void
 }
 
@@ -15,6 +17,8 @@ export default function Sidebar({
   onToggle,
   files,
   activeFileId,
+  openFileIds,
+  dirtyFileIds,
   onSelectFile,
 }: SidebarProps) {
   return (
@@ -45,6 +49,8 @@ export default function Sidebar({
           <FileExplorer
             files={files}
             activeFileId={activeFileId}
+            openFileIds={openFileIds}
+            dirtyFileIds={dirtyFileIds}
             onSelectFile={onSelectFile}
           />
         </div>

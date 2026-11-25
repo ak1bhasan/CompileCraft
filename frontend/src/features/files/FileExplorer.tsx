@@ -11,7 +11,9 @@ import type { ExampleFile } from '../../types/ide'
 
 interface FileExplorerProps {
   files: ExampleFile[]
-  activeFileId: string
+  activeFileId: string | null
+  openFileIds: string[]
+  dirtyFileIds: string[]
   onSelectFile: (fileId: string) => void
 }
 
@@ -69,11 +71,15 @@ function FolderNode({
   folder,
   depth,
   activeFileId,
+  openFileIds,
+  dirtyFileIds,
   onSelectFile,
 }: {
   folder: TreeFolder
   depth: number
-  activeFileId: string
+  activeFileId: string | null
+  openFileIds: string[]
+  dirtyFileIds: string[]
   onSelectFile: (fileId: string) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -100,11 +106,15 @@ function FolderNode({
               folder={child}
               depth={depth + 1}
               activeFileId={activeFileId}
+              openFileIds={openFileIds}
+              dirtyFileIds={dirtyFileIds}
               onSelectFile={onSelectFile}
             />
           ))}
           {folder.files.map((file) => {
             const active = file.id === activeFileId
+            const isOpen = openFileIds.includes(file.id)
+            const dirty = dirtyFileIds.includes(file.id)
             return (
               <button
                 key={file.id}
@@ -119,7 +129,17 @@ function FolderNode({
                 title={`${file.path} (in-memory example)`}
               >
                 {fileIcon(file.language)}
-                <span className="truncate">{file.name}</span>
+                <span className={`truncate ${isOpen && !active ? 'text-[var(--cc-text)]' : ''}`}>
+                  {file.name}
+                </span>
+                {dirty ? (
+                  <span
+                    className="ml-auto shrink-0 text-[var(--cc-primary-hover)]"
+                    title="Unsaved changes (session only)"
+                  >
+                    ●
+                  </span>
+                ) : null}
               </button>
             )
           })}
@@ -132,6 +152,8 @@ function FolderNode({
 export default function FileExplorer({
   files,
   activeFileId,
+  openFileIds,
+  dirtyFileIds,
   onSelectFile,
 }: FileExplorerProps) {
   const tree = useMemo(() => buildTree(files), [files])
@@ -148,6 +170,8 @@ export default function FileExplorer({
           folder={tree}
           depth={0}
           activeFileId={activeFileId}
+          openFileIds={openFileIds}
+          dirtyFileIds={dirtyFileIds}
           onSelectFile={onSelectFile}
         />
       </div>

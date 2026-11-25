@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import Sidebar from '../components/layout/Sidebar'
 import StatusBar from '../components/layout/StatusBar'
 import TopBar from '../components/layout/TopBar'
 import Workspace from '../components/layout/Workspace'
+import { EXAMPLE_FILES, PROJECT_NAME } from '../data/examples'
+import type { EditorPaneHandle } from '../features/editor/EditorPane'
 import {
-  EXAMPLE_FILES,
-  PROJECT_NAME,
-  getExampleFile,
-  getExampleFileForLanguage,
-} from '../data/examples'
+  isDocumentDirty,
+  useWorkspace,
+} from '../features/editor/useWorkspace'
 import type {
   BottomTabId,
   CursorPosition,
@@ -16,48 +17,136 @@ import type {
   ResultsTabId,
 } from '../types/ide'
 
-function initialContents(): Record<string, string> {
-  return Object.fromEntries(EXAMPLE_FILES.map((file) => [file.id, file.content]))
-}
+type PendingAction =
+  | { type: 'close'; fileId: string }
+  | { type: 'revert'; fileId: string }
+  | null
 
 export default function App() {
-  const [activeFileId, setActiveFileId] = useState(EXAMPLE_FILES[0].id)
-  const [contents, setContents] = useState(initialContents)
+  const workspace = useWorkspace()
+  const editorRef = useRef<EditorPaneHandle>(null)
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [bottomCollapsed, setBottomCollapsed] = useState(false)
   const [resultsTab, setResultsTab] = useState<ResultsTabId>('tokens')
   const [bottomTab, setBottomTab] = useState<BottomTabId>('output')
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null)
 
-  const activeFile = getExampleFile(activeFileId) ?? EXAMPLE_FILES[0]
-  const language = activeFile.language
-  const editorValue = contents[activeFile.id] ?? activeFile.content
+  const activeDocument = workspace.activeDocument
+  const language: LanguageId | null = activeDocument?.language ?? null
+  const activeDirty = activeDocument ? isDocumentDirty(activeDocument) : false
 
-  const handleSelectFile = (fileId: string) => {
-    const file = getExampleFile(fileId)
-    if (!file) {
+  const dirtyFileIds = useMemo(
+    () =>
+      Object.values(workspace.documents)
+        .filter(isDocumentDirty)
+        .map((document) => document.id),
+    [workspace.documents],
+  )
+
+  const captureActiveViewState = () => {
+    const currentId = workspace.activeTabId
+    if (!currentId) {
       return
     }
-    setActiveFileId(file.id)
-    setCursor({ line: 1, column: 1 })
+    workspace.saveViewState(currentId, editorRef.current?.captureViewState() ?? null)
+  }
+
+  const handleOpenFile = (fileId: string) => {
+    if (fileId === workspace.activeTabId) {
+      return
+    }
+    captureActiveViewState()
+    workspace.openFile(fileId)
+  }
+
+  const handleActivateTab = (fileId: string) => {
+    if (fileId === workspace.activeTabId) {
+      return
+    }
+    captureActiveViewState()
+    workspace.activateTab(fileId)
+  }
+
+  const requestCloseTab = (fileId: string) => {
+    if (workspace.isDirty(fileId)) {
+      setPendingAction({ type: 'close', fileId })
+      return
+    }
+    if (fileId === workspace.activeTabId) {
+      captureActiveViewState()
+    }
+    workspace.closeTab(fileId)
+  }
+
+  const handleSave = () => {
+    if (!activeDocument || !activeDirty) {
+      return
+    }
+    captureActiveViewState()
+    workspace.saveDocument(activeDocument.id)
+  }
+
+  const requestRevert = () => {
+    if (!activeDocument || !activeDirty) {
+      return
+    }
+    setPendingAction({ type: 'revert', fileId: activeDocument.id })
   }
 
   const handleLanguageChange = (nextLanguage: LanguageId) => {
-    if (nextLanguage === activeFile.language) {
+    if (activeDocument?.language === nextLanguage) {
       return
     }
-
-    const file = getExampleFileForLanguage(nextLanguage, activeFileId)
-    setActiveFileId(file.id)
-    setCursor({ line: 1, column: 1 })
+    captureActiveViewState()
+    workspace.openLanguage(nextLanguage)
   }
 
   const handleEditorChange = (value: string) => {
-    setContents((previous) => ({
-      ...previous,
-      [activeFile.id]: value,
-    }))
+    if (!activeDocument) {
+      return
+    }
+    workspace.updateContent(activeDocument.id, value)
   }
+
+  const confirmPending = () => {
+    if (!pendingAction) {
+      return
+    }
+
+    if (pendingAction.type === 'close') {
+      if (pendingAction.fileId === workspace.activeTabId) {
+        captureActiveViewState()
+      }
+      // Discard session edits before closing so closed docs are clean.
+      workspace.revertDocument(pendingAction.fileId)
+      workspace.closeTab(pendingAction.fileId)
+    }
+
+    if (pendingAction.type === 'revert') {
+      workspace.revertDocument(pendingAction.fileId)
+      editorRef.current?.resetView()
+      setCursor({ line: 1, column: 1 })
+    }
+
+    setPendingAction(null)
+  }
+
+  const dialogCopy =
+    pendingAction?.type === 'close'
+      ? {
+          title: 'Discard unsaved changes?',
+          description:
+            'This file has unsaved session changes. Discarding will lose those edits. Nothing is written to disk yet.',
+          confirmLabel: 'Discard',
+        }
+      : {
+          title: 'Revert unsaved changes?',
+          description:
+            'Restore this file to its last session baseline? Current edits will be discarded. Changes are not persisted to disk.',
+          confirmLabel: 'Revert',
+        }
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[var(--cc-bg)] text-[var(--cc-text)]">
@@ -71,14 +160,22 @@ export default function App() {
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((value) => !value)}
           files={EXAMPLE_FILES}
-          activeFileId={activeFile.id}
-          onSelectFile={handleSelectFile}
+          activeFileId={workspace.activeTabId}
+          openFileIds={workspace.openTabIds}
+          dirtyFileIds={dirtyFileIds}
+          onSelectFile={handleOpenFile}
         />
         <Workspace
-          fileName={activeFile.name}
-          filePath={activeFile.path}
-          editorValue={editorValue}
-          language={language}
+          tabs={workspace.openTabs}
+          activeTabId={workspace.activeTabId}
+          activeDocument={activeDocument}
+          editorRef={editorRef}
+          onActivateTab={handleActivateTab}
+          onCloseTab={requestCloseTab}
+          onSave={handleSave}
+          onRevert={requestRevert}
+          canSave={activeDirty}
+          canRevert={activeDirty}
           onEditorChange={handleEditorChange}
           onCursorChange={setCursor}
           resultsTab={resultsTab}
@@ -92,7 +189,22 @@ export default function App() {
       <StatusBar
         language={language}
         cursor={cursor}
-        status="Ready — compiler execution not connected"
+        status={
+          activeDocument
+            ? activeDirty
+              ? 'Unsaved session changes — not written to disk'
+              : 'Ready — compiler execution not connected'
+            : 'No file open — choose an example in Explorer'
+        }
+      />
+
+      <ConfirmDialog
+        open={pendingAction !== null}
+        title={dialogCopy.title}
+        description={dialogCopy.description}
+        confirmLabel={dialogCopy.confirmLabel}
+        onConfirm={confirmPending}
+        onCancel={() => setPendingAction(null)}
       />
     </div>
   )

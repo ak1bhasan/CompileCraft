@@ -1,3 +1,5 @@
+import type { editor } from 'monaco-editor'
+
 export type LanguageId = 'c' | 'cpp' | 'java' | 'mc'
 
 export type ResultsTabId = 'tokens' | 'parser' | 'ast' | 'diagnostics'
@@ -10,6 +12,18 @@ export interface ExampleFile {
   path: string
   language: LanguageId
   content: string
+}
+
+export type EditorViewState = editor.ICodeEditorViewState
+
+export interface WorkspaceDocument {
+  id: string
+  name: string
+  path: string
+  language: LanguageId
+  content: string
+  baseline: string
+  viewState: EditorViewState | null
 }
 
 export interface CursorPosition {

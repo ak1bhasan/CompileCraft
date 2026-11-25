@@ -2,7 +2,7 @@ import type { CursorPosition, LanguageId } from '../../types/ide'
 import { languageLabel } from '../../types/ide'
 
 interface StatusBarProps {
-  language: LanguageId
+  language: LanguageId | null
   cursor: CursorPosition
   status: string
 }
@@ -14,10 +14,12 @@ export default function StatusBar({ language, cursor, status }: StatusBarProps) 
         <span className="truncate text-[var(--cc-primary)]">{status}</span>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <span>Ln {cursor.line}, Col {cursor.column}</span>
+        <span>
+          {language ? `Ln ${cursor.line}, Col ${cursor.column}` : 'Ln —, Col —'}
+        </span>
         <span>Spaces: 4</span>
         <span>UTF-8</span>
-        <span>{languageLabel(language)}</span>
+        <span>{language ? languageLabel(language) : '—'}</span>
       </div>
     </footer>
   )
