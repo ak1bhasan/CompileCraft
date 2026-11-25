@@ -1,0 +1,17 @@
+Program
+  ExprStmt
+    Binary ==
+      Identifier a
+      Identifier b
+  ExprStmt
+    Binary !=
+      Identifier c
+      Identifier d
+  ExprStmt
+    Binary &&
+      Identifier e
+      Identifier f
+  ExprStmt
+    Binary ||
+      Identifier g
+      Identifier h

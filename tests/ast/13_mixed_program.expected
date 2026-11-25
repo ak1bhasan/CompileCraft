@@ -1,0 +1,42 @@
+Program
+  VarDecl int
+    Identifier n
+    Literal int 3
+  VarDecl int
+    Identifier i
+    Literal int 0
+  VarDecl float
+    Identifier avg
+    Literal float 0
+  VarDecl bool
+    Identifier done
+    Literal bool false
+  While
+    Binary <
+      Identifier i
+      Identifier n
+    Block
+      If
+        Binary ==
+          Identifier i
+          Literal int 0
+        Block
+          Print
+            Identifier i
+        Block
+          Assign
+            Identifier avg
+            Binary +
+              Identifier avg
+              Identifier i
+      Assign
+        Identifier i
+        Binary +
+          Identifier i
+          Literal int 1
+  Assign
+    Identifier done
+    Literal bool true
+  Print
+    Identifier done
+  EmptyStmt
