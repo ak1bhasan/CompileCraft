@@ -53,7 +53,12 @@ export default function DiagnosticsPanel({
           {result.diagnostics.length}{' '}
           {result.diagnostics.length === 1 ? 'error' : 'errors'}
         </span>
-        <span>Exit code {result.exitCode}</span>
+        <span>
+          Exit code{' '}
+          {result.ok && result.executionExitCode !== null
+            ? result.executionExitCode
+            : result.exitCode}
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2 space-y-1.5">
         {result.diagnostics.map((item, index) => (

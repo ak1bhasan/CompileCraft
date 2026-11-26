@@ -4,6 +4,7 @@
  * ============================================================================== */
 
 #include "semantic.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -436,7 +437,28 @@ static void analyze_printf_output(SemanticAnalyzer *sa, const AstNode *stmt) {
             }
 
             DataType expected = TYPE_UNKNOWN;
-            if (spec == 'd') {
+            size_t advance = 2;
+            if (spec == '.') {
+                size_t j = i + 2;
+                int prec = 0;
+                int has_digits = 0;
+                while (j < end && isdigit((unsigned char)s[j])) {
+                    has_digits = 1;
+                    if (prec <= 20) {
+                        prec = prec * 10 + (s[j] - '0');
+                    }
+                    j++;
+                }
+                if (has_digits && j < end && s[j] == 'f' && prec <= 20) {
+                    expected = TYPE_FLOAT;
+                    advance = (j - i) + 1;
+                } else {
+                    report_error(sa, fmt_node->line,
+                                 "Invalid printf format: Unsupported conversion specifier. Supported specifiers are %%d, %%f, %%.Nf, %%s, and %%%%.");
+                    spec_aborted = 1;
+                    break;
+                }
+            } else if (spec == 'd') {
                 expected = TYPE_INT;
             } else if (spec == 'f') {
                 expected = TYPE_FLOAT;
@@ -453,7 +475,7 @@ static void analyze_printf_output(SemanticAnalyzer *sa, const AstNode *stmt) {
             if (!curr_arg) {
                 report_error(sa, fmt_node->line,
                              "Invalid printf call: Too few arguments for format specifier '%%%c'.",
-                             spec);
+                             spec == '.' ? 'f' : spec);
                 spec_aborted = 1;
                 break;
             }
@@ -462,10 +484,10 @@ static void analyze_printf_output(SemanticAnalyzer *sa, const AstNode *stmt) {
             if (arg_type != TYPE_UNKNOWN && arg_type != expected) {
                 report_error(sa, curr_arg->line,
                              "Invalid printf argument: Format specifier '%%%c' expects '%s', got '%s'.",
-                             spec, datatype_to_string(expected), datatype_to_string(arg_type));
+                             spec == '.' ? 'f' : spec, datatype_to_string(expected), datatype_to_string(arg_type));
             }
             curr_arg = curr_arg->next;
-            i += 2;
+            i += advance;
             continue;
         }
 

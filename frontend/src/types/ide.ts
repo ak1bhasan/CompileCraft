@@ -71,9 +71,16 @@ export type DiagnosticStage =
   | 'Lexical'
   | 'Syntax'
   | 'Semantic'
+  | 'Runtime'
   | 'Compiler'
   | 'System'
   | 'Validation'
+
+export type ExecutionStatus =
+  | 'not_run'
+  | 'succeeded'
+  | 'runtime_error'
+  | 'aborted'
 
 export interface CompileDiagnostic {
   stage: DiagnosticStage | string
@@ -86,6 +93,7 @@ export interface CompileRequest {
   language: LanguageId
   source: string
   fileName?: string
+  runId?: string
 }
 
 export interface CompileResult {
@@ -101,6 +109,12 @@ export interface CompileResult {
   symbols: CompileSymbol[]
   symtabRaw: string
   tac: string
+  executionStatus: ExecutionStatus
+  executionOk: boolean
+  executionExitCode: number | null
+  executionDurationMs: number | null
+  programOutput: string
+  executionStderr: string
   diagnostics: CompileDiagnostic[]
   rawStderr: string
   errorSummary: string

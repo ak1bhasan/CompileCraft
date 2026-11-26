@@ -36,14 +36,19 @@ typedef enum TacOpcode {
     TAC_OP_PRINT,       /* print src1 */
     TAC_OP_PRINTLN,     /* println [src1] */
     TAC_OP_ARG,         /* arg src1 */
-    TAC_OP_PRINTF       /* printf fmt (src1) */
+    TAC_OP_PRINTF,      /* printf fmt (src1) */
+    TAC_OP_ITOF,        /* dest = (float)src1 */
+    TAC_OP_UNINIT       /* mark dest uninitialized for block/loop slot reset */
 } TacOpcode;
+
+typedef struct TacScope TacScope;
 
 typedef struct TacInstr {
     TacOpcode opcode;
     char *dest;
     char *src1;
     char *src2;
+    int line;
     struct TacInstr *next;
 } TacInstr;
 
@@ -57,6 +62,13 @@ typedef struct TacGenerator {
     TacList instructions;
     int next_temp_id;
     int next_label_id;
+    int next_var_id;
+    int current_line;
+    int block_depth;
+    TacScope *scope;
+    char **seen_names;
+    size_t seen_count;
+    size_t seen_capacity;
     int failed; /* non-zero if generation cannot produce a complete stream */
 } TacGenerator;
 

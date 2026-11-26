@@ -58,11 +58,11 @@ static int eq_nocase(const char *a, const char *b) {
 static void print_usage(FILE *out, const char *argv0) {
     const char *prog = (argv0 && *argv0) ? get_basename_ptr(argv0) : "compilecraft";
     fprintf(out,
-            "CompileCraft - Multi-Language Compiler Front-End\n"
-            "Usage: %s [--tokens | --ast | --symtab] <source-file>\n"
+            "CompileCraft - Multi-Language Compiler & Virtual Machine\n"
+            "Usage: %s [--tokens | --ast | --symtab | --run] <source-file>\n"
             "       %s --help\n"
             "\n"
-            "Supported Input Languages (bounded subsets ending at TAC):\n"
+            "Supported Input Languages (bounded subsets executed via shared TAC VM):\n"
             "  .c     C procedural subset (_Bool/bool, control flow)\n"
             "  .cpp   C++ procedural subset (bool, control flow)\n"
             "  .java  Java class/main subset (boolean, control flow)\n"
@@ -71,6 +71,7 @@ static void print_usage(FILE *out, const char *argv0) {
             "  --tokens      Print lexical token stream and exit\n"
             "  --ast         Print AST and skip semantic analysis / TAC\n"
             "  --symtab      Print scoped symbol table entries and skip TAC\n"
+            "  --run         Compile to TAC and execute via shared TAC VM\n"
             "  -h, --help    Show this help message\n",
             prog, prog);
 }
@@ -79,7 +80,8 @@ typedef enum CliMode {
     MODE_TAC = 0,
     MODE_TOKENS,
     MODE_AST,
-    MODE_SYMTAB
+    MODE_SYMTAB,
+    MODE_RUN
 } CliMode;
 
 static const char *resolve_compiler_name(const char *ext, CliMode mode) {
@@ -326,6 +328,7 @@ static const char *mode_child_flag(CliMode mode) {
     switch (mode) {
         case MODE_AST:    return "--ast";
         case MODE_SYMTAB: return "--symtab";
+        case MODE_RUN:    return "--run";
         case MODE_TOKENS:
         case MODE_TAC:
         default:          return NULL;
@@ -392,6 +395,7 @@ static const char *mode_child_flag(CliMode mode) {
     switch (mode) {
         case MODE_AST:    return "--ast";
         case MODE_SYMTAB: return "--symtab";
+        case MODE_RUN:    return "--run";
         case MODE_TOKENS:
         case MODE_TAC:
         default:          return NULL;
@@ -456,6 +460,9 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "--symtab") == 0) {
             mode = MODE_SYMTAB;
             mode_count++;
+        } else if (strcmp(argv[i], "--run") == 0) {
+            mode = MODE_RUN;
+            mode_count++;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
             print_usage(stderr, argv[0]);
@@ -472,7 +479,7 @@ int main(int argc, char **argv) {
     }
 
     if (mode_count > 1) {
-        fprintf(stderr, "Error: Specify at most one output mode (--tokens, --ast, or --symtab).\n");
+        fprintf(stderr, "Error: Specify at most one output mode (--tokens, --ast, --symtab, or --run).\n");
         print_usage(stderr, argv[0]);
         return 1;
     }

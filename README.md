@@ -1,23 +1,24 @@
 # CompileCraft
 
-> **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` (**M0–M7**), **M9 C**, **M10 C++**, **M11 Java**, **M12 Hardening**, **M8 Unified CLI (`compilecraft.exe`)**, and **M13 Frontend–Compiler Integration (`frontend/` Electron IDE)**. Remaining: **M14** final docs & verification.
+> **A Multi-Language Compiler Front-End & Shared TAC Virtual Machine for C, C++, and Java Subsets**
+> **Current focus**: baseline `.mc` (**M0–M7**), **M9–M12 C/C++/Java Front-Ends & Hardening**, **M8 Unified CLI (`compilecraft.exe`)**, **M13 Electron Desktop IDE (`frontend/`)**, and **M15 Shared TAC Virtual Machine (`src/vm/` + `--run` + IDE Program Output & Stop)**. Remaining: **M14** desktop packaging & final faculty verification.
 
 ---
 
 ## 1. Project Overview
 
-**CompileCraft** is a modular compiler **front-end** developed in **C**, **Flex**, and **Bison**. It targets:
+**CompileCraft** is a modular compiler front-end and bytecode/IR execution environment developed in **C**, **Flex**, **Bison**, and **Electron/React/Monaco**. It targets:
 
-- A **baseline mini-language** (`.mc`) through the complete `Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC` pipeline.
-- Bounded procedural/entry-wrapper subsets of **C** (`C_Compiler/`), **C++** (`CPP_Compiler/`), and **Java** (`Java_Compiler/`), each compiled through its own Flex lexer and Bison parser into the shared AST, symbol table, semantic analyzer, and TAC generator. *(These front ends support documented language subsets, not full ISO C, C++, or Java specifications.)*
+- A **baseline mini-language** (`.mc`) through `Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC`.
+- Bounded procedural/entry-wrapper subsets of **C** (`C_Compiler/`), **C++** (`CPP_Compiler/`), and **Java** (`Java_Compiler/`), compiled through dedicated Flex lexers and Bison parsers into a shared AST, symbol table, semantic analyzer, TAC generator, and **Shared TAC Virtual Machine (`src/vm/`)** (`Source → Flex → Bison → AST → Semantic Analysis → TAC → Shared TAC VM → Program Output`). *(These front ends support documented language subsets, not full ISO C, C++, or Java specifications.)*
 
-There is **no backend codegen**; the pipeline terminates at Three-Address Code (TAC).
+Native target machine codegen (x86/ARM assembly/linking) is **not** performed; instead, verified Three-Address Code (TAC) executes directly inside CompileCraft's own built-in TAC Virtual Machine (`docs/vm.md`) without calling external compilers (`gcc`, `g++`, `javac`).
 
-**Implemented today (through Milestone 13):**
+**Implemented today (through Milestone 15):**
 
-- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--tokens` / `--ast` / `--symtab` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
-- **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, and line-numbered **Errors**.
+- **Shared TAC Virtual Machine (`src/vm/` → `--run`)**: Executes C, C++, and Java TAC programs with tagged `int`/`float`/`bool`/`string` values, arithmetic/unary/relational/eager-logical operators (DEC-07), label jump indexing, nested loops, C `printf` (`%d`, `%f`, `%s`, `%%`, escapes `\n`, `\t`, `\r`, `\\`, `\"`, `\0`), C++ `std::cout`/`std::endl`, Java `System.out.print`/`println` concatenation, AST-to-TAC line-numbered runtime errors (div/mod by zero, uninitialized read, type/printf faults), partial stdout flushing, and bounded `1,000,000`-step infinite-loop protection. *(Interactive stdin input such as `scanf`/`cin`/`Scanner` is not yet supported; see `docs/vm.md` Section 6.)*
+- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--tokens` / `--ast` / `--symtab` / `--run` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
+- **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, live **Program Output** (stdout, runtime errors, status & timing), clickable line-numbered **Errors**, and **Stop** execution cancellation.
 - Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
 - Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
 - **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `#include <stdio.h>`, `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `printf(...)` console output, and all six faculty semantic rules.
@@ -25,11 +26,11 @@ There is **no backend codegen**; the pipeline terminates at Three-Address Code (
 - **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `System.out.print` / `System.out.println`, and all six faculty semantic rules.
 - Production parser and language compiler CLIs with optional `--ast` and `--symtab` output.
 
-**Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
+**Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final documentation & faculty verification (**M14**), interactive stdin input (`scanf` / `std::cin` / `Scanner`, proposed in `docs/vm.md`), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
 
 ---
 
-## 2. Compiler Pipeline
+## 2. Compiler & Execution Pipeline
 
 ### Baseline mini-language (`.mc`)
 
@@ -38,13 +39,13 @@ Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
  DONE    DONE    DONE       DONE             DONE          DONE
 ```
 
-### Multi-language front-end pipelines (bounded subsets)
+### Multi-language pipelines (bounded subsets)
 
 ```
 - Baseline .mc : Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
-- C            : Flex → Bison → Shared AST → Semantic Analysis → TAC
-- C++          : Flex → Bison → Shared AST → Semantic Analysis → TAC
-- Java         : Flex → Bison → Shared AST → Semantic Analysis → TAC
+- C            : Flex → Bison → Shared AST → Semantic Analysis → TAC → Shared TAC VM (--run)
+- C++          : Flex → Bison → Shared AST → Semantic Analysis → TAC → Shared TAC VM (--run)
+- Java         : Flex → Bison → Shared AST → Semantic Analysis → TAC → Shared TAC VM (--run)
 ```
 
 ```
@@ -64,15 +65,15 @@ Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
                                ▼    ▼    ▼
                     ┌───────────────────────────────────┐
                     │ Shared Core (AST / Symtab / Sem / │
-                    │ TAC) — DONE (.mc, C, C++, Java)   │
+                    │ TAC / Shared TAC VM) — DONE       │
                     └───────────────────────────────────┘
 ```
 
-**Baseline AST today** lives under `src/ast/` (not yet a multi-language `src/common/ast/`). TAC docs: `docs/tac.md`.
+**Baseline AST today** lives under `src/ast/`. TAC docs: `docs/tac.md`. Shared TAC VM docs: `docs/vm.md`.
 
 ### Out-of-scope boundaries
 
-Backend machine code generation, assembly, linking, register allocation, and executable emission are out of scope. The pipeline is intended to terminate at TAC.
+Native machine code generation (x86/ARM assembly, register allocation, linking) and standalone native executable emission are out of scope; compiled programs execute cleanly via the built-in Shared TAC VM (`--run`).
 
 ---
 
@@ -98,16 +99,16 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 13 — Frontend–Compiler Integration (complete on `dev`, pending commit)**
-> *Electron + React + Monaco IDE wired cleanly to `bin/compilecraft.exe` for C, C++, and Java.*
+> **Status**: **Milestone 15 — Shared TAC Virtual Machine & Execution (complete on `dev`)**
+> *C, C++, and Java subsets compile through Flex → Bison → AST → Semantic → TAC and execute inside CompileCraft's Shared TAC VM via CLI `--run` and the Electron IDE.*
 
 ### Status matrix
 
 | Module / Component | Description | Status | Notes |
 |---|---|:---:|---|
 | **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, Make, Python | **COMPLETED** | Verified via `toolchain-check`. |
-| **Build Foundation** | Modular `Makefile` | **COMPLETED** | All lexers, parsers, AST/symtab/semantic/TAC targets, C/C++/Java front ends; Bison `-Werror=conflicts-*`. |
-| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M13). |
+| **Build Foundation** | Modular `Makefile` | **COMPLETED** | All lexers, parsers, AST/symtab/semantic/TAC/VM targets, C/C++/Java front ends; Bison `-Werror=conflicts-*`. |
+| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M15). |
 | **Baseline Lexer (`src/lexer/`)** | Flex scanner + driver | **COMPLETED** | 18 tests. |
 | **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 28 + 25 + 20 tests. C/C++/Java parsers & console I/O done (M9/M10/M11/M12/M13+). |
 | **Baseline Parser (`src/parser/`)** | Bison LALR(1) + recovery | **COMPLETED (M3.2–M3.3)** | 34 syntax tests. See `docs/parser.md`. |
@@ -117,13 +118,14 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **Production `tests/ast/` goldens** | Parser `--ast` golden suite | **COMPLETED (M4.4)** | 14 cases; `mingw32-make test-ast`. |
 | **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit-test executable. |
 | **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
-| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Semantic-gated driver, unit-test executable + 16 golden cases; DEC-07 interim eager `&&`/`\|\|`. |
-| **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9/M12)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
-| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10/M12)** | `compilecraft-cpp.exe`; `bool`; for-loops; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
-| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11/M12)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab` (`tests/cli/`: 52 cases). |
-| **Frontend–Compiler Integration** | Electron + React + Monaco IDE | **COMPLETED (M13)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` for C, C++, Java (desktop installer packaging pending). |
-| **Final Docs & Faculty Verification** | Final release verification | **PENDING (M14)** | Planned final milestone. |
+| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7/M15)** | Semantic-gated driver, AST source-line metadata, unit-test executable + 16 golden cases; DEC-07 interim eager `&&`/`\|\|`. |
+| **Shared TAC VM (`src/vm/`)** | Multi-language TAC execution engine | **COMPLETED (M15)** | Executes verified TAC across C, C++, and Java (`--run`, scope isolation, `int->float`, `DBL_DECIMAL_DIG`/`%.Nf`, `printf`/`cout`/`System.out`, runtime traps, 1M step cap); unit + 35 execution tests. |
+| **C front-end (`C_Compiler/`)** | C subset parse → TAC → VM | **COMPLETED (M9/M12/M15)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; `printf`; `--run`; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
+| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC → VM | **COMPLETED (M10/M12/M15)** | `compilecraft-cpp.exe`; `bool`; for-loops; `std::cout`; `--run`; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
+| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC → VM | **COMPLETED (M11/M12/M15)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; `System.out`; `--run`; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
+| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13/M15)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab`, `--run` (`tests/cli/`: 56 cases). |
+| **Frontend–Compiler & VM IDE** | Electron + React + Monaco IDE | **COMPLETED (M13/M15)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` with live **Program Output**, **TAC**, **Diagnostics**, and **Stop** cancellation. |
+| **Final Docs & Packaging** | Installer bundling & final sign-off | **PENDING (M14)** | Electron packaging and final faculty review. |
 
 ### Milestone summary (M4)
 
@@ -178,10 +180,11 @@ Expression-capture hooks remain **test-only** for `tests/expr_ast/` and are disa
 .\bin\compilecraft.exe program.cpp
 .\bin\compilecraft.exe Main.java
 .\bin\compilecraft.exe --ast Main.java
+.\bin\compilecraft.exe --run Main.java
 .\bin\compilecraft.exe --help
 ```
 
-- Supports **C (`.c`)**, **C++ (`.cpp`)**, and **Java (`.java`)** only; automatically selects the matching compiler pipeline by extension, passes `--ast` when requested, invokes the resolved sibling binary via OS process APIs (no shell), emits TAC (or AST with `--ast`) on success (`exit 0`), and suppresses TAC on any lexical, syntax, semantic, or CLI error (`exit 1`). Baseline `.mc` remains served by `bin/compilecraft-{lexer,parser,semantic,tac}.exe`.
+- Supports **C (`.c`)**, **C++ (`.cpp`)**, and **Java (`.java`)** only; automatically selects the matching compiler pipeline by extension, passes `--ast`, `--symtab`, or `--run` when requested, invokes the resolved sibling binary via OS process APIs (no shell), emits TAC (or executes the TAC VM under `--run`) on success (`exit 0`), and suppresses TAC and execution on any lexical, syntax, semantic, or CLI error (`exit 1`). Baseline `.mc` remains served by `bin/compilecraft-{lexer,parser,semantic,tac}.exe`.
 
 ### Baseline Parser CLI (`bin/compilecraft-parser.exe`)
 
@@ -207,7 +210,7 @@ Unknown flags, missing paths, and multiple source files print usage to stderr an
 
 ## 7. Directory Structure
 
-Reflects the repository as of Milestone 13 (planned installer packaging / unbuilt targets are omitted).
+Reflects the repository as of Milestone 15 (planned installer packaging / unbuilt targets are omitted).
 
 ```
 CompileCraft/
@@ -227,35 +230,37 @@ CompileCraft/
 │   ├── symbol_table.md          # Scoped symbol table specification
 │   ├── semantic_analysis.md     # Six faculty semantic rules specification
 │   ├── tac.md                   # TAC IR & DEC-07 interim policy
+│   ├── vm.md                    # Shared TAC Virtual Machine & Program Output (M15)
 │   ├── tokens.md
 │   ├── tokens_c.md
 │   ├── tokens_cpp.md
 │   └── tokens_java.md
-├── C_Compiler/                  # C-subset lexer + Bison parser + driver (M2.1/M9/M12)
-├── CPP_Compiler/                # C++-subset lexer + Bison parser + driver (M2.2/M10)
-├── Java_Compiler/               # Java-subset lexer + Bison parser + driver (M2.3/M11)
-├── frontend/                    # [M13] Electron + React + Vite + Monaco IDE
+├── C_Compiler/                  # C-subset lexer + Bison parser + driver (M2.1/M9/M12/M15)
+├── CPP_Compiler/                # C++-subset lexer + Bison parser + driver (M2.2/M10/M15)
+├── Java_Compiler/               # Java-subset lexer + Bison parser + driver (M2.3/M11/M15)
+├── frontend/                    # [M13/M15] Electron + React + Vite + Monaco IDE
 │   ├── electron/
-│   │   ├── main.cjs             # Hardened IPC process host (shell: false)
+│   │   ├── main.cjs             # Hardened IPC process host (shell: false, Run & Stop)
 │   │   └── preload.cjs          # Restricted contextBridge API
 │   └── src/
 │       ├── app/                 # Top-level IDE state & compiler orchestration
 │       ├── components/          # TopBar, Sidebar, Workspace, StatusBar, dialogs
 │       ├── data/                # C, C++, and Java IDE demonstration sources
-│       ├── features/            # Monaco editor, Tokens, AST, Symbol Table, TAC, Errors
+│       ├── features/            # Monaco editor, Tokens, AST, Symbol Table, TAC, Program Output, Errors
 │       ├── services/            # Typed IPC compiler service wrapper
-│       └── types/               # Shared IDE & compile result interfaces
+│       └── types/               # Shared IDE & compile/execution result interfaces
 ├── src/
-│   ├── main.c                   # [M8/M13] Unified multi-language CLI dispatcher
+│   ├── main.c                   # [M8/M13/M15] Unified multi-language CLI dispatcher
 │   ├── ast/                     # [M4] Shared AST core
 │   ├── lexer/                   # Baseline .mc lexer
 │   ├── parser/                  # Baseline .mc parser + AST wiring + CLI
 │   ├── symbol_table/            # [M5] Shared scoped symbol table
 │   ├── semantic/                # [M6] Shared semantic analyzer
-│   └── tac/                     # [M7] Shared Three-Address Code generator
+│   ├── tac/                     # [M7/M15] Shared Three-Address Code generator
+│   └── vm/                      # [M15] Shared TAC Virtual Machine (vm, vm_value)
 └── tests/
     ├── run_tests.py
-    ├── cli/                     # 52 unified CLI integration & error tests (M8/M13+)
+    ├── cli/                     # 56 unified CLI integration & error tests (M8/M13/M15)
     ├── lexer/                   # 18
     ├── c/                       # 28 lexer + parser/ (25) + semantic/ (17) + tac/ (13)
     ├── cpp/                     # 25 lexer + parser/ (34) + semantic/ (11) + tac/ (17)
@@ -267,7 +272,8 @@ CompileCraft/
     ├── ast_ownership/           # AST list-ownership unit-test executable
     ├── symbol_table/            # Symbol table unit-test executable
     ├── semantic/                # 26
-    └── tac/                     # TAC unit-test executable + golden/ (16)
+    ├── tac/                     # TAC unit-test executable + golden/ (16)
+    └── vm/                      # [M15] VM unit-test executable + 35 execution tests
 ```
 
 Generated outputs (`bin/`, `build/`, Flex/Bison intermediates) are gitignored.
@@ -295,16 +301,16 @@ Generated outputs (`bin/`, `build/`, Flex/Bison intermediates) are gitignored.
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" c-compiler cpp-compiler java-compiler
 ```
 
-Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bin/compilecraft-tac.exe`, AST harnesses, and three standalone C unit-test executables (`bin/test-ast-list-ownership.exe`, `bin/test-symbol-table.exe`, `bin/test-tac.exe`).
+Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bin/compilecraft-tac.exe`, AST harnesses, and four standalone C unit-test executables (`bin/test-ast-list-ownership.exe`, `bin/test-symbol-table.exe`, `bin/test-tac.exe`, `bin/test-vm.exe`).
 
 ### 8.3 Regression tests
 
 | Suite | Passed |
 |---|---:|
-| Automated regression (20 suites) | 471/471 |
-| Unit-test executables | 3/3 |
+| Automated regression (21 suites; includes 471 baseline/console I/O cases) | 510/510 |
+| Unit-test executables | 4/4 |
 
-Breakdown of the **471/471** automated regression cases:
+Breakdown of the **510/510** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
@@ -321,19 +327,22 @@ Breakdown of the **471/471** automated regression cases:
 | C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 25 + 17 + 13 |
 | C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 34 + 11 + 17 |
 | Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 36 + 13 + 17 |
-| Unified CLI (`tests/cli`) | 52 |
-| **Total (automated regression)** | **471/471** |
+| Unified CLI (`tests/cli`, incl. `--run`) | 56 |
+| Shared TAC VM execution (`tests/vm/test_vm_execution.py`) | 35 |
+| **Total (automated regression)** | **510/510** |
 
-Standalone unit-test executables (`3/3` passing):
+Standalone unit-test executables (`4/4` passing):
 - `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
 - `bin/test-symbol-table.exe` (`test-symtab`)
 - `bin/test-tac.exe` (`test-tac-unit`)
+- `bin/test-vm.exe` (`test-vm-unit`)
 
 ```powershell
-# All suites (471 automated tests + 3 unit-test executables):
+# All suites (510 automated tests + 4 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
-# Unified CLI & language compiler suites:
+# Unified CLI, Shared TAC VM & language compiler suites:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-vm
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cli
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp-compiler
@@ -353,8 +362,10 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 | Item | Focus | Status |
 |---|---|---|
 | **M13** | Frontend–compiler integration | Completed (Electron dev IDE) |
+| **M15** | Shared TAC VM, CLI `--run`, IDE Program Output & Stop | Completed |
 | **Desktop Packaging** | Standalone installer / portable app bundle | Pending |
 | **M14** | Final documentation and faculty verification | Pending |
+| **Program Input (`TAC_OP_READ`)** | `scanf`, `std::cin`, Java `Scanner` runtime input | Proposed (see `docs/vm.md`) |
 | **DEC-07** | Short-circuit vs eager logical evaluation (`&&` / `||`) | Open (interim eager TAC policy) |
 | **Language subsets** | Constructs outside bounded C/C++/Java subsets | Documented in `docs/{c,cpp,java}_frontend.md` |
 

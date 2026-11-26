@@ -38,11 +38,13 @@ SEMANTIC_BIN    ?= $(BIN_DIR)/compilecraft-semantic.exe
 # M7: Three-Address Code Generator
 TEST_TAC_BIN    ?= $(BIN_DIR)/test-tac.exe
 TAC_BIN         ?= $(BIN_DIR)/compilecraft-tac.exe
-# M9: C front-end (lexer + parser + semantic + TAC)
+# M15: Shared TAC Virtual Machine
+TEST_VM_BIN     ?= $(BIN_DIR)/test-vm.exe
+# M9: C front-end (lexer + parser + semantic + TAC + VM)
 C_COMPILER_BIN  ?= $(BIN_DIR)/compilecraft-c.exe
-# M10: C++ front-end (lexer + parser + semantic + TAC)
+# M10: C++ front-end (lexer + parser + semantic + TAC + VM)
 CPP_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-cpp.exe
-# M11: Java front-end (lexer + parser + semantic + TAC)
+# M11: Java front-end (lexer + parser + semantic + TAC + VM)
 JAVA_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-java.exe
 # M8: Unified multi-language CLI driver
 CLI_BIN         ?= $(BIN_DIR)/compilecraft.exe
@@ -50,6 +52,7 @@ CLI_BIN         ?= $(BIN_DIR)/compilecraft.exe
 BUILD_SYMTAB_DIR ?= $(BUILD_DIR)/symbol_table
 BUILD_SEMANTIC_DIR ?= $(BUILD_DIR)/semantic
 BUILD_TAC_DIR   ?= $(BUILD_DIR)/tac
+BUILD_VM_DIR    ?= $(BUILD_DIR)/vm
 BUILD_C_PARSER_DIR ?= $(BUILD_DIR)/c_parser
 BUILD_CPP_PARSER_DIR ?= $(BUILD_DIR)/cpp_parser
 BUILD_JAVA_PARSER_DIR ?= $(BUILD_DIR)/java_parser
@@ -64,14 +67,17 @@ AST_O           := $(BUILD_DIR)/ast/ast.o
 SYMTAB_O        := $(BUILD_SYMTAB_DIR)/symbol_table.o
 SEMANTIC_O      := $(BUILD_SEMANTIC_DIR)/semantic.o
 TAC_O           := $(BUILD_TAC_DIR)/tac.o
+VM_VALUE_O      := $(BUILD_VM_DIR)/vm_value.o
+VM_O            := $(BUILD_VM_DIR)/vm.o
+VM_OBJS         := $(VM_VALUE_O) $(VM_O)
 # -d: header, -v: parser.output
 # Fail the build on unresolved shift/reduce or reduce/reduce conflicts.
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler java-compiler cli test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test-java-parser test-java-semantic test-java-tac test-java-compiler test-cli test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler java-compiler cli test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-vm-unit test-vm test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test-java-parser test-java-semantic test-java-tac test-java-compiler test-cli test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) $(CLI_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(TEST_VM_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) $(CLI_BIN)
 	@echo ""
 	@echo "=============================================================================="
 	@echo " CompileCraft - Build Succeeded (through Milestone 8: Unified CLI)"
@@ -330,6 +336,33 @@ test-tac-golden: $(TAC_BIN)
 test-tac: test-tac-unit test-tac-golden
 
 # ------------------------------------------------------------------------------
+# Milestone 15: Shared TAC Virtual Machine
+# ------------------------------------------------------------------------------
+$(VM_VALUE_O): src/vm/vm_value.c src/vm/vm_value.h
+	@mkdir -p $(BUILD_VM_DIR)
+	$(CC) $(CFLAGS) -Isrc/vm -Isrc -c $< -o $@
+
+$(VM_O): src/vm/vm.c src/vm/vm.h src/vm/vm_value.h src/tac/tac.h src/ast/ast.h
+	@mkdir -p $(BUILD_VM_DIR)
+	$(CC) $(CFLAGS) -Isrc/vm -Isrc/tac -Isrc/ast -Isrc -c $< -o $@
+
+$(BUILD_VM_DIR)/test_vm.o: tests/vm/test_vm.c src/vm/vm.h src/vm/vm_value.h src/tac/tac.h src/ast/ast.h
+	@mkdir -p $(BUILD_VM_DIR)
+	$(CC) $(CFLAGS) -Isrc/vm -Isrc/tac -Isrc/ast -Isrc -c $< -o $@
+
+$(TEST_VM_BIN): $(BUILD_VM_DIR)/test_vm.o $(VM_OBJS) $(TAC_O) $(AST_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test-vm-unit: $(TEST_VM_BIN)
+	$(TEST_VM_BIN)
+
+test-vm-exec: cli
+	$(PYTHON) tests/vm/test_vm_execution.py $(CLI_BIN)
+
+test-vm: test-vm-unit test-vm-exec
+
+# ------------------------------------------------------------------------------
 # Milestone 9: C Front-End (parser + semantic + TAC)
 # ------------------------------------------------------------------------------
 C_PARSER_TAB_C := $(BUILD_C_PARSER_DIR)/c_parser.tab.c
@@ -355,11 +388,11 @@ $(BUILD_C_PARSER_DIR)/tokens.o: C_Compiler/tokens.c C_Compiler/tokens.h C_Compil
 	@mkdir -p $(BUILD_C_PARSER_DIR)
 	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -IC_Compiler -Isrc/ast -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
 
-$(BUILD_C_PARSER_DIR)/main_compiler.o: C_Compiler/main_compiler.c C_Compiler/parser.h $(C_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h
+$(BUILD_C_PARSER_DIR)/main_compiler.o: C_Compiler/main_compiler.c C_Compiler/parser.h $(C_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h src/vm/vm.h src/vm/vm_value.h
 	@mkdir -p $(BUILD_C_PARSER_DIR)
-	$(CC) $(CFLAGS) -IC_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -IC_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -Isrc/vm -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
 
-$(C_COMPILER_BIN): $(BUILD_C_PARSER_DIR)/c_parser.tab.o $(C_PARSER_LEX_O) $(BUILD_C_PARSER_DIR)/tokens.o $(BUILD_C_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O)
+$(C_COMPILER_BIN): $(BUILD_C_PARSER_DIR)/c_parser.tab.o $(C_PARSER_LEX_O) $(BUILD_C_PARSER_DIR)/tokens.o $(BUILD_C_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O) $(VM_OBJS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
@@ -401,11 +434,11 @@ $(BUILD_CPP_PARSER_DIR)/tokens.o: CPP_Compiler/tokens.c CPP_Compiler/tokens.h CP
 	@mkdir -p $(BUILD_CPP_PARSER_DIR)
 	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -ICPP_Compiler -Isrc/ast -I$(BUILD_CPP_PARSER_DIR) -Isrc -c $< -o $@
 
-$(BUILD_CPP_PARSER_DIR)/main_compiler.o: CPP_Compiler/main_compiler.c CPP_Compiler/parser.h $(CPP_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h
+$(BUILD_CPP_PARSER_DIR)/main_compiler.o: CPP_Compiler/main_compiler.c CPP_Compiler/parser.h $(CPP_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h src/vm/vm.h src/vm/vm_value.h
 	@mkdir -p $(BUILD_CPP_PARSER_DIR)
-	$(CC) $(CFLAGS) -ICPP_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -I$(BUILD_CPP_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -ICPP_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -Isrc/vm -I$(BUILD_CPP_PARSER_DIR) -Isrc -c $< -o $@
 
-$(CPP_COMPILER_BIN): $(BUILD_CPP_PARSER_DIR)/cpp_parser.tab.o $(CPP_PARSER_LEX_O) $(BUILD_CPP_PARSER_DIR)/tokens.o $(BUILD_CPP_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O)
+$(CPP_COMPILER_BIN): $(BUILD_CPP_PARSER_DIR)/cpp_parser.tab.o $(CPP_PARSER_LEX_O) $(BUILD_CPP_PARSER_DIR)/tokens.o $(BUILD_CPP_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O) $(VM_OBJS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
@@ -447,11 +480,11 @@ $(BUILD_JAVA_PARSER_DIR)/tokens.o: Java_Compiler/tokens.c Java_Compiler/tokens.h
 	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
 	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -IJava_Compiler -Isrc/ast -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
 
-$(BUILD_JAVA_PARSER_DIR)/main_compiler.o: Java_Compiler/main_compiler.c Java_Compiler/parser.h $(JAVA_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h
+$(BUILD_JAVA_PARSER_DIR)/main_compiler.o: Java_Compiler/main_compiler.c Java_Compiler/parser.h $(JAVA_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h src/vm/vm.h src/vm/vm_value.h
 	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
-	$(CC) $(CFLAGS) -IJava_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
+	$(CC) $(CFLAGS) -IJava_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -Isrc/vm -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
 
-$(JAVA_COMPILER_BIN): $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.o $(JAVA_PARSER_LEX_O) $(BUILD_JAVA_PARSER_DIR)/tokens.o $(BUILD_JAVA_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O)
+$(JAVA_COMPILER_BIN): $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.o $(JAVA_PARSER_LEX_O) $(BUILD_JAVA_PARSER_DIR)/tokens.o $(BUILD_JAVA_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O) $(VM_OBJS)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
@@ -484,11 +517,11 @@ cli: $(CLI_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(C_COMPILER_B
 test-cli: cli
 	$(PYTHON) tests/cli/test_cli.py $(CLI_BIN)
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler test-cpp-compiler test-java-compiler test-cli
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-vm test-c-compiler test-cpp-compiler test-java-compiler test-cli
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(CLI_BIN) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(CLI_BIN) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(TEST_VM_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 

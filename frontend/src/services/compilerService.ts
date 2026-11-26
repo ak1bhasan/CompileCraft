@@ -8,6 +8,7 @@ declare global {
   interface Window {
     compilecraft?: {
       compile: (request: CompileRequest) => Promise<CompileResult>
+      stopExecution?: (runId?: string) => Promise<{ stopped: boolean }>
       checkCompiler: () => Promise<CompilerHealth>
       getPlatformInfo?: () => { runtime: string; platform: string }
     }
@@ -29,6 +30,14 @@ export async function checkCompilerHealth(): Promise<CompilerHealth> {
   return window.compilecraft.checkCompiler()
 }
 
+export async function stopExecution(runId?: string): Promise<boolean> {
+  if (!isElectronHost() || !window.compilecraft?.stopExecution) {
+    return false
+  }
+  const response = await window.compilecraft.stopExecution(runId)
+  return Boolean(response?.stopped)
+}
+
 export async function compileSource(request: CompileRequest): Promise<CompileResult> {
   if (!isElectronHost() || !window.compilecraft) {
     const message =
@@ -46,6 +55,12 @@ export async function compileSource(request: CompileRequest): Promise<CompileRes
       symbols: [],
       symtabRaw: '',
       tac: '',
+      executionStatus: 'not_run',
+      executionOk: false,
+      executionExitCode: null,
+      executionDurationMs: null,
+      programOutput: '',
+      executionStderr: '',
       diagnostics: [
         {
           stage: 'System',

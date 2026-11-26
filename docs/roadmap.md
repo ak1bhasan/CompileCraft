@@ -20,10 +20,10 @@
 [DONE] M5: Symbol Table ──► [DONE] M6: Semantic Analysis ──► [DONE] M7: TAC
            │
            ▼
-[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java Front-Ends & Hardening ──► M13: Frontend Integration
+[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java ──► [DONE] M13: IDE ──► [DONE] M15: Shared TAC VM
 ```
 
-**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 multi-language semantic & TAC hardening**, and the **M8 Unified CLI Driver (`bin/compilecraft.exe`)** are complete on `dev`. **Remaining work:** **M13** Frontend–Compiler Integration, **M14** Final Documentation & Faculty Verification, and finalizing **DEC-07** (short-circuit vs eager `&&`/`||`, currently using the M7 interim eager policy).
+**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 hardening**, **M8 Unified CLI Driver (`bin/compilecraft.exe`)**, **M13 Electron IDE**, and **M15 Shared TAC Virtual Machine (`src/vm/` + `--run` + IDE Program Output & Stop)** are complete on `dev`. **Remaining work:** **M14** desktop packaging & final faculty verification, optional interactive stdin input (`TAC_OP_READ` proposal in `docs/vm.md`), and finalizing **DEC-07**.
 
 ---
 
@@ -410,6 +410,26 @@ Connect the React + Vite + Monaco IDE (`frontend/`) to the real unified CompileC
 - [x] Supports `#include <stdio.h>` (C), `#include <iostream>` (C++), validated `printf` format output (`OutputPrintf` -> `arg`/`printf` TAC), non-scoping `Seq` C++ output chains, AST-preserved Java concatenation (`AST_OUTPUT_CONCAT`), and string misuse semantic diagnostics while rejecting unsupported preprocessor directives (`#define`, `<stdlib.h>`, `<vector>`).
 - [x] Suppresses/clears TAC immediately whenever lexical, syntax, or any of the 6 semantic rules fail.
 - [x] Works cleanly with spaces in temp/source paths, missing CLI binary fallback, empty editor input, and repeated runs.
+
+---
+
+## Milestone 15 (project): Shared TAC Virtual Machine & Program Execution
+
+### Objective
+Execute verified Three-Address Code (TAC) generated from C, C++, and Java through a shared runtime Virtual Machine (`src/vm/`) without invoking external compilers, and surface live Program Output, line-numbered runtime errors, and Stop cancellation in the Electron IDE.
+
+### Status: **COMPLETED** (on `dev`)
+- `src/tac/`: Propagated AST source line numbers into `TacInstr.line` (preserving unchanged `tac_print` format), added dynamic lexical block scope isolation + initializer-before-bind order + loop/block `TAC_OP_UNINIT` resets + `TAC_OP_ITOF` `int->float` widening, and preserved `DBL_DECIMAL_DIG` (`%.17g`) float precision + `.0` suffix.
+- `src/vm/`: Implemented `vm_value.h`/`vm_value.c` and `vm.h`/`vm.c` supporting tagged values (`int`, `float`, `bool`, `string`), variable/temporary storage, uninitialized-read checks, label-to-PC indexing, all TAC opcodes (including `TAC_OP_ITOF` & `TAC_OP_UNINIT`), `printf`/`%.Nf`/`print`/`println`, div/mod-by-zero traps, partial stdout flushing, `INT_MIN` division guard, portable unsigned 32-bit wrap-around overflow arithmetic, and `1,000,000`-step infinite-loop protection.
+- `{C,CPP,Java}_Compiler/main_compiler.c` & `src/main.c`: Added compilation-gated `--run` execution mode (`bin/compilecraft.exe --run` and sibling compiler binaries).
+- `frontend/`: Added live **Program Output** rendering, compilation vs execution failure separation, TAC preservation on runtime errors, and IPC `compilecraft:stop` process-tree cancellation.
+- `tests/vm/` & `docs/vm.md`: Added `bin/test-vm.exe` (`test-vm-unit`), 35 multi-language/negative execution cases (`test-vm-exec`), CLI `--run` cases (`tests/cli/`: 56), and documented stdin input limitations + `TAC_OP_READ` extension proposal.
+
+### Acceptance Checks
+- [x] Shared TAC VM executes C, C++, and Java programs directly from verified TAC IR.
+- [x] Compile errors strictly suppress VM execution and clear stale IDE output.
+- [x] Division/modulo by zero, uninitialized reads, and infinite loops fail safely with line numbers while preserving TAC visibility and partial stdout.
+- [x] Zero compiler warnings (`-Wall -Wextra -pedantic -std=c11`), zero Bison conflicts, and full regression green.
 
 ---
 

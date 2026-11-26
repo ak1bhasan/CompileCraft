@@ -7,10 +7,10 @@
 ## Pipeline position
 
 ```
-Lexer → Parser → AST → Semantic Analyzer → TAC Generator
+Lexer → Parser → AST → Semantic Analyzer → TAC Generator → Shared TAC VM
 ```
 
-TAC is emitted only after a successful semantic analysis pass. The integration driver is `bin/compilecraft-tac.exe` (M7 test/integration harness, not the M8 unified CLI).
+TAC is emitted only after a successful semantic analysis pass, and the Shared TAC Virtual Machine (`src/vm/`, see `docs/vm.md`) executes verified TAC streams when `--run` is invoked via `bin/compilecraft.exe` or `bin/compilecraft-{c,cpp,java}.exe`. Each `TacInstr` also tracks source `line` metadata propagated from AST nodes for line-numbered runtime diagnostics (without altering `tac_print` output). The standalone M7 integration driver remains `bin/compilecraft-tac.exe`.
 
 ## Instruction forms
 

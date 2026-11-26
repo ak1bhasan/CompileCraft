@@ -11,7 +11,7 @@ import {
   useWorkspace,
 } from '../features/editor/useWorkspace'
 import { useIdeKeyboardShortcuts } from '../features/editor/useIdeKeyboardShortcuts'
-import { compileSource } from '../services/compilerService'
+import { compileSource, stopExecution } from '../services/compilerService'
 import {
   DEFAULT_EDITOR_SETTINGS,
   type BottomTabId,
@@ -46,6 +46,7 @@ export default function App() {
   >({})
   const [compilingFileId, setCompilingFileId] = useState<string | null>(null)
   const compileSeqRef = useRef(0)
+  const activeRunIdRef = useRef<string | undefined>(undefined)
 
   // Auto-collapse sidebar on narrow viewports; close results drawer on desktop.
   useEffect(() => {
@@ -175,8 +176,10 @@ export default function App() {
 
     const docId = activeDocument.id
     const seq = ++compileSeqRef.current
+    const runId = `run-${seq}`
+    activeRunIdRef.current = runId
     setCompilingFileId(docId)
-    // Always clear previous result before invoking the compiler so stale TAC never lingers.
+    // Always clear previous result before invoking compiler + VM so stale TAC/output never lingers.
     setCompileResultsByFile((previous) => ({ ...previous, [docId]: null }))
 
     try {
@@ -184,6 +187,7 @@ export default function App() {
         language: activeDocument.language,
         source: activeDocument.content,
         fileName: activeDocument.name,
+        runId,
       })
 
       if (seq !== compileSeqRef.current) {
@@ -194,16 +198,22 @@ export default function App() {
       if (result.ok) {
         setResultsTab('tac')
         setBottomTab('output')
+        setBottomCollapsed(false)
       } else {
         setResultsTab('errors')
         setBottomTab('problems')
       }
     } finally {
       if (seq === compileSeqRef.current) {
+        activeRunIdRef.current = undefined
         setCompilingFileId(null)
       }
     }
   }, [activeDocument, compilingFileId])
+
+  const handleStop = useCallback(() => {
+    void stopExecution(activeRunIdRef.current)
+  }, [])
 
   const handleJumpToLine = useCallback((line: number) => {
     editorRef.current?.revealLine(line)
@@ -268,21 +278,28 @@ export default function App() {
       return 'No file open — choose an example in Explorer'
     }
     if (isCompilingActive) {
-      return `Compiling ${activeDocument.name} via bin/compilecraft.exe…`
+      return `Compiling & running ${activeDocument.name} via bin/compilecraft.exe…`
     }
     if (activeCompileResult) {
+      if (activeCompileResult.ok && activeCompileResult.executionOk) {
+        return `Ran ${activeDocument.name} cleanly (${activeCompileResult.durationMs} ms)`
+      }
       if (activeCompileResult.ok) {
-        return `Compiled ${activeDocument.name} cleanly (${activeCompileResult.durationMs} ms)`
+        const firstDiag = activeCompileResult.diagnostics[0]
+        if (firstDiag?.line) {
+          return `${firstDiag.stage} error at line ${firstDiag.line} — TAC available`
+        }
+        return `${activeCompileResult.errorSummary || 'Runtime error'} — TAC available`
       }
       const firstDiag = activeCompileResult.diagnostics[0]
       if (firstDiag?.line) {
-        return `${firstDiag.stage} error at line ${firstDiag.line} — TAC withheld`
+        return `${firstDiag.stage} error at line ${firstDiag.line} — execution skipped`
       }
-      return `${activeCompileResult.errorSummary || 'Compilation failed'} — TAC withheld`
+      return `${activeCompileResult.errorSummary || 'Compilation failed'} — execution skipped`
     }
     return activeDirty
-      ? 'Unsaved session changes — press Run (Ctrl+Enter) to compile'
-      : 'Ready — press Run (Ctrl+Enter) to compile'
+      ? 'Unsaved session changes — press Run (Ctrl+Enter) to compile & run'
+      : 'Ready — press Run (Ctrl+Enter) to compile & run'
   }, [activeCompileResult, activeDirty, activeDocument, isCompilingActive])
 
   return (
@@ -292,6 +309,7 @@ export default function App() {
         language={language}
         onLanguageChange={handleLanguageChange}
         onRun={handleRun}
+        onStop={handleStop}
         canRun={activeDocument !== null}
         isCompiling={isCompilingActive}
         editorSettings={editorSettings}

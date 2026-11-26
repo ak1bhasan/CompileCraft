@@ -14,7 +14,7 @@ interface BottomPanelProps {
 }
 
 const TABS: { id: BottomTabId; label: string }[] = [
-  { id: 'output', label: 'Output' },
+  { id: 'output', label: 'Program Output' },
   { id: 'problems', label: 'Problems' },
   { id: 'terminal', label: 'Terminal' },
 ]
@@ -55,7 +55,7 @@ export default function BottomPanel({
     if (isCompiling) {
       return (
         <div className="p-3 font-mono text-xs text-[var(--cc-text-muted)]">
-          Running CompileCraft compiler pipeline…
+          Compiling and running via CompileCraft TAC Virtual Machine…
         </div>
       )
     }
@@ -63,8 +63,8 @@ export default function BottomPanel({
     if (!result) {
       return (
         <EmptyState
-          title="No compiler output yet"
-          description="Press Run (Ctrl+Enter) to compile the active file with bin/compilecraft.exe."
+          title="No program output yet"
+          description="Press Run (Ctrl+Enter) to compile and execute the active file via the shared TAC Virtual Machine."
         />
       )
     }
@@ -73,19 +73,53 @@ export default function BottomPanel({
       const tacLines = result.tac.trim()
         ? result.tac.trimEnd().split(/\r?\n/).length
         : 0
+      const execMs = result.executionDurationMs ?? 0
+      const isSuccess = result.executionStatus === 'succeeded'
+      const isAborted = result.executionStatus === 'aborted'
+      const statusColor = isSuccess
+        ? 'text-emerald-400'
+        : isAborted
+          ? 'text-amber-400'
+          : 'text-rose-400'
+      const statusLabel = isSuccess
+        ? `Execution succeeded (${result.language.toUpperCase()}) in ${execMs} ms — exit code 0`
+        : isAborted
+          ? `Execution stopped (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 130}`
+          : `Runtime error (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 1} (${execMs} ms)`
+
       return (
-        <div className="p-3 font-mono text-xs space-y-1.5 text-[var(--cc-text)]">
-          <div className="flex items-center gap-2 text-emerald-400">
-            <CheckCircle2 size={14} />
-            <span>
-              Compilation succeeded ({result.language.toUpperCase()}) in{' '}
-              {result.durationMs} ms — exit code 0
+        <div className="p-3 font-mono text-xs space-y-2 text-[var(--cc-text)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className={`flex items-center gap-2 ${statusColor}`}>
+              {isSuccess ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+              <span>{statusLabel}</span>
+            </div>
+            <span className="text-[11px] text-[var(--cc-text-muted)]">
+              Compile: {result.durationMs} ms | Tokens: {result.tokens.length} | Symbols: {result.symbols.length} | TAC: {tacLines}
             </span>
           </div>
-          <p className="text-[var(--cc-text-muted)]">
-            Tokens: {result.tokens.length} | Symbols: {result.symbols.length} |
-            TAC instructions: {tacLines}
-          </p>
+
+          {result.programOutput.length > 0 ? (
+            <pre
+              data-testid="program-output-stdout"
+              className="rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/80 p-2.5 whitespace-pre-wrap break-words text-[var(--cc-text)] leading-relaxed"
+            >
+              {result.programOutput}
+            </pre>
+          ) : isSuccess ? (
+            <p className="text-[var(--cc-text-muted)] italic">
+              (Program completed cleanly with no stdout output.)
+            </p>
+          ) : null}
+
+          {!isSuccess && (result.executionStderr || result.errorSummary) ? (
+            <pre
+              data-testid="program-output-stderr"
+              className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 whitespace-pre-wrap break-words text-rose-200"
+            >
+              {result.executionStderr || result.errorSummary}
+            </pre>
+          ) : null}
         </div>
       )
     }
@@ -96,7 +130,7 @@ export default function BottomPanel({
           <AlertCircle size={14} />
           <span>
             Compilation failed ({result.language.toUpperCase()}) — exit code{' '}
-            {result.exitCode} ({result.durationMs} ms)
+            {result.exitCode} ({result.durationMs} ms) — execution skipped
           </span>
         </div>
         <pre className="whitespace-pre-wrap break-words text-rose-200">
@@ -179,9 +213,9 @@ export default function BottomPanel({
           `$ "${cliDisplay}" --tokens <temp-source>.${result.language}`,
           `$ "${cliDisplay}" <temp-source>.${result.language}`,
           result.ok
-            ? `$ "${cliDisplay}" --ast <temp-source>.${result.language}\n$ "${cliDisplay}" --symtab <temp-source>.${result.language}`
+            ? `$ "${cliDisplay}" --ast <temp-source>.${result.language}\n$ "${cliDisplay}" --symtab <temp-source>.${result.language}\n$ "${cliDisplay}" --run <temp-source>.${result.language}`
             : null,
-          `[exit=${result.exitCode}, duration=${result.durationMs}ms]`,
+          `[compile_exit=${result.exitCode}, exec_status=${result.executionStatus}, exec_exit=${result.executionExitCode ?? 'n/a'}, duration=${result.durationMs}ms]`,
         ]
           .filter(Boolean)
           .join('\n')}

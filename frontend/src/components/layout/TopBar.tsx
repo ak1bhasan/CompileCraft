@@ -1,4 +1,4 @@
-import { FolderGit2, Keyboard, Loader2, Play, Settings } from 'lucide-react'
+import { FolderGit2, Keyboard, Loader2, Play, Settings, Square } from 'lucide-react'
 import { useState } from 'react'
 import EditorSettingsMenu from '../../features/editor/EditorSettingsMenu'
 import KeyboardShortcutsMenu from '../../features/editor/KeyboardShortcutsMenu'
@@ -13,6 +13,7 @@ interface TopBarProps {
   language: LanguageId | null
   onLanguageChange: (language: LanguageId) => void
   onRun: () => void
+  onStop: () => void
   canRun: boolean
   isCompiling: boolean
   editorSettings: EditorSettings
@@ -24,6 +25,7 @@ export default function TopBar({
   language,
   onLanguageChange,
   onRun,
+  onStop,
   canRun,
   isCompiling,
   editorSettings,
@@ -89,13 +91,13 @@ export default function TopBar({
           disabled={!canRun || isCompiling}
           aria-busy={isCompiling}
           onClick={onRun}
-          aria-label={isCompiling ? 'Compiling' : 'Run compiler'}
+          aria-label={isCompiling ? 'Running program' : 'Run compiler'}
           title={
             !canRun
-              ? 'Open a file to compile'
+              ? 'Open a file to compile and run'
               : isCompiling
-                ? 'Compiling active editor…'
-                : 'Compile active editor (Ctrl+Enter)'
+                ? 'Compiling & executing active editor…'
+                : 'Compile and execute active editor (Ctrl+Enter)'
           }
           className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors ${
             !canRun || isCompiling
@@ -108,8 +110,21 @@ export default function TopBar({
           ) : (
             <Play size={13} strokeWidth={2} />
           )}
-          {isCompiling ? 'Compiling…' : 'Run'}
+          {isCompiling ? 'Running…' : 'Run'}
         </button>
+
+        {isCompiling ? (
+          <button
+            type="button"
+            onClick={onStop}
+            aria-label="Stop execution"
+            title="Stop active compilation or execution"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-500/50 bg-rose-500/20 px-2.5 text-xs font-medium text-rose-200 transition-colors hover:bg-rose-500/30"
+          >
+            <Square size={12} strokeWidth={2} />
+            Stop
+          </button>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-1">

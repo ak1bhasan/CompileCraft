@@ -7,9 +7,9 @@
              → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-java.exe <file.java>` (or `bin/compilecraft.exe <file.java>`)
+Driver: `bin/compilecraft-java.exe [--ast | --symtab | --run] <file.java>` (or `bin/compilecraft.exe [--tokens | --ast | --symtab | --run] <file.java>`)
 
-Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
+Optional: `--tokens`, `--ast`, or `--symtab` skips TAC/execution; `--run` compiles to TAC and executes via the Shared TAC VM (`docs/vm.md`).
 
 ## Supported Java Subset
 
@@ -63,8 +63,15 @@ for (init; cond; update) body
   4. Type mismatch (e.g. `boolean flag = 5 + 3;` and `boolean`/`int` equality)
   5. Invalid assignment (e.g. narrowing `float` to `int`)
   6. Invalid expressions (e.g. logical operators on numeric operands, non-boolean `if`/`while` conditions)
-- Reuses the shared TAC generator (`src/tac/`) using `t1, t2, ...` and `L1, L2, ...`.
-- Lexical, syntax, or semantic errors abort compilation cleanly with exit code `1` and produce no TAC output.
+- Reuses the shared TAC generator (`src/tac/`) using `t1, t2, ...` and `L1, L2, ...`, and executes verified TAC via the Shared TAC VM (`src/vm/`, `--run`).
+- Lexical, syntax, or semantic errors abort compilation cleanly with exit code `1` and produce no TAC output or VM execution.
+
+## Simplified Shared Scope & Initializer Semantics (Limitation vs Standard Java)
+
+CompileCraft uses a unified simplified scope model shared with its C and C++ subsets rather than implementing full JLS compliance:
+- **Nested-block local shadowing**: Standard Java (JLS §6.4) forbids declaring a local variable in a nested block with the same name as an enclosing local variable of the same method (`int x = 10; { int x = ...; }`). CompileCraft's bounded Java subset **currently permits nested-block shadowing** (`SymbolTable` checks redeclaration within the current block only).
+- **Initializer resolution order**: Because initializers are evaluated before binding the new variable (`src/semantic/semantic.c` and `src/tac/tac.c`), `int x = 10; { int x = x + 1; }` resolves RHS `x` to outer `10` and sets inner `x = 11`, leaving outer `x = 10` (consistent with the shared C/C++ subset model).
+- Block-local declarations without initializers reset cleanly on each block or loop iteration (`TAC_OP_UNINIT`).
 
 ## Unsupported Java Features (Non-Exhaustive)
 
@@ -73,4 +80,5 @@ for (init; cond; update) body
 - `System.out.print()` with zero arguments (rejected with `Syntax Error`)
 - Generics, packages, `import` statements, and `try-catch` exceptions
 - `char` / `double` / `String` variable declarations, compound assignment (`+=` ...), `break` / `continue`, `switch`
-- JVM bytecode generation (the pipeline terminates at TAC; no runtime execution)
+- Strict JLS local-variable non-shadowing rules (nested block shadowing is allowed in this subset as documented above)
+- JVM bytecode generation (executes via CompileCraft's Shared TAC VM `--run`, not `javac`/JVM)

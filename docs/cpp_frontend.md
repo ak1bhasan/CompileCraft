@@ -7,9 +7,9 @@
            → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-cpp.exe <file.cpp>` (or `bin/compilecraft.exe <file.cpp>`)
+Driver: `bin/compilecraft-cpp.exe [--ast | --symtab | --run] <file.cpp>` (or `bin/compilecraft.exe [--tokens | --ast | --symtab | --run] <file.cpp>`)
 
-Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
+Optional: `--tokens`, `--ast`, or `--symtab` skips TAC/execution; `--run` compiles to TAC and executes via the Shared TAC VM (`docs/vm.md`).
 
 ## Supported procedural subset
 
@@ -48,6 +48,13 @@ for (init; cond; update) body
 ```
 
 Init declarations are scoped to the outer block and are not visible after the loop.
+
+## Simplified Shared Scope & Initializer Semantics
+
+CompileCraft uses a unified simplified scope model across its bounded C, C++, and Java subsets (not claiming full ISO C++ compliance):
+- In standard C++, a declarator enters scope immediately *before* its initializer, making inner `{ int x = x + 1; }` refer to the uninitialized inner `x`.
+- In CompileCraft-C++, initializers are evaluated before inserting the new binding (`src/semantic/semantic.c` and `src/tac/tac.c`), so `int x = 10; { int x = x + 1; }` resolves the initializer to outer `x` and produces inner `x = 11` (leaving outer `x = 10`).
+- Block-local uninitialized declarations reset cleanly per block/loop entry (`TAC_OP_UNINIT`).
 
 ## Unsupported (non-exhaustive)
 

@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron')
  */
 contextBridge.exposeInMainWorld('compilecraft', {
   compile: (request) => ipcRenderer.invoke('compilecraft:compile', request),
+  stopExecution: (runId) => ipcRenderer.invoke('compilecraft:stop', runId),
   checkCompiler: () => ipcRenderer.invoke('compilecraft:health'),
   getPlatformInfo: () => ({
     runtime: 'electron',

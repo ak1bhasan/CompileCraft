@@ -7,9 +7,9 @@
          → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-c.exe <file.c>` (or `bin/compilecraft.exe <file.c>`)
+Driver: `bin/compilecraft-c.exe [--ast | --symtab | --run] <file.c>` (or `bin/compilecraft.exe [--tokens | --ast | --symtab | --run] <file.c>`)
 
-Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
+Optional: `--tokens`, `--ast`, or `--symtab` skips TAC/execution; `--run` compiles to TAC and executes via the Shared TAC VM (`docs/vm.md`).
 
 ## Supported subset
 
@@ -25,7 +25,7 @@ Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips
 ## Supported `printf` subset
 
 - First argument must be a `STRING_LITERAL` format string; empty `printf()` and non-string format arguments are rejected.
-- Supported format specifiers: `%d` (`int`), `%f` (`float`), `%s` (`string`), and `%%` (literal `%`).
+- Supported format specifiers: `%d` (`int`), `%f` and `%.[0-20]f` (`float`, e.g. `%.2f`, `%.8f`), `%s` (`string`), and `%%` (literal `%`).
 - Supported escape sequences in string literals: `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `\0`.
 - Unsupported conversion specifiers (e.g. `%x`, `%c`, trailing `%`), missing or extra arguments, and argument type mismatches emit line-numbered diagnostics during semantic analysis and suppress TAC generation.
 
@@ -43,6 +43,13 @@ for (init; cond; update) body
 
 Missing `cond` becomes boolean true in the AST. Init declarations live in the outer block scope and are not visible after the loop.
 
+## Simplified Shared Scope & Initializer Semantics
+
+CompileCraft uses a unified simplified scope model across its bounded C, C++, and Java subsets (not claiming full ISO C compliance):
+- In standard C (C99/C11), a variable declarator enters scope *before* its initializer, making self-referential `{ int x = x + 1; }` read the uninitialized inner `x`.
+- In CompileCraft-C, initializers are evaluated before inserting the new binding (`src/semantic/semantic.c` and `src/tac/tac.c`), so in `int x = 10; { int x = x + 1; }`, the initializer resolves to the outer `x` and produces inner `x = 11` (while leaving outer `x = 10`).
+- Block-local declarations without initializers reset per block/loop entry (`TAC_OP_UNINIT`).
+
 ## Faculty Rules 4 and 5 under the C subset (Hardened in M12)
 
 Faculty definitions (unchanged):
@@ -55,7 +62,7 @@ The shared analyzer emits distinct diagnostics for these paths (`Type mismatch: 
 ## Unsupported (non-exhaustive)
 
 - `char` / `double` / pointer / array / struct / `string` variable types
-- Format flags/width/precision specifiers (`%.2f`, `%04d`) and unsupported conversions (`%c`, `%x`, `%u`, `%p`)
+- Width/flag format modifiers (e.g. `%04d`, `%+d`, `%10s`) and unsupported conversions (`%c`, `%x`, `%u`, `%p`, precision `> 20`)
 - User-defined functions or calls other than `printf(...)` (e.g. `scanf`, `printf()` with 0 arguments)
 - `break` / `continue` / `switch` / `goto`
 - Compound assignment (`+=` …)
