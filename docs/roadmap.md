@@ -275,6 +275,30 @@ Generate linear Three-Address Code (TAC) from the validated AST, allocating temp
 
 ---
 
+## Milestone 9 (project): C Front-End Parser + Control Flow
+
+> Note: Roadmap “Milestone 9” historically referred to the automated regression suite.
+> This section tracks the **C language front-end** work delivered as project M9.
+
+### Objective
+Add a dedicated C Bison grammar that reuses the shared AST, symbol table, semantic analyzer, and TAC generator, including mandatory `for`-loop support.
+
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- `C_Compiler/parser.y`: C subset grammar (`int`/`float`, control flow, `main`, `for`, `++`/`--`).
+- `C_Compiler/main_compiler.c`: `bin/compilecraft-c.exe` — C Flex → C Bison → AST → semantic → TAC.
+- `for` lowered to `Block { init; While { cond; Block { body; update } } }` (correct scope + TAC).
+- Tests: `tests/c/parser/`, `tests/c/semantic/`, `tests/c/tac/` (incl. demo program).
+
+### Acceptance Checks
+- [x] Parses `int main(void)` / `int main()` programs into shared AST.
+- [x] Supports `if` / `if-else` / `while` / `for` (decl or assign init; `i++` / `++i` / assign update).
+- [x] For-init declarations are scoped to the loop only.
+- [x] Six faculty semantic rules enforced via shared analyzer; no TAC on errors.
+- [x] Demo control-flow program generates correct TAC labels/jumps.
+- [x] Prior regression suites remain integrated via `mingw32-make test`.
+
+---
+
 ## Milestone 8: Compiler Driver & Pipeline Integration
 
 ### Objective

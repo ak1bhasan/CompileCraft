@@ -38,10 +38,13 @@ SEMANTIC_BIN    ?= $(BIN_DIR)/compilecraft-semantic.exe
 # M7: Three-Address Code Generator
 TEST_TAC_BIN    ?= $(BIN_DIR)/test-tac.exe
 TAC_BIN         ?= $(BIN_DIR)/compilecraft-tac.exe
+# M9: C front-end (lexer + parser + semantic + TAC)
+C_COMPILER_BIN  ?= $(BIN_DIR)/compilecraft-c.exe
 
 BUILD_SYMTAB_DIR ?= $(BUILD_DIR)/symbol_table
 BUILD_SEMANTIC_DIR ?= $(BUILD_DIR)/semantic
 BUILD_TAC_DIR   ?= $(BUILD_DIR)/tac
+BUILD_C_PARSER_DIR ?= $(BUILD_DIR)/c_parser
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
@@ -57,12 +60,12 @@ TAC_O           := $(BUILD_TAC_DIR)/tac.o
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (through Milestone 7: TAC)"
+	@echo " CompileCraft - Build Succeeded (through Milestone 9: C Parser)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -76,6 +79,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
 	@echo "   Java Lexer    : $(LEXER_JAVA_BIN)"
 	@echo "   Parser        : $(PARSER_BIN)"
+	@echo "   C Compiler    : $(C_COMPILER_BIN)"
 	@echo "   Expr AST test : $(EXPR_AST_BIN)"
 	@echo "   Program AST   : $(PROGRAM_AST_BIN)"
 	@echo "   AST ownership : $(AST_OWNERSHIP_BIN)"
@@ -313,11 +317,58 @@ test-tac-golden: $(TAC_BIN)
 
 test-tac: test-tac-unit test-tac-golden
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac
+# ------------------------------------------------------------------------------
+# Milestone 9: C Front-End (parser + semantic + TAC)
+# ------------------------------------------------------------------------------
+C_PARSER_TAB_C := $(BUILD_C_PARSER_DIR)/c_parser.tab.c
+C_PARSER_TAB_H := $(BUILD_C_PARSER_DIR)/c_parser.tab.h
+C_PARSER_LEX_O := $(BUILD_C_PARSER_DIR)/lex.yy.o
+
+$(BUILD_C_PARSER_DIR)/c_parser.tab.c $(BUILD_C_PARSER_DIR)/c_parser.tab.h: C_Compiler/parser.y
+	@mkdir -p $(BUILD_C_PARSER_DIR)
+	$(BISON) $(BISONFLAGS) -o $(BUILD_C_PARSER_DIR)/c_parser.tab.c $<
+
+$(BUILD_C_PARSER_DIR)/c_parser.tab.o: $(C_PARSER_TAB_C) $(C_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_C_PARSER_DIR)
+	$(CC) $(CFLAGS) -IC_Compiler -Isrc/ast -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
+
+# Parser-linked C lexer: force-include Bison header for shared YYSTYPE/YYLTYPE.
+$(C_PARSER_LEX_O): $(BUILD_C_DIR)/lex.yy.c C_Compiler/tokens.h C_Compiler/tokens.def $(C_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_C_PARSER_DIR)
+	$(CC) $(CFLAGS) -IC_Compiler -Isrc/ast -I$(BUILD_C_PARSER_DIR) -Isrc \
+		-include c_parser.tab.h \
+		-c $(BUILD_C_DIR)/lex.yy.c -o $@
+
+$(BUILD_C_PARSER_DIR)/tokens.o: C_Compiler/tokens.c C_Compiler/tokens.h C_Compiler/tokens.def $(C_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_C_PARSER_DIR)
+	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -IC_Compiler -Isrc/ast -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
+
+$(BUILD_C_PARSER_DIR)/main_compiler.o: C_Compiler/main_compiler.c C_Compiler/parser.h $(C_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h
+	@mkdir -p $(BUILD_C_PARSER_DIR)
+	$(CC) $(CFLAGS) -IC_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -I$(BUILD_C_PARSER_DIR) -Isrc -c $< -o $@
+
+$(C_COMPILER_BIN): $(BUILD_C_PARSER_DIR)/c_parser.tab.o $(C_PARSER_LEX_O) $(BUILD_C_PARSER_DIR)/tokens.o $(BUILD_C_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+c-compiler: $(C_COMPILER_BIN)
+
+test-c-parser: $(C_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(C_COMPILER_BIN) tests/c/parser
+
+test-c-semantic: $(C_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(C_COMPILER_BIN) tests/c/semantic
+
+test-c-tac: $(C_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(C_COMPILER_BIN) tests/c/tac
+
+test-c-compiler: test-c-parser test-c-semantic test-c-tac
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -347,7 +398,12 @@ help:
 	@echo "   test-tac-unit    Runs TAC structural unit tests (M7)"
 	@echo "   test-tac-golden  Runs semantic-to-TAC golden suite (tests/tac/golden; M7)"
 	@echo "   test-tac         Runs TAC unit + golden suites (M7)"
-	@echo "   test             Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac)"
+	@echo "   c-compiler       Builds C front-end driver (bin/compilecraft-c.exe; M9)"
+	@echo "   test-c-parser    Runs C parser regression suite (tests/c/parser; M9)"
+	@echo "   test-c-semantic  Runs C semantic regression suite (tests/c/semantic; M9)"
+	@echo "   test-c-tac       Runs C TAC golden suite (tests/c/tac; M9)"
+	@echo "   test-c-compiler  Runs all C front-end suites (M9)"
+	@echo "   test             Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac + C)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

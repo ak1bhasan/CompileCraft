@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` pipeline through **M7 TAC**. Next: **M8** unified `compilecraft` CLI.
+> **Current focus**: baseline `.mc` through **M7 TAC**, plus **M9 C front-end** (`compilecraft-c`). Next: **M8** unified CLI; C++ / Java parsers still pending.
 
 ---
 
@@ -14,16 +14,17 @@
 
 The long-term design shares AST, symbol-table, and Three-Address Code (TAC) infrastructure across languages. There is **no backend codegen**; the intended pipeline ends at TAC.
 
-**Implemented today (through Milestone 7):**
+**Implemented today (through Milestone 9 / C front-end):**
 
 - Four standalone Flex lexers (baseline, C, C++, Java).
 - Hardened baseline Bison parser (detailed diagnostics, recovery, zero-conflict build gate).
 - Baseline AST core under `src/ast/`, wired into the parser with source locations, ownership rules, and structural regression suites.
 - Scoped symbol table (`src/symbol_table/`) and semantic analyzer (`src/semantic/`) with faculty-rule goldens.
 - TAC generator (`src/tac/`) with unit tests, semantic-gated integration driver (`compilecraft-tac.exe`), and golden suite including the Section 5.5 sample.
+- **C front-end** (`C_Compiler/`): Bison parser + `bin/compilecraft-c.exe` pipeline to shared AST → semantic → TAC, including `for` (lowered to while) and `++`/`--`.
 - Production parser CLI with optional `--ast` output.
 
-**Not yet implemented:** Unified `compilecraft` CLI (M8), C / C++ / Java parsers and language-specific ASTs, and final DEC-07 short-circuit policy for `&&` / `||`.
+**Not yet implemented:** Unified `compilecraft` CLI (M8), C++ / Java parsers, and final DEC-07 short-circuit policy for `&&` / `||`.
 
 ---
 
@@ -47,15 +48,15 @@ Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
   ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
   │  C Front-End     │    │   C++ Front-End    │    │   Java Front-End    │
   │  - Lexer (DONE)  │    │   - Lexer (DONE)   │    │   - Lexer (DONE)    │
-  │  - Parser (PLAN) │    │   - Parser (PLAN)  │    │   - Parser (PLAN)   │
-  │  - AST (PLAN)    │    │   - AST (PLAN)     │    │   - AST (PLAN)      │
+  │  - Parser (DONE) │    │   - Parser (PLAN)  │    │   - Parser (PLAN)   │
+  │  - Shared AST    │    │   - AST (PLAN)     │    │   - AST (PLAN)      │
   └────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
            │                        │                          │
            └───────────────────┐    │    ┌─────────────────────┘
                                ▼    ▼    ▼
                     ┌──────────────────────────────┐
-                    │ Shared Core (symbol / TAC)   │
-                    │ DONE for .mc (M5–M7)         │
+                    │ Shared Core (AST/sym/TAC)    │
+                    │ DONE for .mc + C (M5–M7/M9)  │
                     └──────────────────────────────┘
 ```
 
@@ -110,7 +111,9 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit tests. |
 | **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
 | **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Semantic-gated driver, unit + golden suites (incl. Sec 5.5); DEC-07 interim eager `&&`/`\|\|`. |
-| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Next milestone. |
+| **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9)** | `compilecraft-c.exe`; for-loops; tests under `tests/c/{parser,semantic,tac}/`. |
+| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Still pending. |
+| **C++ / Java parsers** | Language front ends | **PENDING** | Lexers only. |
 
 ### Milestone summary (M4)
 
