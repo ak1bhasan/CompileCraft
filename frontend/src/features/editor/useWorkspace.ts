@@ -168,6 +168,26 @@ export function useWorkspace() {
     })
   }, [])
 
+  const renameDocument = useCallback((fileId: string, nextName: string) => {
+    setDocuments((previous) => {
+      const document = previous[fileId]
+      if (!document || document.name === nextName) {
+        return previous
+      }
+      const slashIdx = document.path.lastIndexOf('/')
+      const nextPath =
+        slashIdx >= 0 ? `${document.path.slice(0, slashIdx + 1)}${nextName}` : nextName
+      return {
+        ...previous,
+        [fileId]: {
+          ...document,
+          name: nextName,
+          path: nextPath,
+        },
+      }
+    })
+  }, [])
+
   const openLanguage = useCallback(
     (language: LanguageId) => {
       const file = getExampleFileForLanguage(language, activeTabId ?? undefined)
@@ -197,6 +217,7 @@ export function useWorkspace() {
     saveViewState,
     saveDocument,
     revertDocument,
+    renameDocument,
     openLanguage,
     isDirty,
   }

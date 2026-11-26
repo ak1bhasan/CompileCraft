@@ -209,6 +209,11 @@ export default function App() {
     [workspace.documents],
   )
 
+  const explorerFiles = useMemo(
+    () => EXAMPLE_FILES.map((file) => workspace.documents[file.id] ?? file),
+    [workspace.documents],
+  )
+
   const captureActiveViewState = () => {
     const currentId = workspace.activeTabId
     if (!currentId) {
@@ -497,11 +502,12 @@ export default function App() {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((value) => !value)}
-          files={EXAMPLE_FILES}
+          files={explorerFiles}
           activeFileId={workspace.activeTabId}
           openFileIds={workspace.openTabIds}
           dirtyFileIds={dirtyFileIds}
           onSelectFile={handleOpenFile}
+          onRenameFile={workspace.renameDocument}
         />
         <Workspace
           tabs={workspace.openTabs}
