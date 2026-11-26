@@ -7,6 +7,7 @@ import {
   type FontSizeOption,
   type LineNumbersOption,
   type TabSizeOption,
+  type ThemeOption,
   type WordWrapOption,
 } from '../../types/ide'
 
@@ -109,6 +110,20 @@ export default function EditorSettingsMenu({
       </div>
 
       <div className="flex flex-col gap-2.5">
+        <Field id={`${baseId}-theme`} label="Theme">
+          <select
+            id={`${baseId}-theme`}
+            className={selectClassName}
+            value={settings.theme}
+            onChange={(event) =>
+              patch({ theme: event.target.value as ThemeOption })
+            }
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </Field>
+
         <Field id={`${baseId}-font`} label="Font size">
           <select
             id={`${baseId}-font`}
@@ -185,7 +200,7 @@ export default function EditorSettingsMenu({
       </div>
 
       <p className="mt-3 text-[10px] leading-relaxed text-[var(--cc-text-muted)]">
-        Session only — settings reset when the app reloads.
+        Saved in settings — preserved across sessions.
       </p>
     </div>
   )
