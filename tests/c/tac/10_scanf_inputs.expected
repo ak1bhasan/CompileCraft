@@ -1,0 +1,19 @@
+n = read_int prefix
+f = read_float prefix
+name = read_str 15
+tag = read_str 4
+n = read_int prefix
+scan_ws
+f = read_float prefix
+n = read_int prefix
+scan_lit ","
+f = read_float prefix
+scan_ws
+scan_lit "%"
+scan_ws
+tag = read_str 4
+arg n
+arg f
+arg name
+arg tag
+printf "%d %.2f %s %s\n"

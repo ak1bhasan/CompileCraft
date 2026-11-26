@@ -72,3 +72,6 @@ TOKEN_DEF(KW_BOOL,         305, "KW_BOOL")
 TOKEN_DEF(KW_TRUE,         306, "KW_TRUE")
 TOKEN_DEF(KW_FALSE,        307, "KW_FALSE")
 
+/* Address-of Operator (M16 — C scanf) */
+TOKEN_DEF(AMP,             308, "AMP")
+

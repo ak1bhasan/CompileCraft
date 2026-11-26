@@ -24,8 +24,12 @@ typedef enum AstKind {
     AST_WHILE,
     AST_PRINT,
     AST_OUTPUT,
+    AST_INPUT,
     AST_BINARY_OP,
     AST_UNARY_OP,
+    AST_ADDR_OF,
+    AST_SCANNER_NEW,
+    AST_INPUT_CALL,
     AST_IDENTIFIER,
     AST_LITERAL
 } AstKind;
@@ -36,10 +40,17 @@ typedef enum AstOutputMode {
     AST_OUTPUT_CONCAT       /* Java System.out.print/println with '+' concat */
 } AstOutputMode;
 
+typedef enum AstInputMode {
+    AST_INPUT_SCANF = 0,    /* C scanf(format_literal, targets...) */
+    AST_INPUT_CIN           /* C++ cin / std::cin extraction chain */
+} AstInputMode;
+
 typedef enum AstTypeTag {
     AST_TYPE_INT,
     AST_TYPE_FLOAT,
-    AST_TYPE_BOOL
+    AST_TYPE_BOOL,
+    AST_TYPE_STRING,
+    AST_TYPE_SCANNER
 } AstTypeTag;
 
 typedef enum AstBinOp {
@@ -100,6 +111,7 @@ struct AstNode {
 
         struct {
             AstTypeTag type_tag;
+            int array_size; /* > 0 for bounded C char arrays (e.g. char name[64]), else 0 */
             AstNode *name; /* AST_IDENTIFIER */
             AstNode *init; /* optional expression */
         } var_decl;
@@ -136,6 +148,12 @@ struct AstNode {
         } output_stmt;
 
         struct {
+            AstNode *items;
+            AstNode *items_tail;
+            AstInputMode mode;
+        } input_stmt;
+
+        struct {
             AstBinOp op;
             AstNode *left;
             AstNode *right;
@@ -145,6 +163,20 @@ struct AstNode {
             AstUnOp op;
             AstNode *operand;
         } unary;
+
+        struct {
+            AstNode *operand;
+        } addr_of;
+
+        struct {
+            char *class_name;  /* owned heap string (e.g. "Scanner") */
+            char *source_name; /* owned heap string (e.g. "System.in") */
+        } scanner_new;
+
+        struct {
+            AstNode *receiver; /* AST_IDENTIFIER */
+            char *method_name; /* owned heap string (e.g. "nextInt") */
+        } input_call;
 
         struct {
             char *name; /* owned heap string */
@@ -214,6 +246,8 @@ AstNode *ast_block(AstList stmts, int line, int column);
 AstNode *ast_seq(AstList stmts, int line, int column);
 AstNode *ast_var_decl(AstTypeTag type_tag, AstNode *name, AstNode *init,
                       int line, int column);
+AstNode *ast_var_decl_array(AstTypeTag type_tag, AstNode *name, int array_size,
+                            AstNode *init, int line, int column);
 AstNode *ast_assign(AstNode *target, AstNode *value, int line, int column);
 AstNode *ast_expr_stmt(AstNode *expr, int line, int column);
 AstNode *ast_empty_stmt(int line, int column);
@@ -229,9 +263,15 @@ AstNode *ast_output_with_mode(AstList items, AstOutputMode mode, int newline,
                               int line, int column);
 int ast_output_append_item(AstNode *output_node, AstNode *item);
 int ast_output_set_newline(AstNode *output_node, int newline);
+/* Multi-item console input statement (takes ownership of items chain). */
+AstNode *ast_input(AstList items, AstInputMode mode, int line, int column);
+int ast_input_append_item(AstNode *input_node, AstNode *item);
 AstNode *ast_binary(AstBinOp op, AstNode *left, AstNode *right,
                     int line, int column);
 AstNode *ast_unary(AstUnOp op, AstNode *operand, int line, int column);
+AstNode *ast_addr_of(AstNode *operand, int line, int column);
+AstNode *ast_scanner_new(char *class_name, char *source_name, int line, int column);
+AstNode *ast_input_call(AstNode *receiver, char *method_name, int line, int column);
 
 /* Takes ownership of name/value. Passed pointer must be non-NULL. */
 AstNode *ast_identifier(char *name, int line, int column);

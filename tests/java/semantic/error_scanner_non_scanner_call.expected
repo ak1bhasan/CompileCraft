@@ -1,0 +1,1 @@
+Semantic Error at line 4: Invalid method call: Variable 'x' has type 'int', expected 'Scanner'.

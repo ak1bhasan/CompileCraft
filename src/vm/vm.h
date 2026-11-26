@@ -18,7 +18,10 @@ extern "C" {
 #endif
 
 enum {
-    VM_DEFAULT_MAX_STEPS = 1000000
+    VM_DEFAULT_MAX_STEPS = 1000000,
+    VM_PUSHBACK_CAP = 16,
+    VM_MAX_INPUT_TOKEN_LEN = 4096,
+    VM_MAX_INPUT_LINE_LEN = 16384
 };
 
 typedef enum VmStatus {
@@ -33,6 +36,7 @@ typedef struct VmConfig {
     size_t max_steps; /* 0 uses VM_DEFAULT_MAX_STEPS */
     FILE *out;        /* NULL uses stdout */
     FILE *err;        /* NULL uses stderr */
+    FILE *in;         /* NULL uses stdin */
 } VmConfig;
 
 typedef struct VmResult {
@@ -69,6 +73,9 @@ typedef struct VmState {
     size_t max_steps;
     FILE *out;
     FILE *err;
+    FILE *in;
+    int pushback[VM_PUSHBACK_CAP];
+    int pushback_len;
     VmResult result;
 } VmState;
 

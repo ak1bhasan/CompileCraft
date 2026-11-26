@@ -1,0 +1,1 @@
+Semantic Error at line 5: Invalid expression: Address-of '&' is only supported for scanf input targets.

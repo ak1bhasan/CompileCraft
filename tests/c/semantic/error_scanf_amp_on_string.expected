@@ -1,0 +1,1 @@
+Semantic Error at line 5: Invalid scanf argument: Format specifier '%s' expects string buffer variable without '&'.

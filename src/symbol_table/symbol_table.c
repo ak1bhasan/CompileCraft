@@ -20,11 +20,12 @@ static unsigned long hash_string(const char *str) {
 
 const char *datatype_to_string(DataType type) {
     switch (type) {
-        case TYPE_INT:    return "int";
-        case TYPE_FLOAT:  return "float";
-        case TYPE_BOOL:   return "bool";
-        case TYPE_STRING: return "string";
-        default:          return "unknown";
+        case TYPE_INT:     return "int";
+        case TYPE_FLOAT:   return "float";
+        case TYPE_BOOL:    return "bool";
+        case TYPE_STRING:  return "string";
+        case TYPE_SCANNER: return "Scanner";
+        default:           return "unknown";
     }
 }
 
@@ -152,7 +153,8 @@ int symbol_table_get_scope_level(const SymbolTable *st) {
     return st->current_scope->level;
 }
 
-Symbol *symbol_table_insert(SymbolTable *st, const char *name, DataType type, int line) {
+Symbol *symbol_table_insert_ext(SymbolTable *st, const char *name, DataType type, int line,
+                                size_t array_size, bool is_initialized) {
     if (!st || !st->current_scope || !name) return NULL;
 
     /* Check for duplicate in the current scope frame */
@@ -167,14 +169,24 @@ Symbol *symbol_table_insert(SymbolTable *st, const char *name, DataType type, in
     if (!sym) return NULL;
 
     sym->name = strdup(name);
+    if (!sym->name) {
+        free(sym);
+        return NULL;
+    }
     sym->type = type;
     sym->scope_level = frame->level;
     sym->line = line;
+    sym->array_size = array_size;
+    sym->is_initialized = is_initialized;
     sym->next = frame->buckets[h];
     frame->buckets[h] = sym;
 
     frame->symbol_count++;
     return sym;
+}
+
+Symbol *symbol_table_insert(SymbolTable *st, const char *name, DataType type, int line) {
+    return symbol_table_insert_ext(st, name, type, line, 0, false);
 }
 
 Symbol *symbol_table_lookup_current_scope(const SymbolTable *st, const char *name) {

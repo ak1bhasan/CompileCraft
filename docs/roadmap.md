@@ -20,10 +20,10 @@
 [DONE] M5: Symbol Table ──► [DONE] M6: Semantic Analysis ──► [DONE] M7: TAC
            │
            ▼
-[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java ──► [DONE] M13: IDE ──► [DONE] M15: Shared TAC VM
+[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java ──► [DONE] M13: IDE ──► [DONE] M15: VM ──► [DONE] M16: Interactive I/O
 ```
 
-**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 hardening**, **M8 Unified CLI Driver (`bin/compilecraft.exe`)**, **M13 Electron IDE**, and **M15 Shared TAC Virtual Machine (`src/vm/` + `--run` + IDE Program Output & Stop)** are complete on `dev`. **Remaining work:** **M14** desktop packaging & final faculty verification, optional interactive stdin input (`TAC_OP_READ` proposal in `docs/vm.md`), and finalizing **DEC-07**.
+**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 hardening**, **M8 Unified CLI Driver (`bin/compilecraft.exe`)**, **M13 Electron IDE**, **M15 Shared TAC Virtual Machine**, and **M16 Interactive Input & Console Experience** are complete on `dev`. **Remaining work:** **M14** desktop packaging & final faculty verification, and finalizing **DEC-07**.
 
 ---
 
@@ -430,6 +430,19 @@ Execute verified Three-Address Code (TAC) generated from C, C++, and Java throug
 - [x] Compile errors strictly suppress VM execution and clear stale IDE output.
 - [x] Division/modulo by zero, uninitialized reads, and infinite loops fail safely with line numbers while preserving TAC visibility and partial stdout.
 - [x] Zero compiler warnings (`-Wall -Wextra -pedantic -std=c11`), zero Bison conflicts, and full regression green.
+
+---
+
+## Milestone 16 (project): Interactive Input & Console Experience
+
+### Objective
+Support interactive runtime input in C (`scanf`), C++ (`cin` / `std::cin`), and Java (`Scanner`) end-to-end across AST, Symbol Table, Semantic Analysis, TAC, Shared TAC VM, CLI, and the Electron Interactive Console.
+
+### Status: **COMPLETED** (on `dev`)
+- **AST, Symbol Table & TAC (`src/ast/`, `src/symbol_table/`, `src/tac/`)**: Added `AST_TYPE_STRING`, `AST_TYPE_SCANNER`, `AST_INPUT`, `AST_ADDR_OF`, `AST_SCANNER_NEW`, `AST_INPUT_CALL`, `TYPE_SCANNER` + array capacity/init metadata, seven input TAC opcodes (`read_int`, `read_float`, `read_bool`, `read_str`, `read_line`, `scan_ws`, `scan_lit`), and defensive `scanf` capacity/`%0s`/argument checks.
+- **Shared TAC VM (`src/vm/`)**: Implemented prefix vs complete-token numeric extraction, C++ `0`/`1` vs Java `true`/`false` boolean parsing, bounded string reads, full-line `nextLine` reads, LIFO pushback stack, flush-before-read, and EOF/format error reporting.
+- **C / C++ / Java Frontends & Semantics**: Wired `scanf`, `cin`/`std::cin` + `string`/`using namespace std;`, and `Scanner(System.in)` (`nextInt`, `nextFloat`, `nextBoolean`, `next`, `nextLine`) with full compile-time diagnostics.
+- **Electron Interactive Console (`frontend/`)**: Implemented persistent child-process execution (`shell: false`), live stdout/stderr streaming, Enter-to-submit `stdin`, `Send EOF`, `Stop`, `runId` isolation, 2 MB cumulative output limit, and live Electron CDP E2E tests (`frontend/tests/e2e_interactive_console.mjs`).
 
 ---
 

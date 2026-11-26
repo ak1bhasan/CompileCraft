@@ -1,7 +1,7 @@
 # CompileCraft — Shared TAC Virtual Machine (VM)
 
-> **Milestone**: M15  
-> **Scope**: Unified Three-Address Code execution across **C** (`compilecraft-c`), **C++** (`compilecraft-cpp`), **Java** (`compilecraft-java`), and unified CLI `compilecraft.exe --run`
+> **Milestone**: M15–M16
+> **Scope**: Unified Three-Address Code execution and interactive runtime I/O across **C** (`compilecraft-c`), **C++** (`compilecraft-cpp`), **Java** (`compilecraft-java`), unified CLI `compilecraft.exe --run`, and Electron Interactive Console
 
 ---
 
@@ -76,21 +76,21 @@ All three front-end drivers (`C_Compiler/main_compiler.c`, `CPP_Compiler/main_co
 
 ---
 
-## 6. Program Input Handling — Current Limitation & Future Proposal
+## 6. Interactive Program Input (M16)
 
-**Interactive runtime input is NOT implemented in Milestone 15.** Currently, none of the C, C++, or Java front-end grammars, semantic rules, or TAC opcodes support input calls:
+CompileCraft's VM (`src/vm/vm.c`) implements seven TAC input opcodes driven by `VmConfig.in` (defaulting to `stdin`), a 16-byte LIFO pushback buffer (`vm_ungetc` / `vm_unget_slice_reverse`), and flush-before-read semantics (`fflush(state->out)`):
 
-- C `scanf(...)` is rejected at syntax analysis.
-- C++ `std::cin >> ...` is rejected at syntax analysis.
-- Java `Scanner` / `System.in` is rejected as an undeclared identifier/type.
+| TAC Opcode | Behavior |
+|---|---|
+| `read_int <prefix\|token>` | Reads signed 32-bit integer (`prefix` mode stops before delimiters for C `scanf` / C++ `cin`; `token` mode validates complete whitespace-delimited token for Java `nextInt`). |
+| `read_float <prefix\|token>` | Reads binary64 float (`prefix` mode preserves invalid exponent tails via reverse-order pushback; `token` mode validates complete token for Java `nextFloat`). |
+| `read_bool <cpp\|java>` | `cpp` accepts `0` / `1` only; `java` accepts case-insensitive `true` / `false`. |
+| `read_str [cap]` | Reads whitespace-delimited token up to optional capacity `cap` (leaving unread remainder in stream for bounded `%s` / `%Ns`). |
+| `read_line` | Reads until `\n` or EOF without skipping leading spaces, strips trailing `\r`, and allows empty lines (`""`). |
+| `scan_ws` | Skips optional leading whitespace and pushes back first non-whitespace byte. |
+| `scan_lit "<text>"` | Matches exact literal characters from `scanf` format strings (and skips embedded whitespace cleanly). |
 
-### Proposed Future Extension (Post-M15)
-
-The VM configuration (`VmConfig`) and opcode dispatcher are structured so input can be added cleanly without redesigning the VM:
-
-1. Add `FILE *in;` and bounded input callback / buffer fields to `VmConfig`.
-2. Introduce `TAC_OP_READ` (e.g., `read <type_hint> -> dest`) emitted by front ends for `scanf`, `cin >>`, or `Scanner.nextInt`/`nextFloat`/`nextLine`.
-3. Provide non-blocking IDE input forwarding (pre-supplied stdin buffer or modal prompt via Electron IPC) rather than stalling on a headless `stdin` pipe.
+In the **Electron IDE**, `--run` spawns as a persistent child process (`shell: false`) with piped `stdin`, live `stdout`/`stderr` streaming, an inline console input bar (`Enter` to submit, `Send EOF`, `Stop`), `runId` isolation, and a 2 MB cumulative stdout+stderr byte cap.
 
 ---
 

@@ -7,6 +7,7 @@
  * ============================================================================== */
 
 #include "tac.h"
+#include <ctype.h>
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,13 +21,15 @@ typedef enum TacExprKind {
     TAC_EXPR_UNKNOWN = 0,
     TAC_EXPR_INT,
     TAC_EXPR_FLOAT,
-    TAC_EXPR_BOOL
+    TAC_EXPR_BOOL,
+    TAC_EXPR_STRING
 } TacExprKind;
 
 typedef struct TacVarBinding {
     char *source_name;
     char *tac_name;
     AstTypeTag type_tag;
+    size_t array_size;
 } TacVarBinding;
 
 struct TacScope {
@@ -175,7 +178,8 @@ static const TacVarBinding *lookup_tac_var(const TacGenerator *gen, const char *
 static const char *declare_tac_var(
     TacGenerator *gen,
     const char *source_name,
-    AstTypeTag type_tag) {
+    AstTypeTag type_tag,
+    size_t array_size) {
     if (!gen || gen->failed || !source_name) {
         return NULL;
     }
@@ -228,8 +232,50 @@ static const char *declare_tac_var(
     top->entries[top->count].source_name = src_copy;
     top->entries[top->count].tac_name = tac_name;
     top->entries[top->count].type_tag = type_tag;
+    top->entries[top->count].array_size = array_size;
     top->count++;
     return tac_name;
+}
+
+static int resolve_scanner_method_tac(
+    const char *method_name,
+    TacOpcode *out_op,
+    const char **out_mode,
+    TacExprKind *out_kind) {
+    if (!method_name) {
+        return 0;
+    }
+    if (strcmp(method_name, "nextInt") == 0) {
+        if (out_op) *out_op = TAC_OP_READ_INT;
+        if (out_mode) *out_mode = "token";
+        if (out_kind) *out_kind = TAC_EXPR_INT;
+        return 1;
+    }
+    if (strcmp(method_name, "nextFloat") == 0) {
+        if (out_op) *out_op = TAC_OP_READ_FLOAT;
+        if (out_mode) *out_mode = "token";
+        if (out_kind) *out_kind = TAC_EXPR_FLOAT;
+        return 1;
+    }
+    if (strcmp(method_name, "nextBoolean") == 0) {
+        if (out_op) *out_op = TAC_OP_READ_BOOL;
+        if (out_mode) *out_mode = "java";
+        if (out_kind) *out_kind = TAC_EXPR_BOOL;
+        return 1;
+    }
+    if (strcmp(method_name, "next") == 0) {
+        if (out_op) *out_op = TAC_OP_READ_STR;
+        if (out_mode) *out_mode = NULL;
+        if (out_kind) *out_kind = TAC_EXPR_STRING;
+        return 1;
+    }
+    if (strcmp(method_name, "nextLine") == 0) {
+        if (out_op) *out_op = TAC_OP_READ_LINE;
+        if (out_mode) *out_mode = NULL;
+        if (out_kind) *out_kind = TAC_EXPR_STRING;
+        return 1;
+    }
+    return 0;
 }
 
 static TacExprKind infer_expr_kind(const TacGenerator *gen, const AstNode *expr) {
@@ -239,10 +285,11 @@ static TacExprKind infer_expr_kind(const TacGenerator *gen, const AstNode *expr)
     switch (expr->kind) {
         case AST_LITERAL:
             switch (expr->u.literal.lit_kind) {
-                case AST_LIT_INT:   return TAC_EXPR_INT;
-                case AST_LIT_FLOAT: return TAC_EXPR_FLOAT;
-                case AST_LIT_BOOL:  return TAC_EXPR_BOOL;
-                default:            return TAC_EXPR_UNKNOWN;
+                case AST_LIT_INT:    return TAC_EXPR_INT;
+                case AST_LIT_FLOAT:  return TAC_EXPR_FLOAT;
+                case AST_LIT_BOOL:   return TAC_EXPR_BOOL;
+                case AST_LIT_STRING: return TAC_EXPR_STRING;
+                default:             return TAC_EXPR_UNKNOWN;
             }
         case AST_IDENTIFIER: {
             const TacVarBinding *b = lookup_tac_var(gen, expr->u.identifier.name);
@@ -252,7 +299,13 @@ static TacExprKind infer_expr_kind(const TacGenerator *gen, const AstNode *expr)
             if (b->type_tag == AST_TYPE_INT) return TAC_EXPR_INT;
             if (b->type_tag == AST_TYPE_FLOAT) return TAC_EXPR_FLOAT;
             if (b->type_tag == AST_TYPE_BOOL) return TAC_EXPR_BOOL;
+            if (b->type_tag == AST_TYPE_STRING) return TAC_EXPR_STRING;
             return TAC_EXPR_UNKNOWN;
+        }
+        case AST_INPUT_CALL: {
+            TacExprKind kind = TAC_EXPR_UNKNOWN;
+            resolve_scanner_method_tac(expr->u.input_call.method_name, NULL, NULL, &kind);
+            return kind;
         }
         case AST_UNARY_OP:
             if (expr->u.unary.op == AST_OP_NOT) {
@@ -525,6 +578,28 @@ static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
             break;
         }
 
+        case AST_INPUT_CALL: {
+            TacOpcode op = TAC_OP_READ_INT;
+            const char *mode = NULL;
+            if (!resolve_scanner_method_tac(expr->u.input_call.method_name, &op, &mode, NULL)) {
+                mark_failed(gen);
+                break;
+            }
+            char *temp = new_temp(gen);
+            if (!temp) {
+                break;
+            }
+            if (expr->line > 0) {
+                gen->current_line = expr->line;
+            }
+            if (!emit_instr(gen, op, temp, mode, NULL)) {
+                free(temp);
+                break;
+            }
+            result = temp;
+            break;
+        }
+
         default:
             mark_failed(gen);
             break;
@@ -557,16 +632,25 @@ static void generate_block(TacGenerator *gen, const AstNode *block) {
     pop_scope(gen);
 }
 
-static int expr_has_string_add(const AstNode *node) {
+static int expr_has_string_add(const TacGenerator *gen, const AstNode *node) {
     if (!node) {
         return 0;
     }
     if (node->kind == AST_LITERAL && node->u.literal.lit_kind == AST_LIT_STRING) {
         return 1;
     }
+    if (node->kind == AST_IDENTIFIER) {
+        const TacVarBinding *b = lookup_tac_var(gen, node->u.identifier.name);
+        return (b != NULL && b->type_tag == AST_TYPE_STRING);
+    }
+    if (node->kind == AST_INPUT_CALL) {
+        TacExprKind kind = TAC_EXPR_UNKNOWN;
+        return resolve_scanner_method_tac(node->u.input_call.method_name, NULL, NULL, &kind) &&
+               kind == TAC_EXPR_STRING;
+    }
     if (node->kind == AST_BINARY_OP && node->u.binary.op == AST_OP_ADD) {
-        return expr_has_string_add(node->u.binary.left) ||
-               expr_has_string_add(node->u.binary.right);
+        return expr_has_string_add(gen, node->u.binary.left) ||
+               expr_has_string_add(gen, node->u.binary.right);
     }
     return 0;
 }
@@ -576,7 +660,7 @@ static int generate_concat_item(TacGenerator *gen, const AstNode *expr, int newl
         return 0;
     }
     if (expr->kind == AST_BINARY_OP && expr->u.binary.op == AST_OP_ADD &&
-        expr_has_string_add(expr)) {
+        expr_has_string_add(gen, expr)) {
         if (!generate_concat_item(gen, expr->u.binary.left, 0)) {
             return 0;
         }
@@ -623,6 +707,292 @@ static int generate_printf_output(TacGenerator *gen, const AstNode *stmt) {
         return 0;
     }
     free(fmt_val);
+    return 1;
+}
+
+static int append_raw_char(char **buf, size_t *len, size_t *cap, char ch) {
+    if (*len + 2 > *cap) {
+        size_t next_cap = (*cap == 0) ? 32 : (*cap * 2);
+        char *grown = (char *)realloc(*buf, next_cap);
+        if (!grown) {
+            return 0;
+        }
+        *buf = grown;
+        *cap = next_cap;
+    }
+    (*buf)[(*len)++] = ch;
+    (*buf)[*len] = '\0';
+    return 1;
+}
+
+static int flush_scanf_literal(TacGenerator *gen, char **lit_buf, size_t *lit_len, size_t *lit_cap) {
+    if (*lit_len == 0) {
+        return 1;
+    }
+
+    char *q = NULL;
+    size_t q_len = 0;
+    size_t q_cap = 0;
+    int ok = append_raw_char(&q, &q_len, &q_cap, '"');
+    for (size_t i = 0; ok && i < *lit_len; i++) {
+        char c = (*lit_buf)[i];
+        switch (c) {
+            case '\n': ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, 'n'); break;
+            case '\t': ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, 't'); break;
+            case '\r': ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, 'r'); break;
+            case '\\': ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, '\\'); break;
+            case '"':  ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, '"'); break;
+            case '\'': ok = append_raw_char(&q, &q_len, &q_cap, '\\') && append_raw_char(&q, &q_len, &q_cap, '\''); break;
+            default:   ok = append_raw_char(&q, &q_len, &q_cap, c); break;
+        }
+    }
+    ok = ok && append_raw_char(&q, &q_len, &q_cap, '"');
+
+    int emitted = ok && emit_instr(gen, TAC_OP_SCAN_LIT, NULL, q, NULL);
+    free(q);
+    *lit_len = 0;
+    if (*lit_buf) {
+        (*lit_buf)[0] = '\0';
+    }
+    if (*lit_cap > 0 && !emitted) {
+        mark_failed(gen);
+    }
+    return emitted;
+}
+
+static char *unescape_format_literal(TacGenerator *gen, const char *quoted, size_t *out_len) {
+    size_t raw_len = quoted ? strlen(quoted) : 0;
+    size_t start = (raw_len >= 2 && quoted[0] == '"' && quoted[raw_len - 1] == '"') ? 1 : 0;
+    size_t end = (raw_len >= 2 && quoted[0] == '"' && quoted[raw_len - 1] == '"') ? (raw_len - 1) : raw_len;
+
+    char *buf = (char *)malloc(end - start + 1);
+    if (!buf) {
+        mark_failed(gen);
+        return NULL;
+    }
+
+    size_t len = 0;
+    for (size_t i = start; i < end; i++) {
+        char c = quoted[i];
+        if (c == '\\' && i + 1 < end) {
+            char esc = quoted[++i];
+            if (esc == '0') {
+                break;
+            }
+            switch (esc) {
+                case 'n':  buf[len++] = '\n'; break;
+                case 't':  buf[len++] = '\t'; break;
+                case 'r':  buf[len++] = '\r'; break;
+                case '\\': buf[len++] = '\\'; break;
+                case '"':  buf[len++] = '"'; break;
+                case '\'': buf[len++] = '\''; break;
+                default:   buf[len++] = esc; break;
+            }
+        } else {
+            buf[len++] = c;
+        }
+    }
+    buf[len] = '\0';
+    if (out_len) {
+        *out_len = len;
+    }
+    return buf;
+}
+
+static const char *resolve_input_target_binding(
+    TacGenerator *gen,
+    const AstNode *arg,
+    const TacVarBinding **out_binding) {
+    const AstNode *target = arg;
+    if (target && target->kind == AST_ADDR_OF) {
+        target = target->u.addr_of.operand;
+    }
+    if (!target || target->kind != AST_IDENTIFIER || !target->u.identifier.name) {
+        mark_failed(gen);
+        return NULL;
+    }
+    const TacVarBinding *b = lookup_tac_var(gen, target->u.identifier.name);
+    if (out_binding) {
+        *out_binding = b;
+    }
+    return b ? b->tac_name : target->u.identifier.name;
+}
+
+static int generate_scanf_input(TacGenerator *gen, const AstNode *stmt) {
+    const AstNode *fmt = stmt->u.input_stmt.items;
+    if (!fmt || fmt->kind != AST_LITERAL || fmt->u.literal.lit_kind != AST_LIT_STRING) {
+        mark_failed(gen);
+        return 0;
+    }
+
+    size_t fmt_len = 0;
+    char *ufmt = unescape_format_literal(gen, fmt->u.literal.as.sval, &fmt_len);
+    if (!ufmt) {
+        return 0;
+    }
+
+    const AstNode *arg = fmt->next;
+    char *lit_buf = NULL;
+    size_t lit_len = 0;
+    size_t lit_cap = 0;
+    int ok = 1;
+
+    for (size_t i = 0; ok && i < fmt_len; ) {
+        unsigned char c = (unsigned char)ufmt[i];
+        if (isspace(c)) {
+            ok = flush_scanf_literal(gen, &lit_buf, &lit_len, &lit_cap);
+            while (i < fmt_len && isspace((unsigned char)ufmt[i])) {
+                i++;
+            }
+            /* Omit trailing format whitespace to avoid interactive blocking after final token. */
+            if (ok && i < fmt_len) {
+                ok = emit_instr(gen, TAC_OP_SCAN_WS, NULL, NULL, NULL);
+            }
+            continue;
+        }
+
+        if (c != '%') {
+            ok = append_raw_char(&lit_buf, &lit_len, &lit_cap, (char)c);
+            i++;
+            continue;
+        }
+
+        if (i + 1 >= fmt_len) {
+            ok = 0;
+            break;
+        }
+        if (ufmt[i + 1] == '%') {
+            ok = append_raw_char(&lit_buf, &lit_len, &lit_cap, '%');
+            i += 2;
+            continue;
+        }
+
+        ok = flush_scanf_literal(gen, &lit_buf, &lit_len, &lit_cap);
+        if (!ok) {
+            break;
+        }
+
+        i++;
+        size_t explicit_width = 0;
+        int has_width_digits = 0;
+        while (i < fmt_len && isdigit((unsigned char)ufmt[i])) {
+            has_width_digits = 1;
+            size_t digit = (size_t)(ufmt[i] - '0');
+            if (explicit_width <= 65536) {
+                explicit_width = explicit_width * 10 + digit;
+            }
+            i++;
+        }
+        if ((has_width_digits && explicit_width == 0) || i >= fmt_len || !arg) {
+            ok = 0;
+            break;
+        }
+
+        char conv = ufmt[i++];
+        const TacVarBinding *b = NULL;
+        const char *dest = resolve_input_target_binding(gen, arg, &b);
+        if (!dest) {
+            ok = 0;
+            break;
+        }
+        arg = arg->next;
+
+        if (conv == 'd' && !has_width_digits) {
+            ok = emit_instr(gen, TAC_OP_READ_INT, dest, "prefix", NULL);
+        } else if (conv == 'f' && !has_width_digits) {
+            ok = emit_instr(gen, TAC_OP_READ_FLOAT, dest, "prefix", NULL);
+        } else if (conv == 's') {
+            int has_array_bound = (b != NULL && b->array_size > 0);
+            size_t cap = 0;
+            int has_cap = 0;
+            if (has_array_bound) {
+                if (b->array_size <= 1) {
+                    /* Zero writable char capacity once NUL terminator is reserved. */
+                    ok = 0;
+                    break;
+                }
+                cap = b->array_size - 1;
+                has_cap = 1;
+            }
+            if (has_width_digits) {
+                if (!has_cap || explicit_width < cap) {
+                    cap = explicit_width;
+                    has_cap = 1;
+                }
+            }
+            if (has_cap) {
+                if (cap == 0) {
+                    ok = 0;
+                    break;
+                }
+                char cap_buf[32];
+                snprintf(cap_buf, sizeof(cap_buf), "%lu", (unsigned long)cap);
+                ok = emit_instr(gen, TAC_OP_READ_STR, dest, cap_buf, NULL);
+            } else {
+                ok = emit_instr(gen, TAC_OP_READ_STR, dest, NULL, NULL);
+            }
+        } else {
+            ok = 0;
+        }
+    }
+
+    if (ok && arg != NULL) {
+        ok = 0;
+    }
+    if (ok) {
+        ok = flush_scanf_literal(gen, &lit_buf, &lit_len, &lit_cap);
+    }
+
+    free(lit_buf);
+    free(ufmt);
+    if (!ok) {
+        mark_failed(gen);
+    }
+    return ok;
+}
+
+static int generate_cin_input(TacGenerator *gen, const AstNode *stmt) {
+    const AstNode *item = stmt->u.input_stmt.items;
+    while (item) {
+        if (item->line > 0) {
+            gen->current_line = item->line;
+        }
+        const TacVarBinding *b = NULL;
+        const char *dest = resolve_input_target_binding(gen, item, &b);
+        if (!dest || !b) {
+            mark_failed(gen);
+            return 0;
+        }
+
+        TacOpcode op = TAC_OP_READ_INT;
+        const char *mode = NULL;
+        switch (b->type_tag) {
+            case AST_TYPE_INT:
+                op = TAC_OP_READ_INT;
+                mode = "prefix";
+                break;
+            case AST_TYPE_FLOAT:
+                op = TAC_OP_READ_FLOAT;
+                mode = "prefix";
+                break;
+            case AST_TYPE_BOOL:
+                op = TAC_OP_READ_BOOL;
+                mode = "cpp";
+                break;
+            case AST_TYPE_STRING:
+                op = TAC_OP_READ_STR;
+                mode = NULL;
+                break;
+            default:
+                mark_failed(gen);
+                return 0;
+        }
+
+        if (!emit_instr(gen, op, dest, mode, NULL)) {
+            return 0;
+        }
+        item = item->next;
+    }
     return 1;
 }
 
@@ -781,6 +1151,15 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
                 return;
             }
             const char *src_name = stmt->u.var_decl.name->u.identifier.name;
+            size_t arr_sz = (stmt->u.var_decl.array_size > 0) ? (size_t)stmt->u.var_decl.array_size : 0u;
+            if (stmt->u.var_decl.type_tag == AST_TYPE_SCANNER ||
+                (stmt->u.var_decl.init && stmt->u.var_decl.init->kind == AST_SCANNER_NEW)) {
+                /* Compile-time Scanner handle; no VM runtime slot or initialization instruction emitted. */
+                if (!declare_tac_var(gen, src_name, stmt->u.var_decl.type_tag, arr_sz)) {
+                    return;
+                }
+                break;
+            }
             if (stmt->u.var_decl.init) {
                 /* Evaluate initializer before inserting new binding to match semantic_analyze scope order. */
                 TacExprKind rhs_kind = infer_expr_kind(gen, stmt->u.var_decl.init);
@@ -789,7 +1168,7 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
                     mark_failed(gen);
                     return;
                 }
-                const char *tac_name = declare_tac_var(gen, src_name, stmt->u.var_decl.type_tag);
+                const char *tac_name = declare_tac_var(gen, src_name, stmt->u.var_decl.type_tag, arr_sz);
                 if (!tac_name) {
                     free(init_val);
                     return;
@@ -804,7 +1183,7 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
                 }
                 free(init_val);
             } else {
-                const char *tac_name = declare_tac_var(gen, src_name, stmt->u.var_decl.type_tag);
+                const char *tac_name = declare_tac_var(gen, src_name, stmt->u.var_decl.type_tag, arr_sz);
                 if (!tac_name) {
                     return;
                 }
@@ -816,6 +1195,10 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
         }
 
         case AST_ASSIGN: {
+            if (stmt->u.assign.value && stmt->u.assign.value->kind == AST_SCANNER_NEW) {
+                /* Compile-time Scanner handle reassignment requires no runtime TAC instruction. */
+                break;
+            }
             char *val = generate_expr(gen, stmt->u.assign.value);
             if (!val || !stmt->u.assign.target ||
                 stmt->u.assign.target->kind != AST_IDENTIFIER) {
@@ -908,6 +1291,16 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
                     free(val);
                 }
                 item = item->next;
+            }
+            break;
+        }
+
+        case AST_INPUT: {
+            int ok = (stmt->u.input_stmt.mode == AST_INPUT_CIN)
+                         ? generate_cin_input(gen, stmt)
+                         : generate_scanf_input(gen, stmt);
+            if (!ok) {
+                return;
             }
             break;
         }
@@ -1045,6 +1438,38 @@ void tac_print(const TacList *list, FILE *out) {
 
             case TAC_OP_UNINIT:
                 /* Internal VM slot lifecycle reset; intentionally omitted from TAC printout. */
+                break;
+
+            case TAC_OP_READ_INT:
+                fprintf(out, "%s = read_int%s%s\n", curr->dest ? curr->dest : "",
+                        curr->src1 ? " " : "", curr->src1 ? curr->src1 : "");
+                break;
+
+            case TAC_OP_READ_FLOAT:
+                fprintf(out, "%s = read_float%s%s\n", curr->dest ? curr->dest : "",
+                        curr->src1 ? " " : "", curr->src1 ? curr->src1 : "");
+                break;
+
+            case TAC_OP_READ_BOOL:
+                fprintf(out, "%s = read_bool%s%s\n", curr->dest ? curr->dest : "",
+                        curr->src1 ? " " : "", curr->src1 ? curr->src1 : "");
+                break;
+
+            case TAC_OP_READ_STR:
+                fprintf(out, "%s = read_str%s%s\n", curr->dest ? curr->dest : "",
+                        curr->src1 ? " " : "", curr->src1 ? curr->src1 : "");
+                break;
+
+            case TAC_OP_READ_LINE:
+                fprintf(out, "%s = read_line\n", curr->dest ? curr->dest : "");
+                break;
+
+            case TAC_OP_SCAN_WS:
+                fprintf(out, "scan_ws\n");
+                break;
+
+            case TAC_OP_SCAN_LIT:
+                fprintf(out, "scan_lit %s\n", curr->src1 ? curr->src1 : "\"\"");
                 break;
 
             default:

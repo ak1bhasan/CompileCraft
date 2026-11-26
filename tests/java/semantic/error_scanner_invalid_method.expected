@@ -1,0 +1,1 @@
+Semantic Error at line 6: Unsupported Scanner method 'nextDouble()' (supported: nextInt, nextFloat, nextBoolean, next, nextLine).

@@ -38,7 +38,14 @@ typedef enum TacOpcode {
     TAC_OP_ARG,         /* arg src1 */
     TAC_OP_PRINTF,      /* printf fmt (src1) */
     TAC_OP_ITOF,        /* dest = (float)src1 */
-    TAC_OP_UNINIT       /* mark dest uninitialized for block/loop slot reset */
+    TAC_OP_UNINIT,      /* mark dest uninitialized for block/loop slot reset */
+    TAC_OP_READ_INT,    /* dest = read_int <mode: "prefix"|"token"> */
+    TAC_OP_READ_FLOAT,  /* dest = read_float <mode: "prefix"|"token"> */
+    TAC_OP_READ_BOOL,   /* dest = read_bool <mode: "cpp"|"java"> */
+    TAC_OP_READ_STR,    /* dest = read_str [cap] */
+    TAC_OP_READ_LINE,   /* dest = read_line */
+    TAC_OP_SCAN_WS,     /* scan_ws (consume 0+ whitespace chars) */
+    TAC_OP_SCAN_LIT     /* scan_lit <quoted_literal> */
 } TacOpcode;
 
 typedef struct TacScope TacScope;

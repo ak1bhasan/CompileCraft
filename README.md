@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End & Shared TAC Virtual Machine for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` (**M0–M7**), **M9–M12 C/C++/Java Front-Ends & Hardening**, **M8 Unified CLI (`compilecraft.exe`)**, **M13 Electron Desktop IDE (`frontend/`)**, and **M15 Shared TAC Virtual Machine (`src/vm/` + `--run` + IDE Program Output & Stop)**. Remaining: **M14** desktop packaging & final faculty verification.
+> **Current focus**: baseline `.mc` (**M0–M7**), **M9–M12 C/C++/Java Front-Ends & Hardening**, **M8 Unified CLI (`compilecraft.exe`)**, **M13 Electron Desktop IDE (`frontend/`)**, **M15 Shared TAC Virtual Machine (`src/vm/` + `--run`)**, and **M16 Interactive Input & Console Experience (`scanf` / `cin` / Java `Scanner` + interactive Electron Console)**. Remaining: **M14** desktop packaging & final faculty verification.
 
 ---
 
@@ -14,19 +14,19 @@
 
 Native target machine codegen (x86/ARM assembly/linking) is **not** performed; instead, verified Three-Address Code (TAC) executes directly inside CompileCraft's own built-in TAC Virtual Machine (`docs/vm.md`) without calling external compilers (`gcc`, `g++`, `javac`).
 
-**Implemented today (through Milestone 15):**
+**Implemented today (through Milestone 16):**
 
-- **Shared TAC Virtual Machine (`src/vm/` → `--run`)**: Executes C, C++, and Java TAC programs with tagged `int`/`float`/`bool`/`string` values, arithmetic/unary/relational/eager-logical operators (DEC-07), label jump indexing, nested loops, C `printf` (`%d`, `%f`, `%s`, `%%`, escapes `\n`, `\t`, `\r`, `\\`, `\"`, `\0`), C++ `std::cout`/`std::endl`, Java `System.out.print`/`println` concatenation, AST-to-TAC line-numbered runtime errors (div/mod by zero, uninitialized read, type/printf faults), partial stdout flushing, and bounded `1,000,000`-step infinite-loop protection. *(Interactive stdin input such as `scanf`/`cin`/`Scanner` is not yet supported; see `docs/vm.md` Section 6.)*
-- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--tokens` / `--ast` / `--symtab` / `--run` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
-- **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, live **Program Output** (stdout, runtime errors, status & timing), clickable line-numbered **Errors**, and **Stop** execution cancellation.
+- **Shared TAC Virtual Machine (`src/vm/` → `--run`)**: Executes C, C++, and Java TAC programs with tagged `int`/`float`/`bool`/`string` values, arithmetic/unary/relational/eager-logical operators (DEC-07), label jump indexing, nested loops, C `printf` (`%d`, `%f`, `%s`, `%%`, escapes `\n`, `\t`, `\r`, `\\`, `\"`, `\0`), C++ `cout`/`std::cout` & `endl`/`std::endl`, Java `System.out.print`/`println` concatenation, **interactive stdin execution** (`read_int`, `read_float`, `read_bool`, `read_str`, `read_line`, `scan_ws`, `scan_lit` with LIFO pushback, flush-before-read, prefix vs token modes, EOF/overflow checks), AST-to-TAC line-numbered runtime errors, partial stdout flushing, and bounded `1,000,000`-step infinite-loop protection.
+- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--tokens` / `--ast` / `--symtab` / `--run` flags, safe native process invocation (no shell), piped/interactive `stdin` forwarding, and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
+- **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell, persistent interactive `--run` process with `stdin` pipe and `2 MB` cumulative stdout/stderr cap) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, live streaming **Program Output** with interactive Enter-to-submit `stdin`, **Send EOF**, and **Stop** controls, plus clickable line-numbered **Errors**.
 - Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
 - Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
-- **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `#include <stdio.h>`, `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `printf(...)` console output, and all six faculty semantic rules.
-- **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `#include <iostream>`, `int`, `float`, `bool`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `std::cout << ...` / `std::endl` console output, and all six faculty semantic rules.
-- **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `System.out.print` / `System.out.println`, and all six faculty semantic rules.
+- **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `#include <stdio.h>`, `int`, `float`, `_Bool`/`bool`, fixed `char buf[N]` buffers, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `printf(...)`, `scanf(...)` (`%d`, `%f`, `%s`, `%Ns`, `%%`, whitespace & literals), and all six faculty semantic rules.
+- **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `#include <iostream>`, `#include <string>`, `using namespace std;`, `int`, `float`, `bool`, `string`/`std::string`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `cout`/`std::cout << ...` & `endl`/`std::endl`, chained `cin`/`std::cin >> ...` (numeric `0`/`1` `bool`), and all six faculty semantic rules.
+- **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting optional `import java.util.Scanner;` / `import java.util.*;`, `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `String`, `Scanner`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `System.out.print` / `System.out.println`, `new Scanner(System.in)` (`nextInt()`, `nextFloat()`, `nextBoolean()`, `next()`, `nextLine()`), and all six faculty semantic rules.
 - Production parser and language compiler CLIs with optional `--ast` and `--symtab` output.
 
-**Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final documentation & faculty verification (**M14**), interactive stdin input (`scanf` / `std::cin` / `Scanner`, proposed in `docs/vm.md`), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
+**Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
 
 ---
 
@@ -99,8 +99,8 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 15 — Shared TAC Virtual Machine & Execution (complete on `dev`)**
-> *C, C++, and Java subsets compile through Flex → Bison → AST → Semantic → TAC and execute inside CompileCraft's Shared TAC VM via CLI `--run` and the Electron IDE.*
+> **Status**: **Milestone 16 — Interactive Input & Console Experience (complete on `dev`)**
+> *C (`scanf`), C++ (`cin`/`std::cin`), and Java (`Scanner`) subsets compile through Flex → Bison → AST → Semantic → TAC and execute interactively inside CompileCraft's Shared TAC VM (`--run`) and the Electron Interactive Console.*
 
 ### Status matrix
 
@@ -119,12 +119,12 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit-test executable. |
 | **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
 | **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7/M15)** | Semantic-gated driver, AST source-line metadata, unit-test executable + 16 golden cases; DEC-07 interim eager `&&`/`\|\|`. |
-| **Shared TAC VM (`src/vm/`)** | Multi-language TAC execution engine | **COMPLETED (M15)** | Executes verified TAC across C, C++, and Java (`--run`, scope isolation, `int->float`, `DBL_DECIMAL_DIG`/`%.Nf`, `printf`/`cout`/`System.out`, runtime traps, 1M step cap); unit + 35 execution tests. |
-| **C front-end (`C_Compiler/`)** | C subset parse → TAC → VM | **COMPLETED (M9/M12/M15)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; `printf`; `--run`; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
-| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC → VM | **COMPLETED (M10/M12/M15)** | `compilecraft-cpp.exe`; `bool`; for-loops; `std::cout`; `--run`; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
-| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC → VM | **COMPLETED (M11/M12/M15)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; `System.out`; `--run`; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13/M15)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab`, `--run` (`tests/cli/`: 56 cases). |
-| **Frontend–Compiler & VM IDE** | Electron + React + Monaco IDE | **COMPLETED (M13/M15)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` with live **Program Output**, **TAC**, **Diagnostics**, and **Stop** cancellation. |
+| **Shared TAC VM (`src/vm/`)** | Multi-language TAC execution engine | **COMPLETED (M15–M16)** | Executes verified TAC across C, C++, and Java (`--run`, scope isolation, `int->float`, `DBL_DECIMAL_DIG`/`%.Nf`, `printf`/`cout`/`System.out`, interactive `read_*`/`scan_*` input, runtime traps, 1M step cap); unit + 44 execution tests. |
+| **C front-end (`C_Compiler/`)** | C subset parse → TAC → VM | **COMPLETED (M9/M12/M15–M16)** | `compilecraft-c.exe`; `_Bool`/`bool`; `char buf[N]`; for-loops; `printf`/`scanf`; `--run`; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
+| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC → VM | **COMPLETED (M10/M12/M15–M16)** | `compilecraft-cpp.exe`; `bool`/`string`; `using namespace std;`; for-loops; `cout`/`cin`; `--run`; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
+| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC → VM | **COMPLETED (M11/M12/M15–M16)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`/`String`/`Scanner`; for-loops; `System.out`/`Scanner`; `--run`; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
+| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13/M15–M16)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab`, `--run` (`tests/cli/`: 56 cases). |
+| **Frontend–Compiler & VM IDE** | Electron + React + Monaco IDE | **COMPLETED (M13/M15–M16)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` with persistent interactive `--run`, streaming **Program Output**, Enter-to-submit `stdin`, **Send EOF**, **Stop**, **TAC**, and **Diagnostics** (14 Electron E2E tests). |
 | **Final Docs & Packaging** | Installer bundling & final sign-off | **PENDING (M14)** | Electron packaging and final faculty review. |
 
 ### Milestone summary (M4)
@@ -307,10 +307,11 @@ Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bi
 
 | Suite | Passed |
 |---|---:|
-| Automated regression (21 suites; includes 471 baseline/console I/O cases) | 510/510 |
+| Automated regression (21 suites; includes 471 baseline/console I/O cases + M16 input cases) | 540/540 |
 | Unit-test executables | 4/4 |
+| Electron Interactive Console E2E (`frontend/tests/e2e_interactive_console.mjs`) | 14/14 |
 
-Breakdown of the **510/510** automated regression cases:
+Breakdown of the **540/540** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
@@ -324,12 +325,12 @@ Breakdown of the **510/510** automated regression cases:
 | Production AST (`tests/ast`) | 14 |
 | Semantic analyzer (`tests/semantic`) | 26 |
 | TAC golden (`tests/tac/golden`) | 16 |
-| C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 25 + 17 + 13 |
-| C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 34 + 11 + 17 |
-| Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 36 + 13 + 17 |
+| C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 25 + 27 + 14 |
+| C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 34 + 14 + 18 |
+| Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 36 + 18 + 18 |
 | Unified CLI (`tests/cli`, incl. `--run`) | 56 |
-| Shared TAC VM execution (`tests/vm/test_vm_execution.py`) | 35 |
-| **Total (automated regression)** | **510/510** |
+| Shared TAC VM execution (`tests/vm/test_vm_execution.py`) | 44 |
+| **Total (automated regression)** | **540/540** |
 
 Standalone unit-test executables (`4/4` passing):
 - `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
@@ -338,7 +339,7 @@ Standalone unit-test executables (`4/4` passing):
 - `bin/test-vm.exe` (`test-vm-unit`)
 
 ```powershell
-# All suites (510 automated tests + 4 unit-test executables):
+# All suites (540 automated tests + 4 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
 # Unified CLI, Shared TAC VM & language compiler suites:
@@ -348,8 +349,10 @@ Standalone unit-test executables (`4/4` passing):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java-compiler
 
-# Build & launch Electron desktop IDE (development workspace mode):
+# Build, lint, and test Electron desktop IDE (development workspace mode):
 npm --prefix frontend run build
+npm --prefix frontend run lint
+node frontend/tests/e2e_interactive_console.mjs
 npm --prefix frontend run electron:start
 ```
 
@@ -363,9 +366,9 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 |---|---|---|
 | **M13** | Frontend–compiler integration | Completed (Electron dev IDE) |
 | **M15** | Shared TAC VM, CLI `--run`, IDE Program Output & Stop | Completed |
+| **M16** | Interactive Input (`scanf` / `cin` / `Scanner`) & Interactive Console | Completed |
 | **Desktop Packaging** | Standalone installer / portable app bundle | Pending |
-| **M14** | Final documentation and faculty verification | Pending |
-| **Program Input (`TAC_OP_READ`)** | `scanf`, `std::cin`, Java `Scanner` runtime input | Proposed (see `docs/vm.md`) |
+| **M14** | Final faculty verification & packaging sign-off | Pending |
 | **DEC-07** | Short-circuit vs eager logical evaluation (`&&` / `||`) | Open (interim eager TAC policy) |
 | **Language subsets** | Constructs outside bounded C/C++/Java subsets | Documented in `docs/{c,cpp,java}_frontend.md` |
 

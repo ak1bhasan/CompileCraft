@@ -78,9 +78,38 @@ export type DiagnosticStage =
 
 export type ExecutionStatus =
   | 'not_run'
+  | 'running'
   | 'succeeded'
   | 'runtime_error'
   | 'aborted'
+
+export type ConsoleEntryKind = 'stdout' | 'stderr' | 'stdin' | 'system'
+
+export interface ConsoleEntry {
+  id: string
+  kind: ConsoleEntryKind
+  text: string
+}
+
+export type ExecutionEvent =
+  | { runId: string; type: 'stdout'; data: string }
+  | { runId: string; type: 'stderr'; data: string }
+  | {
+      runId: string
+      type: 'exit'
+      exitCode: number
+      aborted: boolean
+      durationMs: number
+      executionStatus: Exclude<ExecutionStatus, 'not_run' | 'running'>
+      diagnostics: CompileDiagnostic[]
+      errorSummary: string
+    }
+
+export interface StartRunResponse {
+  started: boolean
+  runId: string
+  compileResult: CompileResult
+}
 
 export interface CompileDiagnostic {
   stage: DiagnosticStage | string

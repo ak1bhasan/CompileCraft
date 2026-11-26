@@ -230,6 +230,7 @@ static int string_has_invalid_escape(const char *text) {
 ">"                     { return GT; }
 "!"                     { return NOT; }
 "="                     { return ASSIGN; }
+"&"                     { return AMP; }
 
     /* --------------------------------------------------------------------------
      * 6. Delimiters & Punctuation

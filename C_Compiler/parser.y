@@ -251,12 +251,13 @@ static AstNode *cc_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 %token KW_BOOL         305
 %token <bval> KW_TRUE  306
 %token <bval> KW_FALSE 307
+%token AMP             308
 
 %type <node> program main_function statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
-%type <node> return_stmt inc_dec_stmt output_stmt expression
+%type <node> return_stmt inc_dec_stmt output_stmt call_arg expression
 %type <node> for_init for_cond for_update
-%type <list> statement_list printf_args
+%type <list> statement_list call_args
 %type <type_tag> type_spec
 
 %nonassoc LOWER_THAN_ELSE 310
@@ -385,6 +386,20 @@ var_decl_stmt:
         AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
         $$ = ast_var_decl($1, name, $4, @$.first_line, @$.first_column);
     }
+  | KW_CHAR IDENTIFIER LBRACKET INT_LITERAL RBRACKET SEMICOLON
+    {
+        if ($4 <= 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Char array size must be a positive integer\n",
+                    @4.first_line);
+            syntax_error_count++;
+            free($2);
+            $$ = NULL;
+        } else {
+            AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+            $$ = ast_var_decl_array(AST_TYPE_STRING, name, $4, NULL, @$.first_line, @$.first_column);
+        }
+    }
   ;
 
 assign_stmt:
@@ -402,8 +417,19 @@ expr_stmt:
     }
   ;
 
-printf_args:
-    expression
+call_arg:
+    AMP expression
+    {
+        $$ = ast_addr_of($2, @1.first_line, @1.first_column);
+    }
+  | expression
+    {
+        $$ = $1;
+    }
+  ;
+
+call_args:
+    call_arg
     {
         $$ = ast_list_empty();
         if ($1 != NULL && !ast_list_append(&$$, $1)) {
@@ -412,7 +438,7 @@ printf_args:
             }
         }
     }
-  | printf_args COMMA expression
+  | call_args COMMA call_arg
     {
         $$ = $1;
         if ($3 != NULL && !ast_list_append(&$$, $3)) {
@@ -424,27 +450,40 @@ printf_args:
   ;
 
 output_stmt:
-    IDENTIFIER LPAREN printf_args RPAREN SEMICOLON
+    IDENTIFIER LPAREN call_args RPAREN SEMICOLON
     {
-        if (!$1 || strcmp($1, "printf") != 0) {
+        if ($1 && strcmp($1, "printf") == 0) {
+            free($1);
+            $$ = ast_output_with_mode(
+                $3, AST_OUTPUT_PRINTF, 0, @$.first_line, @$.first_column);
+        } else if ($1 && strcmp($1, "scanf") == 0) {
+            free($1);
+            $$ = ast_input($3, AST_INPUT_SCANF, @$.first_line, @$.first_column);
+        } else {
             fprintf(stderr,
-                    "Syntax Error at line %d: Unsupported function call '%s' (only 'printf' is supported)\n",
+                    "Syntax Error at line %d: Unsupported function call '%s' (only 'printf' and 'scanf' are supported)\n",
                     @1.first_line, $1 ? $1 : "");
             syntax_error_count++;
             free($1);
             ast_free($3.head);
             $$ = NULL;
-        } else {
-            free($1);
-            $$ = ast_output_with_mode(
-                $3, AST_OUTPUT_PRINTF, 0, @$.first_line, @$.first_column);
         }
     }
   | IDENTIFIER LPAREN RPAREN SEMICOLON
     {
-        fprintf(stderr,
-                "Syntax Error at line %d: Invalid call '%s()' (expected at least one output argument)\n",
-                @1.first_line, $1 ? $1 : "");
+        if ($1 && strcmp($1, "printf") == 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Invalid call 'printf()' (expected at least one output argument)\n",
+                    @1.first_line);
+        } else if ($1 && strcmp($1, "scanf") == 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Invalid call 'scanf()' (expected at least one input argument)\n",
+                    @1.first_line);
+        } else {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported function call '%s' (only 'printf' and 'scanf' are supported)\n",
+                    @1.first_line, $1 ? $1 : "");
+        }
         syntax_error_count++;
         free($1);
         $$ = NULL;

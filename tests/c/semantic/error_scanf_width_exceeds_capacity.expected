@@ -1,0 +1,1 @@
+Semantic Error at line 5: Invalid scanf argument: Field width '%5s' exceeds capacity of char array 's[5]' (max 4).

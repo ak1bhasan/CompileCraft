@@ -12,9 +12,10 @@ import sys
 import tempfile
 
 
-def run_cmd(cmd, cwd=None, timeout=15):
+def run_cmd(cmd, cwd=None, timeout=15, stdin_data=None):
     proc = subprocess.run(
         cmd,
+        input=stdin_data,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -28,11 +29,11 @@ def run_cmd(cmd, cwd=None, timeout=15):
     )
 
 
-def run_source(cli_bin, tmp_dir, filename, source, timeout=15):
+def run_source(cli_bin, tmp_dir, filename, source, timeout=15, stdin_data=None):
     path = os.path.join(tmp_dir, filename)
     with open(path, "w", encoding="utf-8") as fp:
         fp.write(source)
-    return run_cmd([cli_bin, "--run", path], cwd=tmp_dir, timeout=timeout)
+    return run_cmd([cli_bin, "--run", path], cwd=tmp_dir, timeout=timeout, stdin_data=stdin_data)
 
 
 def main():
@@ -598,6 +599,170 @@ int main() {
 """
         rc, out, err = run_source(cli_bin, tmp_dir, "ovf.c", c_ovf_clean)
         check("c_signed_overflow_and_int_min_div", rc == 1 and out == "-2147483648 2147483647 -2147479015 0\n" and "Runtime Error at line 11:" in err and "overflow" in err, f"rc={rc} out={out!r} err={err!r}")
+
+        # 18. M16 C scanf interactive & formatted input pipeline
+        c_scanf_ok = """#include <stdio.h>
+int main() {
+    int a;
+    float f;
+    char w1[5];
+    char w2[5];
+    char rest[16];
+    printf("Prompt:");
+    scanf("%d,%f", &a, &f);
+    scanf("%s", w1);
+    scanf("%2s %s", w2, rest);
+    printf("%d|%.2f|%s|%s|%s\\n", a, f, w1, w2, rest);
+    return 0;
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "scanf_ok.c", c_scanf_ok, stdin_data="12,3.5 abcdef ghi\n"
+        )
+        check("c_scanf_prefix_bounded_and_flush", rc == 0 and out == "Prompt:12|3.50|abcd|ef|ghi\n" and err == "", f"rc={rc} out={out!r} err={err!r}")
+
+        # 19. M16 C scanf loop and %% literal matching
+        c_scanf_loop = """#include <stdio.h>
+int main() {
+    int n;
+    scanf("%d", &n);
+    int sum = 0;
+    for (int i = 0; i < n; i++) {
+        int v;
+        scanf("%d%%", &v);
+        sum = sum + v;
+    }
+    printf("sum=%d\\n", sum);
+    return 0;
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "scanf_loop.c", c_scanf_loop, stdin_data="3\n10% 25% 15%\n"
+        )
+        check("c_scanf_loop_and_percent_literal", rc == 0 and out == "sum=50\n" and err == "", f"rc={rc} out={out!r} err={err!r}")
+
+        # 20. M16 C++ cin chained input and bool 0/1 handling
+        cpp_cin_ok = """#include <iostream>
+#include <string>
+using namespace std;
+int main() {
+    int n;
+    float r;
+    bool b0;
+    bool b1;
+    string name;
+    cout << "Enter:" << endl;
+    cin >> n >> r >> b0 >> b1 >> name;
+    cout << n << ":" << r << ":" << b0 << ":" << b1 << ":" << name << endl;
+    return 0;
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "cin_ok.cpp", cpp_cin_ok, stdin_data="7 1.25 0 1 Alice\n"
+        )
+        check("cpp_cin_chained_and_numeric_bool", rc == 0 and out == "Enter:\n7:1.25:false:true:Alice\n" and err == "", f"rc={rc} out={out!r} err={err!r}")
+
+        # 21. M16 C++ cin bool rejects "true" without boolalpha
+        cpp_cin_bad_bool = """#include <iostream>
+using namespace std;
+int main() {
+    bool ok;
+    cin >> ok;
+    return 0;
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "cin_bad_bool.cpp", cpp_cin_bad_bool, stdin_data="true\n"
+        )
+        check("cpp_cin_bool_rejects_true", rc == 1 and "Runtime Error at line 5:" in err and "boolalpha is not supported" in err, f"rc={rc} out={out!r} err={err!r}")
+
+        # 22. M16 Java Scanner full pipeline including nextLine & strict token checks
+        java_scanner_ok = """import java.util.Scanner;
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int n = sc.nextInt();
+        String tail = sc.nextLine();
+        String line1 = sc.nextLine();
+        String empty = sc.nextLine();
+        float f = sc.nextFloat();
+        boolean ok = sc.nextBoolean();
+        String w = sc.next();
+        System.out.println(n + "|[" + tail + "]|[" + line1 + "]|[" + empty + "]|" + f + "|" + ok + "|" + w);
+    }
+}
+"""
+        rc, out, err = run_source(
+            cli_bin,
+            tmp_dir,
+            "ScannerOk.java",
+            java_scanner_ok,
+            stdin_data="7  tail\nhello world\n\n2.5 false end\n",
+        )
+        check("java_scanner_all_methods_nextline", rc == 0 and out == "7|[  tail]|[hello world]|[]|2.5|false|end\n" and err == "", f"rc={rc} out={out!r} err={err!r}")
+
+        # 23. M16 Java Scanner strict complete-token validation vs C/C++ prefix extraction
+        java_strict_int = """import java.util.Scanner;
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("before");
+        int x = sc.nextInt();
+        System.out.println(x);
+    }
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "StrictJava.java", java_strict_int, stdin_data="12abc\n"
+        )
+        check("java_scanner_strict_token_preserves_out", rc == 1 and out == "before\n" and "Runtime Error at line 6:" in err and "Invalid integer input" in err, f"rc={rc} out={out!r} err={err!r}")
+
+        # 24. M16 EOF and invalid input runtime error with partial output preserved
+        c_eof_err = """#include <stdio.h>
+int main() {
+    int x;
+    printf("hello\\n");
+    scanf("%d", &x);
+    return 0;
+}
+"""
+        rc, out, err = run_source(cli_bin, tmp_dir, "eof.c", c_eof_err, stdin_data="")
+        check("c_scanf_eof_preserves_partial_output", rc == 1 and out == "hello\n" and "Runtime Error at line 5:" in err and "end of input" in err, f"rc={rc} out={out!r} err={err!r}")
+
+        # 25. M16 C++ cin inside loops and conditionals
+        cpp_cin_loop_cond = """#include <iostream>
+using namespace std;
+int main() {
+    int count;
+    cin >> count;
+    int pos = 0;
+    for (int i = 0; i < count; i++) {
+        int val;
+        cin >> val;
+        if (val > 0) {
+            pos = pos + val;
+        }
+    }
+    cout << pos << endl;
+    return 0;
+}
+"""
+        rc, out, err = run_source(
+            cli_bin, tmp_dir, "cin_loop_cond.cpp", cpp_cin_loop_cond, stdin_data="4\n5 -3 10 0\n"
+        )
+        check("cpp_cin_inside_loop_and_if", rc == 0 and out == "15\n" and err == "", f"rc={rc} out={out!r} err={err!r}")
+
+        # 26. M16 Java Scanner used as ordinary value is rejected semantically
+        java_scanner_as_val = """import java.util.Scanner;
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int x = sc + 1;
+    }
+}
+"""
+        rc, out, err = run_source(cli_bin, tmp_dir, "ScannerAsVal.java", java_scanner_as_val)
+        check("java_scanner_disallowed_in_arith", rc == 1 and "Semantic Error at line 5:" in err, f"rc={rc} out={out!r} err={err!r}")
 
     passed = sum(1 for _, ok, _ in tests if ok)
     failed = len(tests) - passed

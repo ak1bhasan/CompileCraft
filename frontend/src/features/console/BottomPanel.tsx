@@ -1,7 +1,15 @@
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  CornerDownLeft,
+  Loader2,
+  Square,
+} from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import EmptyState from '../../components/common/EmptyState'
-import type { BottomTabId, CompileResult } from '../../types/ide'
+import type { BottomTabId, CompileResult, ConsoleEntry } from '../../types/ide'
 
 interface BottomPanelProps {
   collapsed: boolean
@@ -9,7 +17,13 @@ interface BottomPanelProps {
   activeTab: BottomTabId
   onTabChange: (tab: BottomTabId) => void
   result: CompileResult | null
+  consoleEntries: ConsoleEntry[]
   isCompiling: boolean
+  isRunning: boolean
+  stdinClosed: boolean
+  onSendInput?: (input: string) => void
+  onSendEof?: () => void
+  onStop?: () => void
   onJumpToLine?: (line: number) => void
 }
 
@@ -25,9 +39,39 @@ export default function BottomPanel({
   activeTab,
   onTabChange,
   result,
+  consoleEntries,
   isCompiling,
+  isRunning,
+  stdinClosed,
+  onSendInput,
+  onSendEof,
+  onStop,
   onJumpToLine,
 }: BottomPanelProps) {
+  const [stdinDraft, setStdinDraft] = useState('')
+  const streamEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    streamEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [consoleEntries, isRunning])
+
+  useEffect(() => {
+    if (isRunning && !stdinClosed && activeTab === 'output' && !collapsed) {
+      inputRef.current?.focus()
+    }
+  }, [isRunning, stdinClosed, activeTab, collapsed])
+
+  const submitStdin = (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!isRunning || stdinClosed || !onSendInput) {
+      return
+    }
+    const text = stdinDraft
+    setStdinDraft('')
+    onSendInput(text)
+  }
+
   const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = TABS.findIndex((tab) => tab.id === activeTab)
     if (index < 0) {
@@ -74,37 +118,94 @@ export default function BottomPanel({
         ? result.tac.trimEnd().split(/\r?\n/).length
         : 0
       const execMs = result.executionDurationMs ?? 0
+      const isRunningStatus = result.executionStatus === 'running'
       const isSuccess = result.executionStatus === 'succeeded'
       const isAborted = result.executionStatus === 'aborted'
-      const statusColor = isSuccess
-        ? 'text-emerald-400'
-        : isAborted
-          ? 'text-amber-400'
-          : 'text-rose-400'
-      const statusLabel = isSuccess
-        ? `Execution succeeded (${result.language.toUpperCase()}) in ${execMs} ms — exit code 0`
-        : isAborted
-          ? `Execution stopped (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 130}`
-          : `Runtime error (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 1} (${execMs} ms)`
+      const statusColor = isRunningStatus
+        ? 'text-sky-300'
+        : isSuccess
+          ? 'text-emerald-400'
+          : isAborted
+            ? 'text-amber-400'
+            : 'text-rose-400'
+      const statusLabel = isRunningStatus
+        ? `Running (${result.language.toUpperCase()})…`
+        : isSuccess
+          ? `Completed (${result.language.toUpperCase()}) in ${execMs} ms — exit code 0`
+          : isAborted
+            ? `Execution stopped (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 130}`
+            : `Runtime error (${result.language.toUpperCase()}) — exit code ${result.executionExitCode ?? 1} (${execMs} ms)`
+
+      const hasEntries = consoleEntries.length > 0
+      const hasStdoutFallback = !hasEntries && result.programOutput.length > 0
 
       return (
         <div className="p-3 font-mono text-xs space-y-2 text-[var(--cc-text)]">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className={`flex items-center gap-2 ${statusColor}`}>
-              {isSuccess ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+            <div className={`flex items-center gap-2 ${statusColor}`} data-testid="console-execution-status">
+              {isRunningStatus ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : isSuccess ? (
+                <CheckCircle2 size={14} />
+              ) : (
+                <AlertCircle size={14} />
+              )}
               <span>{statusLabel}</span>
             </div>
-            <span className="text-[11px] text-[var(--cc-text-muted)]">
-              Compile: {result.durationMs} ms | Tokens: {result.tokens.length} | Symbols: {result.symbols.length} | TAC: {tacLines}
-            </span>
+            <div className="flex items-center gap-2">
+              {isRunningStatus && onStop ? (
+                <button
+                  type="button"
+                  data-testid="console-stop-btn"
+                  onClick={onStop}
+                  className="inline-flex h-6 items-center gap-1 rounded border border-rose-500/50 bg-rose-500/20 px-2 text-[11px] font-medium text-rose-200 transition-colors hover:bg-rose-500/30"
+                >
+                  <Square size={10} strokeWidth={2.2} />
+                  Stop
+                </button>
+              ) : null}
+              <span className="text-[11px] text-[var(--cc-text-muted)]">
+                Compile: {result.durationMs} ms | Tokens: {result.tokens.length} | Symbols: {result.symbols.length} | TAC: {tacLines}
+              </span>
+            </div>
           </div>
 
-          {result.programOutput.length > 0 ? (
+          {hasEntries || hasStdoutFallback ? (
             <pre
               data-testid="program-output-stdout"
-              className="rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/80 p-2.5 whitespace-pre-wrap break-words text-[var(--cc-text)] leading-relaxed"
+              className="max-h-36 overflow-y-auto rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/80 p-2.5 whitespace-pre-wrap break-words text-[var(--cc-text)] leading-relaxed"
             >
-              {result.programOutput}
+              {hasEntries
+                ? consoleEntries.map((entry) => {
+                    if (entry.kind === 'stdin') {
+                      return (
+                        <span
+                          key={entry.id}
+                          data-testid="console-input-echo"
+                          className="text-sky-300 font-semibold"
+                        >
+                          {`> ${entry.text}`}
+                        </span>
+                      )
+                    }
+                    if (entry.kind === 'stderr') {
+                      return (
+                        <span key={entry.id} className="text-rose-300">
+                          {entry.text}
+                        </span>
+                      )
+                    }
+                    if (entry.kind === 'system') {
+                      return (
+                        <span key={entry.id} className="text-amber-300/90 italic">
+                          {entry.text}
+                        </span>
+                      )
+                    }
+                    return <span key={entry.id}>{entry.text}</span>
+                  })
+                : result.programOutput}
+              <span ref={streamEndRef} />
             </pre>
           ) : isSuccess ? (
             <p className="text-[var(--cc-text-muted)] italic">
@@ -112,7 +213,51 @@ export default function BottomPanel({
             </p>
           ) : null}
 
-          {!isSuccess && (result.executionStderr || result.errorSummary) ? (
+          {isRunningStatus ? (
+            stdinClosed ? (
+              <div className="flex items-center justify-between rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/60 px-2.5 py-1.5 text-[11px] text-[var(--cc-text-muted)]">
+                <span>Standard input closed (EOF sent) — waiting for program completion…</span>
+              </div>
+            ) : (
+              <form
+                onSubmit={submitStdin}
+                className="flex items-center gap-2 rounded-md border border-[var(--cc-primary)]/40 bg-[var(--cc-bg)] px-2 py-1"
+              >
+                <span className="select-none text-sky-300 font-semibold">&gt;</span>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  data-testid="console-stdin-input"
+                  value={stdinDraft}
+                  onChange={(event) => setStdinDraft(event.target.value)}
+                  placeholder="Enter input and press Enter…"
+                  aria-label="Program standard input"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-xs text-[var(--cc-text)] outline-none placeholder:text-[var(--cc-text-muted)]/70"
+                />
+                <button
+                  type="submit"
+                  data-testid="console-send-btn"
+                  className="inline-flex h-6 items-center gap-1 rounded border border-[var(--cc-primary)]/50 bg-[var(--cc-primary)]/20 px-2 text-[11px] text-[var(--cc-primary-hover)] transition-colors hover:bg-[var(--cc-primary)]/30"
+                >
+                  <CornerDownLeft size={11} />
+                  Send
+                </button>
+                {onSendEof ? (
+                  <button
+                    type="button"
+                    data-testid="console-eof-btn"
+                    onClick={onSendEof}
+                    title="Send EOF and close standard input"
+                    className="inline-flex h-6 items-center rounded border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-[11px] text-[var(--cc-text-muted)] transition-colors hover:text-[var(--cc-text)]"
+                  >
+                    Send EOF
+                  </button>
+                ) : null}
+              </form>
+            )
+          ) : null}
+
+          {!isRunningStatus && !isSuccess && (result.executionStderr || result.errorSummary) ? (
             <pre
               data-testid="program-output-stderr"
               className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 whitespace-pre-wrap break-words text-rose-200"
@@ -237,7 +382,7 @@ export default function BottomPanel({
   return (
     <section
       className={`flex shrink-0 flex-col border-t border-[var(--cc-border)] bg-[var(--cc-surface)] transition-[height] duration-200 ${
-        collapsed ? 'h-9' : 'h-44'
+        collapsed ? 'h-9' : 'h-56'
       }`}
     >
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[var(--cc-border)] px-2">

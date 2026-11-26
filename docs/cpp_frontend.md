@@ -13,14 +13,23 @@ Optional: `--tokens`, `--ast`, or `--symtab` skips TAC/execution; `--run` compil
 
 ## Supported procedural subset
 
-- Preprocessor directives: `#include <iostream>` at line start (optional trailing whitespace/`//` comment)
-- Types: `int`, `float`, `bool`
-- Literals: integers, floats, `true`, `false`, plus `STRING_LITERAL` inside `std::cout` output chains
+- Preprocessor directives: `#include <iostream>` and `#include <string>` at line start (optional trailing whitespace/`//` comment)
+- Namespace directive: optional `using namespace std;`
+- Types: `int`, `float`, `bool`, `string` / `std::string`
+- Literals: integers, floats, `true`, `false`, `STRING_LITERAL`
 - `void` only in `int main()` / `int main(void)`
 - Declarations / initialization / assignment
 - Arithmetic, relational, equality, logical `&&` `||` `!`, unary `-`
-- Statements: blocks, `if` / `else if` / `if-else`, `while`, `for`, `std::cout << ...` (chained expressions and `std::endl` lowered to `Output` / `OutputLn` or non-scoping `Seq` AST nodes -> TAC `print` / `println`), `return;`
+- Statements: blocks, `if` / `else if` / `if-else`, `while`, `for`, `cout << ...` / `std::cout << ...` (`endl` / `std::endl`), chained `cin >> ...` / `std::cin >> ...`, `return;`
 - Increment/decrement as statements or `for` updates: `i++` `++i` `i--` `--i`
+
+## Interactive `cin` subset (M16)
+
+- Supports `cin >> target;` and `std::cin >> a >> b;` chaining for `int`, `float`, `bool`, and `string`/`std::string` variables (including inside loops and conditionals).
+- Numeric extraction (`int` / `float`) uses prefix extraction, preserving delimiters/non-matching trailing characters.
+- `cin >> bool` accepts numeric `0` and `1` only (`boolalpha` is not supported; `"true"`/`"false"` triggers a runtime error).
+- `cin >> string` reads a whitespace-delimited token (`read_str`) and marks the target initialized.
+- Non-identifier targets (e.g. `cin >> 5;`), undeclared variables, and arithmetic on `string` operands are rejected at compile time.
 
 ## Boolean support
 
@@ -58,10 +67,9 @@ CompileCraft uses a unified simplified scope model across its bounded C, C++, an
 
 ## Unsupported (non-exhaustive)
 
-- Classes, inheritance, virtuals, templates, STL containers
-- Pointers, references, operator overloading, exceptions, `using namespace std`
-- Input/error streams (`std::cin`, `std::cerr`) and unqualified `cout`/`endl`
-- `char` / `double` / `std::string` / arrays / structs
+- Classes, inheritance, virtuals, templates, STL containers (`vector`, etc.)
+- Pointers, references, operator overloading, exceptions, `std::cerr`
+- `boolalpha`, `std::getline`, `char` / `double` / arrays / structs
 - Compound assignment (`+=` …)
 - Other preprocessor directives (`#define`, `#include <vector>`, etc. rejected with `Lexical Error`)
 - Full ISO C++

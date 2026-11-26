@@ -7,7 +7,9 @@
 
 #include "vm.h"
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -91,6 +93,8 @@ VmState *vm_state_create(const VmConfig *config) {
                            : (size_t)VM_DEFAULT_MAX_STEPS;
     state->out = (config && config->out) ? config->out : stdout;
     state->err = (config && config->err) ? config->err : stderr;
+    state->in = (config && config->in) ? config->in : stdin;
+    state->pushback_len = 0;
     state->result.status = VM_OK;
     return state;
 }
@@ -543,6 +547,743 @@ static VmStatus exec_printf(VmState *state, const TacInstr *instr) {
     return VM_OK;
 }
 
+typedef struct VmCharBuf {
+    char *data;
+    size_t len;
+    size_t cap;
+} VmCharBuf;
+
+static int vm_buf_append(VmCharBuf *b, char c, size_t max_len) {
+    if (b->len >= max_len) {
+        return -1;
+    }
+    if (b->len + 2 > b->cap) {
+        size_t next_cap = (b->cap == 0) ? 64 : (b->cap * 2);
+        if (next_cap > max_len + 1) {
+            next_cap = max_len + 1;
+        }
+        char *grown = (char *)realloc(b->data, next_cap);
+        if (!grown) {
+            return -2;
+        }
+        b->data = grown;
+        b->cap = next_cap;
+    }
+    b->data[b->len++] = c;
+    b->data[b->len] = '\0';
+    return 1;
+}
+
+static int vm_getc(VmState *state) {
+    if (!state) {
+        return EOF;
+    }
+    if (state->pushback_len > 0) {
+        return state->pushback[--state->pushback_len];
+    }
+    if (!state->in) {
+        return EOF;
+    }
+    return fgetc(state->in);
+}
+
+static int vm_ungetc(VmState *state, int ch) {
+    if (!state || ch == EOF) {
+        return 1;
+    }
+    if (state->pushback_len >= VM_PUSHBACK_CAP) {
+        return 0;
+    }
+    state->pushback[state->pushback_len++] = ch;
+    return 1;
+}
+
+static int vm_unget_slice_reverse(VmState *state, const char *buf, size_t len) {
+    for (size_t i = len; i > 0; i--) {
+        if (!vm_ungetc(state, (unsigned char)buf[i - 1])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int eq_nocase_vm(const char *a, const char *b) {
+    while (*a && *b) {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
+            return 0;
+        }
+        a++;
+        b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+static VmStatus fail_input_eof(VmState *state, int line, const char *what) {
+    if (state->in && ferror(state->in)) {
+        return fail_vm(state, VM_ERR_RUNTIME, line, "Input stream read error");
+    }
+    return fail_vm(state, VM_ERR_RUNTIME, line,
+                   "Unexpected end of input (EOF) while reading %s", what);
+}
+
+static int vm_skip_leading_ws(VmState *state, int *out_ch) {
+    if (state->out) {
+        fflush(state->out);
+    }
+    int ch = vm_getc(state);
+    while (ch != EOF && isspace((unsigned char)ch)) {
+        ch = vm_getc(state);
+    }
+    *out_ch = ch;
+    return (ch != EOF);
+}
+
+static VmStatus read_ws_delimited_token(
+    VmState *state,
+    int line,
+    int first_ch,
+    size_t max_len,
+    const char *limit_label,
+    VmCharBuf *out_buf) {
+    int ch = first_ch;
+    while (ch != EOF && !isspace((unsigned char)ch)) {
+        int rc = vm_buf_append(out_buf, (char)ch, max_len);
+        if (rc == -1) {
+            return fail_vm(state, VM_ERR_RUNTIME, line,
+                           "%s exceeds maximum token length (%lu bytes)",
+                           limit_label, (unsigned long)max_len);
+        }
+        if (rc == -2) {
+            return fail_vm(state, VM_ERR_OOM, line, "Out of memory reading input");
+        }
+        ch = vm_getc(state);
+    }
+    if (ch == EOF && state->in && ferror(state->in)) {
+        return fail_vm(state, VM_ERR_RUNTIME, line, "Input stream read error");
+    }
+    if (ch != EOF && !vm_ungetc(state, ch)) {
+        return fail_vm(state, VM_ERR_RUNTIME, line, "Input pushback buffer overflow");
+    }
+    return VM_OK;
+}
+
+static int is_valid_int_token(const char *s) {
+    if (!s || *s == '\0') {
+        return 0;
+    }
+    if (*s == '+' || *s == '-') {
+        s++;
+    }
+    if (!isdigit((unsigned char)*s)) {
+        return 0;
+    }
+    while (*s) {
+        if (!isdigit((unsigned char)*s)) {
+            return 0;
+        }
+        s++;
+    }
+    return 1;
+}
+
+static int is_valid_decimal_float_token(const char *s) {
+    if (!s || *s == '\0') {
+        return 0;
+    }
+    if (*s == '+' || *s == '-') {
+        s++;
+    }
+    size_t digits_before = 0;
+    while (isdigit((unsigned char)*s)) {
+        digits_before++;
+        s++;
+    }
+    size_t digits_after = 0;
+    if (*s == '.') {
+        s++;
+        while (isdigit((unsigned char)*s)) {
+            digits_after++;
+            s++;
+        }
+    }
+    if (digits_before + digits_after == 0) {
+        return 0;
+    }
+    if (*s == 'e' || *s == 'E') {
+        s++;
+        if (*s == '+' || *s == '-') {
+            s++;
+        }
+        size_t exp_digits = 0;
+        while (isdigit((unsigned char)*s)) {
+            exp_digits++;
+            s++;
+        }
+        if (exp_digits == 0) {
+            return 0;
+        }
+    }
+    return *s == '\0';
+}
+
+static VmStatus exec_read_int(VmState *state, const TacInstr *instr) {
+    if (!instr->dest || instr->dest[0] == '\0') {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Missing integer input target");
+    }
+    const char *mode = instr->src1 ? instr->src1 : "token";
+    int is_prefix = 0;
+    if (strcmp(mode, "prefix") == 0) {
+        is_prefix = 1;
+    } else if (strcmp(mode, "token") != 0) {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                       "Unsupported integer input mode '%s'", mode);
+    }
+
+    int ch = EOF;
+    if (!vm_skip_leading_ws(state, &ch)) {
+        return fail_input_eof(state, instr->line, "int");
+    }
+
+    VmCharBuf buf = { NULL, 0, 0 };
+    if (is_prefix) {
+        char sign_ch = 0;
+        if (ch == '+' || ch == '-') {
+            sign_ch = (char)ch;
+            if (vm_buf_append(&buf, sign_ch, VM_MAX_INPUT_TOKEN_LEN) < 0) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory reading int");
+            }
+            ch = vm_getc(state);
+            if (ch == EOF || !isdigit((unsigned char)ch)) {
+                int read_err = (ch == EOF && state->in && ferror(state->in));
+                if (ch != EOF) {
+                    vm_ungetc(state, ch);
+                }
+                vm_ungetc(state, (unsigned char)sign_ch);
+                free(buf.data);
+                if (read_err) {
+                    return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+                }
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Invalid integer input");
+            }
+        } else if (!isdigit((unsigned char)ch)) {
+            vm_ungetc(state, ch);
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Invalid integer input");
+        }
+
+        while (ch != EOF && isdigit((unsigned char)ch)) {
+            int rc = vm_buf_append(&buf, (char)ch, VM_MAX_INPUT_TOKEN_LEN);
+            if (rc == -1) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                               "Integer input exceeds maximum token length (%d bytes)",
+                               VM_MAX_INPUT_TOKEN_LEN);
+            }
+            if (rc == -2) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory reading int");
+            }
+            ch = vm_getc(state);
+        }
+        if (ch == EOF && state->in && ferror(state->in)) {
+            free(buf.data);
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+        }
+        if (ch != EOF && !vm_ungetc(state, ch)) {
+            free(buf.data);
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+        }
+    } else {
+        VmStatus st = read_ws_delimited_token(
+            state, instr->line, ch, VM_MAX_INPUT_TOKEN_LEN, "Integer input", &buf);
+        if (st != VM_OK) {
+            free(buf.data);
+            return st;
+        }
+        if (!is_valid_int_token(buf.data)) {
+            VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                      "Invalid integer input '%s'", buf.data ? buf.data : "");
+            free(buf.data);
+            return err_st;
+        }
+    }
+
+    char *endptr = NULL;
+    errno = 0;
+    long lval = strtol(buf.data, &endptr, 10);
+    if (endptr == buf.data || *endptr != '\0') {
+        VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                  "Invalid integer input '%s'", buf.data);
+        free(buf.data);
+        return err_st;
+    }
+    if (errno == ERANGE || lval < INT_MIN || lval > INT_MAX) {
+        VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                  "Integer input overflow/out of range: '%s'", buf.data);
+        free(buf.data);
+        return err_st;
+    }
+    free(buf.data);
+
+    VmValue val = vm_value_int((int)lval);
+    if (!set_var(state, instr->dest, &val)) {
+        return fail_vm(state, VM_ERR_OOM, instr->line,
+                       "Out of memory storing integer input in '%s'", instr->dest);
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_read_float(VmState *state, const TacInstr *instr) {
+    if (!instr->dest || instr->dest[0] == '\0') {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Missing float input target");
+    }
+    const char *mode = instr->src1 ? instr->src1 : "token";
+    int is_prefix = 0;
+    if (strcmp(mode, "prefix") == 0) {
+        is_prefix = 1;
+    } else if (strcmp(mode, "token") != 0) {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                       "Unsupported float input mode '%s'", mode);
+    }
+
+    int ch = EOF;
+    if (!vm_skip_leading_ws(state, &ch)) {
+        return fail_input_eof(state, instr->line, "float");
+    }
+
+    VmCharBuf buf = { NULL, 0, 0 };
+    if (is_prefix) {
+        char sign_ch = 0;
+        if (ch == '+' || ch == '-') {
+            sign_ch = (char)ch;
+            if (vm_buf_append(&buf, sign_ch, VM_MAX_INPUT_TOKEN_LEN) < 0) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory reading float");
+            }
+            ch = vm_getc(state);
+        }
+
+        size_t digits_before = 0;
+        while (ch != EOF && isdigit((unsigned char)ch)) {
+            int rc = vm_buf_append(&buf, (char)ch, VM_MAX_INPUT_TOKEN_LEN);
+            if (rc < 0) {
+                free(buf.data);
+                return fail_vm(state, rc == -1 ? VM_ERR_RUNTIME : VM_ERR_OOM, instr->line,
+                               rc == -1 ? "Floating-point input exceeds maximum length"
+                                        : "Out of memory reading float");
+            }
+            digits_before++;
+            ch = vm_getc(state);
+        }
+
+        size_t digits_after = 0;
+        int pushed_tail = 0;
+        if (ch == '.') {
+            int c2 = vm_getc(state);
+            if (digits_before == 0 && (c2 == EOF || !isdigit((unsigned char)c2))) {
+                int read_err = (c2 == EOF && state->in && ferror(state->in));
+                if (c2 != EOF) {
+                    vm_ungetc(state, c2);
+                }
+                vm_ungetc(state, '.');
+                if (sign_ch != 0) {
+                    vm_ungetc(state, (unsigned char)sign_ch);
+                }
+                free(buf.data);
+                if (read_err) {
+                    return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+                }
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Invalid floating-point input");
+            }
+            int rc_dot = vm_buf_append(&buf, '.', VM_MAX_INPUT_TOKEN_LEN);
+            if (rc_dot < 0) {
+                if (c2 != EOF) {
+                    vm_ungetc(state, c2);
+                }
+                free(buf.data);
+                return fail_vm(state, rc_dot == -1 ? VM_ERR_RUNTIME : VM_ERR_OOM, instr->line,
+                               rc_dot == -1 ? "Floating-point input exceeds maximum length"
+                                            : "Out of memory reading float");
+            }
+            ch = c2;
+            while (ch != EOF && isdigit((unsigned char)ch)) {
+                int rc = vm_buf_append(&buf, (char)ch, VM_MAX_INPUT_TOKEN_LEN);
+                if (rc < 0) {
+                    free(buf.data);
+                    return fail_vm(state, rc == -1 ? VM_ERR_RUNTIME : VM_ERR_OOM, instr->line,
+                                   rc == -1 ? "Floating-point input exceeds maximum length"
+                                            : "Out of memory reading float");
+                }
+                digits_after++;
+                ch = vm_getc(state);
+            }
+        }
+
+        if (digits_before + digits_after == 0) {
+            int read_err = (ch == EOF && state->in && ferror(state->in));
+            if (ch != EOF) {
+                vm_ungetc(state, ch);
+            }
+            if (sign_ch != 0) {
+                vm_ungetc(state, (unsigned char)sign_ch);
+            }
+            free(buf.data);
+            if (read_err) {
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+            }
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Invalid floating-point input");
+        }
+
+        if (ch == 'e' || ch == 'E') {
+            char tent[4];
+            size_t tent_len = 0;
+            tent[tent_len++] = (char)ch;
+            int e2 = vm_getc(state);
+            if (e2 == '+' || e2 == '-') {
+                tent[tent_len++] = (char)e2;
+                e2 = vm_getc(state);
+            }
+            if (e2 != EOF && isdigit((unsigned char)e2)) {
+                for (size_t k = 0; k < tent_len; k++) {
+                    int rc = vm_buf_append(&buf, tent[k], VM_MAX_INPUT_TOKEN_LEN);
+                    if (rc < 0) {
+                        free(buf.data);
+                        return fail_vm(state, rc == -1 ? VM_ERR_RUNTIME : VM_ERR_OOM, instr->line,
+                                       rc == -1 ? "Floating-point input exceeds maximum length"
+                                                : "Out of memory reading float");
+                    }
+                }
+                ch = e2;
+                while (ch != EOF && isdigit((unsigned char)ch)) {
+                    int rc = vm_buf_append(&buf, (char)ch, VM_MAX_INPUT_TOKEN_LEN);
+                    if (rc < 0) {
+                        free(buf.data);
+                        return fail_vm(state, rc == -1 ? VM_ERR_RUNTIME : VM_ERR_OOM, instr->line,
+                                       rc == -1 ? "Floating-point input exceeds maximum length"
+                                                : "Out of memory reading float");
+                    }
+                    ch = vm_getc(state);
+                }
+            } else {
+                if (e2 != EOF && !vm_ungetc(state, e2)) {
+                    free(buf.data);
+                    return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+                }
+                if (!vm_unget_slice_reverse(state, tent, tent_len)) {
+                    free(buf.data);
+                    return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+                }
+                pushed_tail = 1;
+            }
+        }
+
+        if (!pushed_tail) {
+            if (ch == EOF && state->in && ferror(state->in)) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+            }
+            if (ch != EOF && !vm_ungetc(state, ch)) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+            }
+        }
+    } else {
+        VmStatus st = read_ws_delimited_token(
+            state, instr->line, ch, VM_MAX_INPUT_TOKEN_LEN, "Floating-point input", &buf);
+        if (st != VM_OK) {
+            free(buf.data);
+            return st;
+        }
+        if (!is_valid_decimal_float_token(buf.data)) {
+            VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                      "Invalid floating-point input '%s'",
+                                      buf.data ? buf.data : "");
+            free(buf.data);
+            return err_st;
+        }
+    }
+
+    char *endptr = NULL;
+    errno = 0;
+    double dval = strtod(buf.data, &endptr);
+    if (endptr == buf.data || *endptr != '\0') {
+        VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                  "Invalid floating-point input '%s'", buf.data);
+        free(buf.data);
+        return err_st;
+    }
+    if (!isfinite(dval) || (errno == ERANGE && dval != 0.0)) {
+        VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                  "Floating-point input overflow/out of range: '%s'", buf.data);
+        free(buf.data);
+        return err_st;
+    }
+    free(buf.data);
+
+    VmValue val = vm_value_float(dval);
+    if (!set_var(state, instr->dest, &val)) {
+        return fail_vm(state, VM_ERR_OOM, instr->line,
+                       "Out of memory storing float input in '%s'", instr->dest);
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_read_bool(VmState *state, const TacInstr *instr) {
+    if (!instr->dest || instr->dest[0] == '\0') {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Missing boolean input target");
+    }
+    const char *mode = instr->src1 ? instr->src1 : "flex";
+    int is_cpp = (strcmp(mode, "cpp") == 0);
+    int is_java = (strcmp(mode, "java") == 0);
+    int is_flex = (strcmp(mode, "flex") == 0);
+    if (!is_cpp && !is_java && !is_flex) {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                       "Unsupported boolean input mode '%s'", mode);
+    }
+
+    int ch = EOF;
+    if (!vm_skip_leading_ws(state, &ch)) {
+        return fail_input_eof(state, instr->line, "bool");
+    }
+
+    VmCharBuf buf = { NULL, 0, 0 };
+    VmStatus st = read_ws_delimited_token(
+        state, instr->line, ch, VM_MAX_INPUT_TOKEN_LEN, "Boolean input", &buf);
+    if (st != VM_OK) {
+        free(buf.data);
+        return st;
+    }
+
+    int bval = -1;
+    if (is_cpp) {
+        if (strcmp(buf.data, "1") == 0) {
+            bval = 1;
+        } else if (strcmp(buf.data, "0") == 0) {
+            bval = 0;
+        } else {
+            VmStatus err_st = fail_vm(
+                state, VM_ERR_RUNTIME, instr->line,
+                "Invalid boolean input '%s' (expected 0 or 1; boolalpha is not supported)",
+                buf.data);
+            free(buf.data);
+            return err_st;
+        }
+    } else if (is_java) {
+        if (eq_nocase_vm(buf.data, "true")) {
+            bval = 1;
+        } else if (eq_nocase_vm(buf.data, "false")) {
+            bval = 0;
+        } else {
+            VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                      "Invalid boolean input '%s' (expected true or false)",
+                                      buf.data);
+            free(buf.data);
+            return err_st;
+        }
+    } else {
+        if (eq_nocase_vm(buf.data, "true") || strcmp(buf.data, "1") == 0) {
+            bval = 1;
+        } else if (eq_nocase_vm(buf.data, "false") || strcmp(buf.data, "0") == 0) {
+            bval = 0;
+        } else {
+            VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                      "Invalid boolean input '%s'", buf.data);
+            free(buf.data);
+            return err_st;
+        }
+    }
+    free(buf.data);
+
+    VmValue val = vm_value_bool(bval);
+    if (!set_var(state, instr->dest, &val)) {
+        return fail_vm(state, VM_ERR_OOM, instr->line,
+                       "Out of memory storing boolean input in '%s'", instr->dest);
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_read_str(VmState *state, const TacInstr *instr) {
+    if (!instr->dest || instr->dest[0] == '\0') {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Missing string input target");
+    }
+
+    int has_cap = 0;
+    size_t limit = VM_MAX_INPUT_TOKEN_LEN;
+    if (instr->src1 != NULL) {
+        char *endptr = NULL;
+        errno = 0;
+        unsigned long parsed = strtoul(instr->src1, &endptr, 10);
+        if (instr->src1[0] == '\0' || *endptr != '\0' || errno == ERANGE || parsed == 0) {
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                           "Invalid string input capacity '%s'", instr->src1);
+        }
+        has_cap = 1;
+        if ((size_t)parsed < limit) {
+            limit = (size_t)parsed;
+        }
+    }
+
+    int ch = EOF;
+    if (!vm_skip_leading_ws(state, &ch)) {
+        return fail_input_eof(state, instr->line, "string");
+    }
+
+    VmCharBuf buf = { NULL, 0, 0 };
+    while (ch != EOF && !isspace((unsigned char)ch)) {
+        if (buf.len >= limit) {
+            if (has_cap) {
+                /* Bounded %s/%Ns stops at capacity limit and leaves remainder unread. */
+                if (!vm_ungetc(state, ch)) {
+                    free(buf.data);
+                    return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+                }
+                break;
+            }
+            free(buf.data);
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                           "String input exceeds maximum token length (%d bytes)",
+                           VM_MAX_INPUT_TOKEN_LEN);
+        }
+        int rc = vm_buf_append(&buf, (char)ch, limit);
+        if (rc == -2) {
+            free(buf.data);
+            return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory reading string");
+        }
+        ch = vm_getc(state);
+    }
+
+    if (ch == EOF && state->in && ferror(state->in)) {
+        free(buf.data);
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+    }
+    if (ch != EOF && isspace((unsigned char)ch) && !vm_ungetc(state, ch)) {
+        free(buf.data);
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+    }
+
+    VmValue val = vm_value_uninit();
+    int made = vm_value_make_string(&val, buf.data ? buf.data : "");
+    free(buf.data);
+    if (!made) {
+        return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory allocating string input");
+    }
+    int stored = set_var(state, instr->dest, &val);
+    vm_value_free(&val);
+    if (!stored) {
+        return fail_vm(state, VM_ERR_OOM, instr->line,
+                       "Out of memory storing string input in '%s'", instr->dest);
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_read_line(VmState *state, const TacInstr *instr) {
+    if (!instr->dest || instr->dest[0] == '\0') {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Missing line input target");
+    }
+
+    if (state->out) {
+        fflush(state->out);
+    }
+
+    VmCharBuf buf = { NULL, 0, 0 };
+    for (;;) {
+        int ch = vm_getc(state);
+        if (ch == EOF) {
+            if (state->in && ferror(state->in)) {
+                free(buf.data);
+                return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+            }
+            if (buf.len == 0) {
+                free(buf.data);
+                return fail_input_eof(state, instr->line, "line");
+            }
+            break;
+        }
+        if (ch == '\n') {
+            if (buf.len > 0 && buf.data[buf.len - 1] == '\r') {
+                buf.data[--buf.len] = '\0';
+            }
+            break;
+        }
+        int rc = vm_buf_append(&buf, (char)ch, VM_MAX_INPUT_LINE_LEN);
+        if (rc == -1) {
+            free(buf.data);
+            return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                           "Input line exceeds maximum length (%d bytes)",
+                           VM_MAX_INPUT_LINE_LEN);
+        }
+        if (rc == -2) {
+            free(buf.data);
+            return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory reading line");
+        }
+    }
+
+    VmValue val = vm_value_uninit();
+    int made = vm_value_make_string(&val, buf.data ? buf.data : "");
+    free(buf.data);
+    if (!made) {
+        return fail_vm(state, VM_ERR_OOM, instr->line, "Out of memory allocating line input");
+    }
+    int stored = set_var(state, instr->dest, &val);
+    vm_value_free(&val);
+    if (!stored) {
+        return fail_vm(state, VM_ERR_OOM, instr->line,
+                       "Out of memory storing line input in '%s'", instr->dest);
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_scan_ws(VmState *state, const TacInstr *instr) {
+    int ch = EOF;
+    vm_skip_leading_ws(state, &ch);
+    if (ch == EOF && state->in && ferror(state->in)) {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input stream read error");
+    }
+    if (ch != EOF && !vm_ungetc(state, ch)) {
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line, "Input pushback buffer overflow");
+    }
+    return VM_OK;
+}
+
+static VmStatus exec_scan_lit(VmState *state, const TacInstr *instr) {
+    VmValue lit = vm_value_uninit();
+    VmStatus st = resolve_operand(state, instr->src1, instr->line, &lit);
+    if (st != VM_OK) {
+        vm_value_free(&lit);
+        return st;
+    }
+    if (lit.kind != VM_VAL_STRING) {
+        VmValueKind kind = lit.kind;
+        vm_value_free(&lit);
+        return fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                       "scanf literal operand must be string (got %s)",
+                       vm_value_kind_name(kind));
+    }
+
+    if (state->out) {
+        fflush(state->out);
+    }
+
+    const char *s = lit.as.sval ? lit.as.sval : "";
+    for (size_t i = 0; s[i] != '\0'; i++) {
+        int ch = vm_getc(state);
+        if (ch == EOF) {
+            vm_value_free(&lit);
+            return fail_input_eof(state, instr->line, "scanf literal");
+        }
+        if ((unsigned char)ch != (unsigned char)s[i]) {
+            vm_ungetc(state, ch);
+            VmStatus err_st = fail_vm(state, VM_ERR_RUNTIME, instr->line,
+                                      "Input format mismatch in scanf (expected '%s')", s);
+            vm_value_free(&lit);
+            return err_st;
+        }
+    }
+
+    vm_value_free(&lit);
+    return VM_OK;
+}
+
 VmStatus vm_execute_state(VmState *state, const TacList *tac) {
     if (!state || !tac) {
         if (state) {
@@ -552,6 +1293,7 @@ VmStatus vm_execute_state(VmState *state, const TacList *tac) {
     }
 
     state->steps_executed = 0;
+    state->pushback_len = 0;
     state->result.status = VM_OK;
     state->result.steps_executed = 0;
     state->result.error_line = 0;
@@ -955,6 +1697,76 @@ VmStatus vm_execute_state(VmState *state, const TacList *tac) {
                     free(code);
                     return fail_vm(state, VM_ERR_OOM, instr->line,
                                    "Out of memory resetting '%s'", instr->dest);
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_READ_INT: {
+                VmStatus st = exec_read_int(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_READ_FLOAT: {
+                VmStatus st = exec_read_float(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_READ_BOOL: {
+                VmStatus st = exec_read_bool(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_READ_STR: {
+                VmStatus st = exec_read_str(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_READ_LINE: {
+                VmStatus st = exec_read_line(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_SCAN_WS: {
+                VmStatus st = exec_scan_ws(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
+                }
+                pc++;
+                break;
+            }
+
+            case TAC_OP_SCAN_LIT: {
+                VmStatus st = exec_scan_lit(state, instr);
+                if (st != VM_OK) {
+                    free(code);
+                    return st;
                 }
                 pc++;
                 break;

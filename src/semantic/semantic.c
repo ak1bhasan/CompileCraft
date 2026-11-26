@@ -25,11 +25,36 @@ static void report_error(SemanticAnalyzer *sa, int line, const char *fmt, ...) {
 
 static DataType ast_type_to_data_type(AstTypeTag tag) {
     switch (tag) {
-        case AST_TYPE_INT:   return TYPE_INT;
-        case AST_TYPE_FLOAT: return TYPE_FLOAT;
-        case AST_TYPE_BOOL:  return TYPE_BOOL;
-        default:             return TYPE_UNKNOWN;
+        case AST_TYPE_INT:     return TYPE_INT;
+        case AST_TYPE_FLOAT:   return TYPE_FLOAT;
+        case AST_TYPE_BOOL:    return TYPE_BOOL;
+        case AST_TYPE_STRING:  return TYPE_STRING;
+        case AST_TYPE_SCANNER: return TYPE_SCANNER;
+        default:               return TYPE_UNKNOWN;
     }
+}
+
+static void report_undeclared_identifier(SemanticAnalyzer *sa, const char *name, int line) {
+    int decl_line = 0;
+    if (symbol_table_was_declared_in_exited_scope(sa->symtab, name, &decl_line)) {
+        /* Rule 3: Scope violation */
+        report_error(sa, line,
+                     "Scope violation: Variable '%s' declared at line %d is not accessible in this scope.",
+                     name, decl_line);
+    } else {
+        /* Rule 1: Undeclared variable use */
+        report_error(sa, line,
+                     "Variable '%s' is not declared.", name);
+    }
+}
+
+static DataType scanner_method_return_type(const char *method_name) {
+    if (!method_name) return TYPE_UNKNOWN;
+    if (strcmp(method_name, "nextInt") == 0) return TYPE_INT;
+    if (strcmp(method_name, "nextFloat") == 0) return TYPE_FLOAT;
+    if (strcmp(method_name, "nextBoolean") == 0) return TYPE_BOOL;
+    if (strcmp(method_name, "next") == 0 || strcmp(method_name, "nextLine") == 0) return TYPE_STRING;
+    return TYPE_UNKNOWN;
 }
 
 SemanticAnalyzer *semantic_analyzer_create(void) {
@@ -80,19 +105,68 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                 return sym->type;
             }
 
-            /* Variable not found in active scopes. Check if declared in an exited scope. */
-            int decl_line = 0;
-            if (symbol_table_was_declared_in_exited_scope(sa->symtab, name, &decl_line)) {
-                /* Rule 3: Scope violation */
-                report_error(sa, expr->line,
-                             "Scope violation: Variable '%s' declared at line %d is not accessible in this scope.",
-                             name, decl_line);
-            } else {
-                /* Rule 1: Undeclared variable use */
-                report_error(sa, expr->line,
-                             "Variable '%s' is not declared.", name);
+            report_undeclared_identifier(sa, name, expr->line);
+            return TYPE_UNKNOWN;
+        }
+
+        case AST_ADDR_OF:
+            report_error(sa, expr->line,
+                         "Invalid expression: Address-of '&' is only supported for scanf input targets.");
+            if (expr->u.addr_of.operand) {
+                analyze_expression(sa, expr->u.addr_of.operand);
             }
             return TYPE_UNKNOWN;
+
+        case AST_SCANNER_NEW: {
+            const char *cls = expr->u.scanner_new.class_name ? expr->u.scanner_new.class_name : "";
+            const char *src = expr->u.scanner_new.source_name ? expr->u.scanner_new.source_name : "";
+            if (strcmp(cls, "Scanner") != 0) {
+                report_error(sa, expr->line,
+                             "Unsupported constructor: 'new %s(%s)' is not supported (expected 'new Scanner(System.in)').",
+                             cls, src);
+                return TYPE_UNKNOWN;
+            }
+            if (strcmp(src, "System.in") != 0) {
+                report_error(sa, expr->line,
+                             "Invalid Scanner source '%s' (expected 'System.in').", src);
+                return TYPE_UNKNOWN;
+            }
+            return TYPE_SCANNER;
+        }
+
+        case AST_INPUT_CALL: {
+            const AstNode *recv = expr->u.input_call.receiver;
+            const char *method = expr->u.input_call.method_name ? expr->u.input_call.method_name : "";
+            if (!recv || recv->kind != AST_IDENTIFIER || !recv->u.identifier.name) {
+                report_error(sa, expr->line, "Invalid Scanner method call target.");
+                return TYPE_UNKNOWN;
+            }
+            const char *rname = recv->u.identifier.name;
+            Symbol *sym = lookup_all_scopes(sa->symtab, rname);
+            int ok = 1;
+            if (!sym) {
+                report_undeclared_identifier(sa, rname, recv->line > 0 ? recv->line : expr->line);
+                ok = 0;
+            } else if (sym->type != TYPE_SCANNER) {
+                report_error(sa, expr->line,
+                             "Invalid method call: Variable '%s' has type '%s', expected 'Scanner'.",
+                             rname, datatype_to_string(sym->type));
+                ok = 0;
+            } else if (!sym->is_initialized) {
+                report_error(sa, expr->line,
+                             "Invalid Scanner use: Variable '%s' is not initialized with 'new Scanner(System.in)'.",
+                             rname);
+                ok = 0;
+            }
+
+            DataType ret = scanner_method_return_type(method);
+            if (ret == TYPE_UNKNOWN) {
+                report_error(sa, expr->line,
+                             "Unsupported Scanner method '%s()' (supported: nextInt, nextFloat, nextBoolean, next, nextLine).",
+                             method);
+                return TYPE_UNKNOWN;
+            }
+            return ok ? ret : TYPE_UNKNOWN;
         }
 
         case AST_UNARY_OP: {
@@ -147,6 +221,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                     if (left == TYPE_STRING || right == TYPE_STRING) {
                         report_error(sa, expr->line,
                                      "Invalid expression: Arithmetic operator cannot be applied to string operands.");
+                        return TYPE_UNKNOWN;
+                    }
+                    if (left == TYPE_SCANNER || right == TYPE_SCANNER) {
+                        report_error(sa, expr->line,
+                                     "Invalid expression: Arithmetic operator cannot be applied to Scanner operands.");
                         return TYPE_UNKNOWN;
                     }
                     /* Numeric promotion: float if either is float, otherwise int */
@@ -241,6 +320,13 @@ static void analyze_var_decl(SemanticAnalyzer *sa, const AstNode *decl) {
     if (!name) return;
 
     DataType decl_type = ast_type_to_data_type(decl->u.var_decl.type_tag);
+    int array_size = decl->u.var_decl.array_size;
+
+    if (array_size > 0 && (decl_type != TYPE_STRING || array_size > 65536)) {
+        report_error(sa, decl->line,
+                     "Invalid array declaration for '%s': Char buffer size must be between 1 and 65536.",
+                     name);
+    }
 
     /* Rule 2: Redeclaration in same scope */
     if (lookup_current_scope(sa->symtab, name) != NULL) {
@@ -254,9 +340,21 @@ static void analyze_var_decl(SemanticAnalyzer *sa, const AstNode *decl) {
         DataType init_type = analyze_expression(sa, decl->u.var_decl.init);
         if (init_type != TYPE_UNKNOWN) {
             /* Rule 4 & 5: Check assignment compatibility */
-            if (decl_type == TYPE_BOOL && init_type != TYPE_BOOL) {
+            if (decl_type == TYPE_SCANNER && init_type != TYPE_SCANNER) {
+                report_error(sa, decl->line,
+                             "Type mismatch: Cannot initialize 'Scanner' variable with '%s' expression.",
+                             datatype_to_string(init_type));
+            } else if (init_type == TYPE_SCANNER && decl_type != TYPE_SCANNER) {
+                report_error(sa, decl->line,
+                             "Invalid assignment: Cannot assign 'Scanner' to '%s'.",
+                             datatype_to_string(decl_type));
+            } else if (decl_type == TYPE_BOOL && init_type != TYPE_BOOL) {
                 report_error(sa, decl->line,
                              "Type mismatch: Cannot initialize 'bool' variable with '%s' expression.",
+                             datatype_to_string(init_type));
+            } else if (decl_type == TYPE_STRING && init_type != TYPE_STRING) {
+                report_error(sa, decl->line,
+                             "Type mismatch: Cannot initialize 'string' variable with '%s' expression.",
                              datatype_to_string(init_type));
             } else if (decl_type == TYPE_INT && init_type == TYPE_FLOAT) {
                 report_error(sa, decl->line,
@@ -268,7 +366,7 @@ static void analyze_var_decl(SemanticAnalyzer *sa, const AstNode *decl) {
                 report_error(sa, decl->line,
                              "Invalid assignment: Cannot assign 'bool' to 'float'.");
             } else if (init_type == TYPE_STRING &&
-                       (decl_type == TYPE_INT || decl_type == TYPE_FLOAT)) {
+                       (decl_type == TYPE_INT || decl_type == TYPE_FLOAT || decl_type == TYPE_BOOL)) {
                 report_error(sa, decl->line,
                              "Invalid assignment: Cannot assign 'string' to '%s'.",
                              datatype_to_string(decl_type));
@@ -277,7 +375,12 @@ static void analyze_var_decl(SemanticAnalyzer *sa, const AstNode *decl) {
     }
 
     /* Register symbol into current scope frame */
-    symbol_table_insert(sa->symtab, name, decl_type, decl->line);
+    symbol_table_insert_ext(sa->symtab,
+                            name,
+                            decl_type,
+                            decl->line,
+                            (array_size > 0) ? (size_t)array_size : 0u,
+                            decl->u.var_decl.init != NULL);
 }
 
 static void analyze_assignment(SemanticAnalyzer *sa, const AstNode *assign) {
@@ -290,17 +393,7 @@ static void analyze_assignment(SemanticAnalyzer *sa, const AstNode *assign) {
     const char *name = target->u.identifier.name;
     Symbol *sym = lookup_all_scopes(sa->symtab, name);
     if (!sym) {
-        int decl_line = 0;
-        if (symbol_table_was_declared_in_exited_scope(sa->symtab, name, &decl_line)) {
-            /* Rule 3: Scope violation */
-            report_error(sa, assign->line,
-                         "Scope violation: Variable '%s' declared at line %d is not accessible in this scope.",
-                         name, decl_line);
-        } else {
-            /* Rule 1: Undeclared variable use */
-            report_error(sa, assign->line,
-                         "Variable '%s' is not declared.", name);
-        }
+        report_undeclared_identifier(sa, name, assign->line);
     }
 
     DataType val_type = analyze_expression(sa, assign->u.assign.value);
@@ -309,10 +402,29 @@ static void analyze_assignment(SemanticAnalyzer *sa, const AstNode *assign) {
     if (sym && val_type != TYPE_UNKNOWN) {
         DataType target_type = sym->type;
 
+        if (target_type == TYPE_STRING && sym->array_size > 0) {
+            report_error(sa, assign->line,
+                         "Invalid assignment: Cannot assign directly to char array '%s'.",
+                         name);
+            return;
+        }
+
         /* Rule 4 & 5: Type mismatch and invalid assignment checks */
-        if (target_type == TYPE_BOOL && val_type != TYPE_BOOL) {
+        if (target_type == TYPE_SCANNER && val_type != TYPE_SCANNER) {
+            report_error(sa, assign->line,
+                         "Invalid assignment: Cannot assign '%s' to 'Scanner'.",
+                         datatype_to_string(val_type));
+        } else if (val_type == TYPE_SCANNER && target_type != TYPE_SCANNER) {
+            report_error(sa, assign->line,
+                         "Invalid assignment: Cannot assign 'Scanner' to '%s'.",
+                         datatype_to_string(target_type));
+        } else if (target_type == TYPE_BOOL && val_type != TYPE_BOOL) {
             report_error(sa, assign->line,
                          "Invalid assignment: Cannot assign '%s' to 'bool'.",
+                         datatype_to_string(val_type));
+        } else if (target_type == TYPE_STRING && val_type != TYPE_STRING) {
+            report_error(sa, assign->line,
+                         "Invalid assignment: Cannot assign '%s' to 'string'.",
                          datatype_to_string(val_type));
         } else if (target_type == TYPE_INT && val_type == TYPE_FLOAT) {
             report_error(sa, assign->line,
@@ -324,10 +436,12 @@ static void analyze_assignment(SemanticAnalyzer *sa, const AstNode *assign) {
             report_error(sa, assign->line,
                          "Invalid assignment: Cannot assign 'bool' to 'float'.");
         } else if (val_type == TYPE_STRING &&
-                   (target_type == TYPE_INT || target_type == TYPE_FLOAT)) {
+                   (target_type == TYPE_INT || target_type == TYPE_FLOAT || target_type == TYPE_BOOL)) {
             report_error(sa, assign->line,
                          "Invalid assignment: Cannot assign 'string' to '%s'.",
                          datatype_to_string(target_type));
+        } else if (target_type == TYPE_SCANNER && val_type == TYPE_SCANNER) {
+            sym->is_initialized = true;
         }
     }
 }
@@ -354,6 +468,11 @@ static DataType analyze_concat_expr(SemanticAnalyzer *sa, const AstNode *expr) {
         DataType right = analyze_concat_expr(sa, expr->u.binary.right);
 
         if (left == TYPE_UNKNOWN || right == TYPE_UNKNOWN) {
+            return TYPE_UNKNOWN;
+        }
+        if (left == TYPE_SCANNER || right == TYPE_SCANNER) {
+            report_error(sa, expr->line,
+                         "Invalid expression: Cannot concatenate 'Scanner' handle.");
             return TYPE_UNKNOWN;
         }
         if (left == TYPE_STRING || right == TYPE_STRING) {
@@ -510,6 +629,218 @@ static void analyze_printf_output(SemanticAnalyzer *sa, const AstNode *stmt) {
     }
 }
 
+static Symbol *resolve_input_variable(SemanticAnalyzer *sa, const AstNode *id_node, const char *ctx) {
+    if (!id_node || id_node->kind != AST_IDENTIFIER || !id_node->u.identifier.name) {
+        report_error(sa, id_node ? id_node->line : 0,
+                     "Invalid %s target: Expected a variable identifier.", ctx);
+        return NULL;
+    }
+    const char *name = id_node->u.identifier.name;
+    Symbol *sym = lookup_all_scopes(sa->symtab, name);
+    if (!sym) {
+        report_undeclared_identifier(sa, name, id_node->line);
+        return NULL;
+    }
+    return sym;
+}
+
+static void analyze_scanf_input(SemanticAnalyzer *sa, const AstNode *stmt) {
+    const AstNode *fmt_node = stmt->u.input_stmt.items;
+    if (!fmt_node) {
+        report_error(sa, stmt->line, "Invalid scanf call: Expected a format string argument.");
+        return;
+    }
+
+    int is_string_lit = (fmt_node->kind == AST_LITERAL &&
+                         fmt_node->u.literal.lit_kind == AST_LIT_STRING);
+    const AstNode *curr_arg = fmt_node->next;
+
+    if (!is_string_lit) {
+        DataType fmt_type = analyze_expression(sa, fmt_node);
+        if (fmt_type != TYPE_UNKNOWN) {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: First argument must be a string literal.");
+        }
+        return;
+    }
+
+    const char *s = fmt_node->u.literal.as.sval ? fmt_node->u.literal.as.sval : "";
+    size_t len = strlen(s);
+    size_t i = (len >= 2 && s[0] == '"' && s[len - 1] == '"') ? 1 : 0;
+    size_t end = (len >= 2 && s[0] == '"' && s[len - 1] == '"') ? (len - 1) : len;
+    int spec_aborted = 0;
+
+    while (i < end) {
+        if (s[i] == '\\') {
+            if (i + 1 >= end) {
+                report_error(sa, fmt_node->line,
+                             "Invalid escape sequence at end of scanf format string.");
+                spec_aborted = 1;
+                break;
+            }
+            char esc = s[i + 1];
+            if (esc == '0') {
+                break;
+            }
+            if (esc != 'n' && esc != 't' && esc != 'r' &&
+                esc != '\\' && esc != '"' && esc != '\'') {
+                report_error(sa, fmt_node->line,
+                             "Invalid escape sequence '\\%c' in scanf format string.", esc);
+                spec_aborted = 1;
+                break;
+            }
+            i += 2;
+            continue;
+        }
+
+        if (s[i] != '%') {
+            i++;
+            continue;
+        }
+
+        if (i + 1 >= end) {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: Incomplete conversion specifier '%%' at end of format string.");
+            spec_aborted = 1;
+            break;
+        }
+        if (s[i + 1] == '%') {
+            i += 2;
+            continue;
+        }
+
+        size_t j = i + 1;
+        int has_width = 0;
+        size_t width_val = 0;
+        while (j < end && isdigit((unsigned char)s[j])) {
+            has_width = 1;
+            if (width_val <= 65536) {
+                width_val = width_val * 10 + (size_t)(s[j] - '0');
+            }
+            j++;
+        }
+
+        if (j >= end) {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: Incomplete conversion specifier at end of format string.");
+            spec_aborted = 1;
+            break;
+        }
+
+        char spec = s[j];
+        if (spec != 'd' && spec != 'f' && spec != 's') {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: Unsupported conversion specifier '%%%c'. Supported specifiers are %%d, %%f, %%s, %%Ns, and %%%%.",
+                         spec);
+            spec_aborted = 1;
+            break;
+        }
+
+        if (has_width && width_val == 0) {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: Field width must be positive ('%%0%c' is invalid).",
+                         spec);
+            spec_aborted = 1;
+            break;
+        }
+        if (has_width && spec != 's') {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf format: Field width is only supported on '%%s' (got '%%%lu%c').",
+                         (unsigned long)width_val, spec);
+            spec_aborted = 1;
+            break;
+        }
+
+        if (!curr_arg) {
+            report_error(sa, fmt_node->line,
+                         "Invalid scanf call: Too few arguments for format specifier '%%%c'.", spec);
+            spec_aborted = 1;
+            break;
+        }
+
+        if (spec == 's') {
+            if (curr_arg->kind == AST_ADDR_OF) {
+                report_error(sa, curr_arg->line,
+                             "Invalid scanf argument: Format specifier '%%s' expects string buffer variable without '&'.");
+            } else {
+                Symbol *sym = resolve_input_variable(sa, curr_arg, "scanf");
+                if (sym) {
+                    if (sym->type != TYPE_STRING || sym->array_size == 0) {
+                        report_error(sa, curr_arg->line,
+                                     "Invalid scanf argument: Format specifier '%%s' expects char array variable, got '%s'.",
+                                     datatype_to_string(sym->type));
+                    } else if (sym->array_size < 2) {
+                        report_error(sa, curr_arg->line,
+                                     "Invalid scanf argument: Char array '%s[%lu]' has zero writable capacity.",
+                                     sym->name, (unsigned long)sym->array_size);
+                    } else if (has_width && width_val >= sym->array_size) {
+                        report_error(sa, curr_arg->line,
+                                     "Invalid scanf argument: Field width '%%%lus' exceeds capacity of char array '%s[%lu]' (max %lu).",
+                                     (unsigned long)width_val, sym->name,
+                                     (unsigned long)sym->array_size,
+                                     (unsigned long)(sym->array_size - 1));
+                    }
+                }
+            }
+        } else {
+            DataType expected = (spec == 'd') ? TYPE_INT : TYPE_FLOAT;
+            if (curr_arg->kind != AST_ADDR_OF) {
+                report_error(sa, curr_arg->line,
+                             "Invalid scanf argument: Format specifier '%%%c' expects '&<%s>' address-of variable.",
+                             spec, datatype_to_string(expected));
+                if (curr_arg->kind == AST_IDENTIFIER) {
+                    resolve_input_variable(sa, curr_arg, "scanf");
+                }
+            } else {
+                const AstNode *op = curr_arg->u.addr_of.operand;
+                if (!op || op->kind != AST_IDENTIFIER) {
+                    report_error(sa, curr_arg->line,
+                                 "Invalid scanf argument: Address-of '&' target must be a variable identifier.");
+                } else {
+                    Symbol *sym = resolve_input_variable(sa, op, "scanf");
+                    if (sym && sym->type != expected) {
+                        report_error(sa, curr_arg->line,
+                                     "Invalid scanf argument: Format specifier '%%%c' expects '&%s', got '&%s'.",
+                                     spec, datatype_to_string(expected), datatype_to_string(sym->type));
+                    }
+                }
+            }
+        }
+
+        curr_arg = curr_arg->next;
+        i = j + 1;
+    }
+
+    if (!spec_aborted && curr_arg != NULL) {
+        report_error(sa, curr_arg->line,
+                     "Invalid scanf call: Too many arguments supplied for format string.");
+    }
+}
+
+static void analyze_cin_input(SemanticAnalyzer *sa, const AstNode *stmt) {
+    const AstNode *item = stmt->u.input_stmt.items;
+    if (!item) {
+        report_error(sa, stmt->line, "Invalid cin statement: Expected input variable after '>>'.");
+        return;
+    }
+    while (item) {
+        if (item->kind != AST_IDENTIFIER) {
+            report_error(sa, item->line > 0 ? item->line : stmt->line,
+                         "Invalid input target: 'cin >>' requires a variable identifier.");
+            analyze_expression(sa, item);
+        } else {
+            Symbol *sym = resolve_input_variable(sa, item, "cin");
+            if (sym && sym->type != TYPE_INT && sym->type != TYPE_FLOAT &&
+                sym->type != TYPE_BOOL && sym->type != TYPE_STRING) {
+                report_error(sa, item->line,
+                             "Invalid input target: 'cin >>' does not support variable '%s' of type '%s'.",
+                             sym->name, datatype_to_string(sym->type));
+            }
+        }
+        item = item->next;
+    }
+}
+
 static void analyze_if(SemanticAnalyzer *sa, const AstNode *stmt) {
     DataType cond_type = analyze_expression(sa, stmt->u.if_stmt.cond);
     if (cond_type != TYPE_UNKNOWN && cond_type != TYPE_BOOL) {
@@ -579,18 +910,34 @@ static void analyze_statement(SemanticAnalyzer *sa, const AstNode *stmt) {
             } else if (stmt->u.output_stmt.mode == AST_OUTPUT_CONCAT) {
                 const AstNode *item = stmt->u.output_stmt.items;
                 while (item) {
-                    analyze_concat_expr(sa, item);
+                    DataType t = analyze_concat_expr(sa, item);
+                    if (t == TYPE_SCANNER) {
+                        report_error(sa, item->line,
+                                     "Invalid output expression: Cannot print 'Scanner' handle.");
+                    }
                     item = item->next;
                 }
             } else {
                 const AstNode *item = stmt->u.output_stmt.items;
                 while (item) {
-                    analyze_expression(sa, item);
+                    DataType t = analyze_expression(sa, item);
+                    if (t == TYPE_SCANNER) {
+                        report_error(sa, item->line,
+                                     "Invalid output expression: Cannot print 'Scanner' handle.");
+                    }
                     item = item->next;
                 }
             }
             break;
         }
+
+        case AST_INPUT:
+            if (stmt->u.input_stmt.mode == AST_INPUT_CIN) {
+                analyze_cin_input(sa, stmt);
+            } else {
+                analyze_scanf_input(sa, stmt);
+            }
+            break;
 
         case AST_EXPR_STMT:
             analyze_expression(sa, stmt->u.expr_stmt.expr);
