@@ -1,0 +1,10 @@
+x = 3
+L1:
+t1 = x > 0
+if t1 goto L2
+goto L3
+L2:
+t2 = x - 1
+x = t2
+goto L1
+L3:

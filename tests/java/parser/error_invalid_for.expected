@@ -1,0 +1,3 @@
+Syntax Error at line 3: syntax error, unexpected IDENTIFIER, expecting LPAREN
+Syntax Error at line 3: syntax error, unexpected LBRACE, expecting SEMICOLON
+Syntax Error at line 7: syntax error, unexpected RBRACE, expecting end of file

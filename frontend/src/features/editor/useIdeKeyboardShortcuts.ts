@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { shouldSuppressIdeShortcuts } from './keyboardShortcuts'
 
 export interface IdeKeyboardShortcutHandlers {
+  onRun: () => void
   onSave: () => void
   onCloseActiveTab: () => void
   onNextTab: () => void
@@ -45,10 +46,17 @@ export function useIdeKeyboardShortcuts({
         return
       }
 
-      const { onSave, onCloseActiveTab, onNextTab, onPreviousTab } =
+      const { onRun, onSave, onCloseActiveTab, onNextTab, onPreviousTab } =
         handlersRef.current
 
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+
+      // Ctrl/Cmd + Enter → compile active editor buffer
+      if (isModKey(event) && !event.altKey && !event.shiftKey && key === 'Enter') {
+        event.preventDefault()
+        onRun()
+        return
+      }
 
       // Ctrl/Cmd + S → session save
       if (isModKey(event) && !event.altKey && !event.shiftKey && key === 's') {

@@ -60,8 +60,6 @@ function fileIcon(language: ExampleFile['language']) {
       return <FileCode2 size={14} className="text-blue-400" />
     case 'java':
       return <FileType size={14} className="text-amber-400" />
-    case 'mc':
-      return <FileCode2 size={14} className="text-[var(--cc-primary)]" />
     default:
       return <FileCode2 size={14} className="text-[var(--cc-text-muted)]" />
   }
@@ -175,7 +173,7 @@ export default function FileExplorer({
         />
       </div>
       <p className="border-t border-[var(--cc-border)] px-3 py-2 text-[10px] text-[var(--cc-text-muted)]">
-        In-memory examples only
+        In-memory demos • Compiles via CLI
       </p>
     </div>
   )

@@ -1,0 +1,1 @@
+Semantic Error at line 4: Invalid expression: 'if' condition must be boolean, got 'int'.

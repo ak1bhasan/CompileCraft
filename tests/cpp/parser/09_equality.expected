@@ -1,0 +1,7 @@
+flag = true
+t1 = flag == true
+if t1 goto L1
+goto L2
+L1:
+flag = false
+L2:

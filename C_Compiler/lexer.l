@@ -13,6 +13,73 @@
 int c_lexical_error_count = 0;
 static int comment_start_line = 1;
 
+/*
+ * Parser-linked location state (gated on YYLTYPE from c_parser.tab.h).
+ * Standalone lexer builds leave this inactive.
+ */
+#if defined(YYLTYPE_IS_DECLARED)
+
+static int cc_loc_line = 1;
+static int cc_loc_column = 1;
+
+void compilecraft_c_loc_reset(void) {
+    cc_loc_line = 1;
+    cc_loc_column = 1;
+    yylloc.first_line = 1;
+    yylloc.first_column = 1;
+    yylloc.last_line = 1;
+    yylloc.last_column = 1;
+}
+
+static void cc_loc_set_eof(void) {
+    yylloc.first_line = cc_loc_line;
+    yylloc.first_column = cc_loc_column;
+    yylloc.last_line = cc_loc_line;
+    yylloc.last_column = cc_loc_column;
+}
+
+static void cc_yy_user_action(void) {
+    int i;
+
+    yylloc.first_line = cc_loc_line;
+    yylloc.first_column = cc_loc_column;
+
+    if (yyleng <= 0) {
+        yylloc.last_line = cc_loc_line;
+        yylloc.last_column = cc_loc_column;
+        return;
+    }
+
+    for (i = 0; i < yyleng; i++) {
+        unsigned char c = (unsigned char)yytext[i];
+        yylloc.last_line = cc_loc_line;
+        yylloc.last_column = cc_loc_column;
+
+        if (c == '\r') {
+            if (i + 1 < yyleng && yytext[i + 1] == '\n') {
+                continue;
+            }
+            cc_loc_line++;
+            cc_loc_column = 1;
+        } else if (c == '\n') {
+            cc_loc_line++;
+            cc_loc_column = 1;
+        } else {
+            cc_loc_column++;
+        }
+    }
+}
+
+#define YY_USER_ACTION cc_yy_user_action();
+
+#else /* !YYLTYPE_IS_DECLARED */
+
+void compilecraft_c_loc_reset(void) {
+    /* No-op for standalone lexer builds. */
+}
+
+#endif /* YYLTYPE_IS_DECLARED */
+
 static int is_supported_escape(char c) {
     switch (c) {
         case 'n': case 't': case 'r': case '0':
@@ -79,6 +146,9 @@ static int string_has_invalid_escape(const char *text) {
 <COMMENT>\n             { /* yylineno incremented automatically by Flex */ }
 <COMMENT>.              { /* Discard comment characters */ }
 <COMMENT><<EOF>>        {
+#if defined(YYLTYPE_IS_DECLARED)
+                            cc_loc_set_eof();
+#endif
                             fflush(stdout);
                             fprintf(stderr, "Lexical Error at line %d: Unterminated block comment\n", comment_start_line);
                             fflush(stderr);
@@ -95,6 +165,10 @@ static int string_has_invalid_escape(const char *text) {
      * Only physical line-start directives (optional leading spaces/tabs).
      * Mid-line '#' falls through to the unrecognized-character rule.
      * -------------------------------------------------------------------------- */
+
+^[ \t]*#[ \t]*include[ \t]*<stdio\.h>[ \t\r]*("//"[^\n]*)? {
+                            /* Accepted standard C I/O header directive (no external preprocessor) */
+                        }
 
 ^[ \t]*#[^\n]*          {
                             fflush(stdout);
@@ -114,6 +188,9 @@ static int string_has_invalid_escape(const char *text) {
 "double"                { return KW_DOUBLE; }
 "char"                  { return KW_CHAR; }
 "void"                  { return KW_VOID; }
+"_Bool"|"bool"          { return KW_BOOL; }
+"true"                  { yylval.bval = 1; return KW_TRUE; }
+"false"                 { yylval.bval = 0; return KW_FALSE; }
 "if"                    { return KW_IF; }
 "else"                  { return KW_ELSE; }
 "while"                 { return KW_WHILE; }

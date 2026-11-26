@@ -1,0 +1,34 @@
+sum = 0
+k = 4
+t1 = k + 1
+k = t1
+t2 = k + 1
+k = t2
+t3 = k - 1
+k = t3
+t4 = k - 1
+k = t4
+i = 0
+L1:
+t5 = i < 3
+if t5 goto L2
+goto L3
+L2:
+t6 = sum + i
+sum = t6
+t7 = i + 1
+i = t7
+goto L1
+L3:
+j = 3
+L4:
+t8 = j > 0
+if t8 goto L5
+goto L6
+L5:
+t9 = sum + j
+sum = t9
+t10 = j - 1
+j = t10
+goto L4
+L6:

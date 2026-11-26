@@ -1,0 +1,48 @@
+limit = 3
+sum = 0
+i = 1
+L1:
+t1 = i <= limit
+if t1 goto L2
+goto L3
+L2:
+t2 = sum + i
+sum = t2
+t3 = sum > 3
+if t3 goto L4
+goto L6
+L4:
+print "gt3: "
+println sum
+goto L5
+L6:
+t4 = sum == 3
+if t4 goto L7
+goto L9
+L7:
+println "eq3"
+goto L8
+L9:
+print sum
+L8:
+L5:
+t5 = i + 1
+i = t5
+goto L1
+L3:
+k = 0
+L10:
+t6 = k < 2
+if t6 goto L11
+goto L12
+L11:
+t7 = 1 + 2
+print t7
+print "x="
+t8 = k + 1
+println t8
+t9 = k + 1
+k = t9
+goto L10
+L12:
+println

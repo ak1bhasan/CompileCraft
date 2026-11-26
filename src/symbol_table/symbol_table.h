@@ -18,7 +18,8 @@ typedef enum DataType {
     TYPE_UNKNOWN = 0,
     TYPE_INT,
     TYPE_FLOAT,
-    TYPE_BOOL
+    TYPE_BOOL,
+    TYPE_STRING
 } DataType;
 
 const char *datatype_to_string(DataType type);
@@ -42,6 +43,7 @@ typedef struct ScopeFrame {
 /* Historical record of symbols from exited scopes (for Rule 3 scope violation detection) */
 typedef struct ExitedSymbolRecord {
     char *name;
+    DataType type;
     int scope_level;
     int line;
     struct ExitedSymbolRecord *next;
@@ -68,6 +70,9 @@ Symbol *symbol_table_lookup_all_scopes(const SymbolTable *st, const char *name);
 
 /* Scope Violation Diagnostic Helper */
 bool symbol_table_was_declared_in_exited_scope(const SymbolTable *st, const char *name, int *out_line);
+
+/* Deterministic dump of active and exited symbols for compiler --symtab mode */
+void symbol_table_print(const SymbolTable *st, FILE *out);
 
 /* Convenience Aliases */
 static inline void enter_scope(SymbolTable *st) {

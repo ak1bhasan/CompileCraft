@@ -10,6 +10,12 @@ export interface ShortcutReference {
 
 export const IDE_SHORTCUT_REFERENCE: ShortcutReference[] = [
   {
+    id: 'run',
+    action: 'Compile active file',
+    keys: { win: 'Ctrl+Enter', mac: '⌘Enter' },
+    owner: 'ide',
+  },
+  {
     id: 'save',
     action: 'Save session baseline',
     keys: { win: 'Ctrl+S', mac: '⌘S' },

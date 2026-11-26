@@ -1,0 +1,4 @@
+a = true
+b = false
+t1 = !b
+c = t1

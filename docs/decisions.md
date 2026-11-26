@@ -16,7 +16,7 @@
 | **DEC-04** | Equality Operators on Booleans | Sec 5.3, 5.5 | **Supported Conclusion**: Sec 5.5 explicitly includes `if (flag == true)`. Equality operators (`==`, `!=`) therefore legally apply to boolean operands (`bool == bool`). | Allow `==` and `!=` on `bool`. Restrict ordering operators (`<`, `>`, `<=`, `>=`) strictly to numeric types (`int`, `float`). | **SUPPORTED** |
 | **DEC-05** | Control Flow Statement Bodies & Braces | Sec 5.2, 5.5 | **Supported Conclusion**: Sec 5.2 lists "Nested blocks ({ ... }), with proper scoping". Sec 5.5 encloses all `while` and `if-else` bodies in `{ ... }`. | Grammar rules allow both single statements and compound blocks `{ ... }`, with new lexical scope frames generated exclusively on `{ ... }` blocks. | **SUPPORTED** |
 | **DEC-06** | `print` Statement Argument Expression | Sec 4.6, 5.2, 5.5 | **Supported Conclusion**: Sec 5.5 uses `print y;` (an identifier). Sec 4.6 lists `print a`. Generalizing to expressions (`print expr;`) is backwards-compatible with identifier printing. | Define grammar rule as `print <expr>;`. In TAC generation, evaluate expression into an operand and emit `print <operand>`. | **SUPPORTED** |
-| **DEC-07** | Short-Circuit Evaluation in TAC Generation | Sec 4.6, 5.3 | **Ambiguity**: Section 4.6 requires generating TAC for relational/logical expressions and control flow using labels and conditional jumps, but does not mandate short-circuit vs eager boolean evaluation. | For control flow conditions (`if`, `while`), generate short-circuit jumping labels. For boolean expressions assigned to variables (`b = x > 0 && y > 0;`), evaluate into temporary boolean registers. | **OPEN** |
+| **DEC-07** | Short-Circuit Evaluation in TAC Generation | Sec 4.6, 5.3 | **Ambiguity**: Section 4.6 requires generating TAC for relational/logical expressions and control flow using labels and conditional jumps, but does not mandate short-circuit vs eager boolean evaluation. | **M7 interim (not a freeze):** value-producing `&&`/`\|\|` emit eager `t = a && b` / `t = a \|\| b`. `if`/`while` bodies still use label jumps. Short-circuit operand evaluation remains an open choice. | **OPEN** (interim eager values) |
 | **DEC-08** | Comment Delimiters | Sec 4.1 | **Supported Conclusion**: Sec 4.1 mandates discarding single-line and/or block comments without producing tokens. Standard C syntax (`//` and `/* ... */`) applies. | Implement Flex patterns for `// ...` (to end of line) and `/* ... */` (multiline). | **SUPPORTED** |
 | **DEC-09** | Multi-Variable Declarations | Sec 4.6, 5.2, 5.5 | **Supported Conclusion**: All declarations in Sec 4.6 and Sec 5.5 declare a single variable per statement (`int a; int b; int c;`). | Support single declaration per statement (`type ID;`) strictly adhering to Section 5.2. | **SUPPORTED** |
 | **DEC-10** | Error Recovery Strategy & CLI Exit Code | Sec 4.2, 4.5 | **Supported Conclusion**: Sec 4.2 requires basic error recovery via Bison `error` token to continue parsing. Sec 4.5 requires detecting all semantic violations. | Continue parsing and semantic analysis to collect and report all diagnostic errors; exit with code 0 on clean build, non-zero (code 1) if errors are detected. | **SUPPORTED** |
@@ -128,6 +128,12 @@
   - Sequential temporary naming: `t1`, `t2`, `t3`, ...
   - Sequential label naming: `L1`, `L2`, `L3`, ...
   - Clear linear text emission format matching the Section 4.6 specification.
+- **M7 interim logical policy (DEC-07 still OPEN)**:
+  - **Eager value evaluation** for `&&` / `||` into temporaries (both operands always evaluated).
+  - Control-flow **statement** structure (`if` / `while`) already uses conditional/unconditional jumps and labels.
+  - **Alternative A (eager):** simpler IR; matches current goldens.
+  - **Alternative B (short-circuit):** jump around the right operand when the left decides the result; closer to the matrix “working engineering default” for control conditions.
+  - A explicit project decision is still required before freezing logical TAC semantics.
 
 ---
 

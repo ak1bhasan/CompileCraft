@@ -1,48 +1,66 @@
 import { X } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
-import type { ResultsTabId } from '../../types/ide'
-import TokensPanel from '../lexer/TokensPanel'
-import ParserPanel from '../parser/ParserPanel'
+import type { CompileResult, ResultsTabId } from '../../types/ide'
 import ASTPanel from '../ast/ASTPanel'
 import DiagnosticsPanel from '../diagnostics/DiagnosticsPanel'
+import TokensPanel from '../lexer/TokensPanel'
+import SymbolTablePanel from './SymbolTablePanel'
+import TacPanel from './TacPanel'
 
 interface ResultsPanelProps {
   idPrefix: string
   activeTab: ResultsTabId
   onTabChange: (tab: ResultsTabId) => void
+  result: CompileResult | null
+  isCompiling: boolean
+  onJumpToLine?: (line: number) => void
   showClose?: boolean
   onClose?: () => void
 }
 
 const TABS: { id: ResultsTabId; label: string }[] = [
   { id: 'tokens', label: 'Tokens' },
-  { id: 'parser', label: 'Parser' },
   { id: 'ast', label: 'AST' },
-  { id: 'diagnostics', label: 'Diagnostics' },
+  { id: 'symtab', label: 'Symbol Table' },
+  { id: 'tac', label: 'TAC' },
+  { id: 'errors', label: 'Errors' },
 ]
-
-function panelContent(tab: ResultsTabId) {
-  switch (tab) {
-    case 'tokens':
-      return <TokensPanel />
-    case 'parser':
-      return <ParserPanel />
-    case 'ast':
-      return <ASTPanel />
-    case 'diagnostics':
-      return <DiagnosticsPanel />
-  }
-}
 
 export default function ResultsPanel({
   idPrefix,
   activeTab,
   onTabChange,
+  result,
+  isCompiling,
+  onJumpToLine,
   showClose = false,
   onClose,
 }: ResultsPanelProps) {
   const tabIdFor = (tabId: ResultsTabId) => `${idPrefix}-tab-${tabId}`
   const panelIdFor = (tabId: ResultsTabId) => `${idPrefix}-panel-${tabId}`
+
+  const panelContent = (tab: ResultsTabId) => {
+    switch (tab) {
+      case 'tokens':
+        return <TokensPanel result={result} isCompiling={isCompiling} />
+      case 'ast':
+        return <ASTPanel result={result} isCompiling={isCompiling} />
+      case 'symtab':
+        return <SymbolTablePanel result={result} isCompiling={isCompiling} />
+      case 'tac':
+        return <TacPanel result={result} isCompiling={isCompiling} />
+      case 'errors':
+        return (
+          <DiagnosticsPanel
+            result={result}
+            isCompiling={isCompiling}
+            onJumpToLine={onJumpToLine}
+          />
+        )
+    }
+  }
+
+  const errorCount = result?.diagnostics.length ?? 0
 
   const onTabListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = TABS.findIndex((tab) => tab.id === activeTab)
@@ -67,17 +85,19 @@ export default function ResultsPanel({
 
   return (
     <section className="flex h-full min-w-0 flex-col overflow-hidden border-l border-[var(--cc-border)] bg-[var(--cc-surface)]">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-[var(--cc-border)] px-1">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-[var(--cc-border)] px-1.5">
         <div
           role="tablist"
           aria-label="Results"
-          className="grid min-w-0 flex-1 grid-cols-4 items-center gap-0.5"
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
           onKeyDown={onTabListKeyDown}
         >
           {TABS.map((tab) => {
             const active = tab.id === activeTab
             const tabId = tabIdFor(tab.id)
             const panelId = panelIdFor(tab.id)
+            const showErrorsBadge = tab.id === 'errors' && errorCount > 0
+
             return (
               <button
                 key={tab.id}
@@ -89,13 +109,18 @@ export default function ResultsPanel({
                 tabIndex={active ? 0 : -1}
                 title={tab.label}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex h-7 min-w-0 items-center justify-center rounded-md px-0.5 text-xs tracking-tight transition-colors ${
+                className={`flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] tracking-tight transition-colors ${
                   active
                     ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
                     : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
                 }`}
               >
-                <span className="truncate">{tab.label}</span>
+                <span>{tab.label}</span>
+                {showErrorsBadge ? (
+                  <span className="rounded-full bg-rose-500/25 px-1.5 py-0 text-[10px] font-medium text-rose-300 tabular-nums">
+                    {errorCount}
+                  </span>
+                ) : null}
               </button>
             )
           })}

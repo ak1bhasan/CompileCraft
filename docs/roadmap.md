@@ -20,10 +20,10 @@
 [DONE] M5: Symbol Table ──► [DONE] M6: Semantic Analysis ──► [DONE] M7: TAC
            │
            ▼
-M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
+[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java Front-Ends & Hardening ──► M13: Frontend Integration
 ```
 
-**Current project status (baseline `.mc`):** M0–M7 complete on `friend/m5-m6-semantic`. C / C++ / Java remain lexer-only. Next development milestone: **M8 Driver Integration**.
+**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 multi-language semantic & TAC hardening**, and the **M8 Unified CLI Driver (`bin/compilecraft.exe`)** are complete on `dev`. **Remaining work:** **M13** Frontend–Compiler Integration, **M14** Final Documentation & Faculty Verification, and finalizing **DEC-07** (short-circuit vs eager `&&`/`||`, currently using the M7 interim eager policy).
 
 ---
 
@@ -248,10 +248,12 @@ Implement an AST visitor that walks the tree, interacts with the scoped symbol t
 ### Objective
 Generate linear Three-Address Code (TAC) from the validated AST, allocating temporaries, emitting relational and arithmetic instructions, and generating control flow labels and jumps.
 
-### Status: **COMPLETED**
-- `src/tac/tac.h`: TAC instruction types, operand representation, and instruction list.
-- `src/tac/tac.c`: TAC instruction emission, temporary allocator (`t1`, `t2`, ...), label allocator (`L1`, `L2`, ...), and AST code generator.
-- `tests/tac/test_tac.c`: Unit tests verifying arithmetic expressions and control flow translation.
+### Status: **COMPLETED** (M7 hardening on `dev`)
+- `src/tac/tac.h` / `src/tac/tac.c`: TAC IR, temps/labels, control-flow emission, explicit generation failure (no partial success).
+- `src/tac/main.c`: Semantic-to-TAC integration driver `bin/compilecraft-tac.exe` (not M8 CLI).
+- `tests/tac/test_tac.c`: Structural unit tests (arith, relational/logical/unary, init/print, if-else, while, nested blocks).
+- `tests/tac/golden/`: Golden TAC suite including Section 5.5 sample + semantic rejection case.
+- `docs/tac.md`: TAC format, control-flow shapes, DEC-07 interim policy.
 
 ### Acceptance Checks
 - [x] Emits arithmetic TAC instructions with at most three operands: `t1 = b * 2`, `t2 = a + t1`.
@@ -259,7 +261,9 @@ Generate linear Three-Address Code (TAC) from the validated AST, allocating temp
 - [x] Generates conditional jumps (`if t0 goto L1`) and unconditional jumps (`goto L2`) for `if`, `if-else`, and `while` loops.
 - [x] Translates `while` loops with loop-header labels, condition evaluation, conditional exit jump, and back-jump.
 - [x] Generates TAC for `print` statements (e.g., `print a`).
-- [x] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC.
+- [x] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC (`tests/tac/golden/12_sample_program.*`).
+- [x] TAC is generated only after successful semantic analysis in the integration driver.
+- [x] Allocation/emission failures return `NULL` (no silent incomplete TAC).
 
 ### Suggested Commit Messages
 - `feat(tac): define intermediate representation data structures and instruction list`
@@ -271,21 +275,109 @@ Generate linear Three-Address Code (TAC) from the validated AST, allocating temp
 
 ---
 
-## Milestone 8: Compiler Driver & Pipeline Integration
+## Milestone 9 (project): C Front-End Parser + Control Flow
+
+> Note: Roadmap “Milestone 9” historically referred to the automated regression suite.
+> This section tracks the **C language front-end** work delivered as project M9.
 
 ### Objective
-Integrate all phases into a cohesive command-line executable (`compilecraft`) that accepts an input file, runs the pipeline sequentially, displays errors or outputs TAC, and returns proper OS exit codes.
+Add a dedicated C Bison grammar that reuses the shared AST, symbol table, semantic analyzer, and TAC generator, including mandatory `for`-loop support.
 
-### Target Deliverables
-- `src/main.c`: CLI entry point, argument parsing (`argv[1]`), file reader, phase coordinator.
-- Diagnostic reporter summarizing errors across lexer, parser, and semantic analyzer.
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- `C_Compiler/parser.y`: C subset grammar (`int`/`float`, control flow, `main`, `for`, `++`/`--`).
+- `C_Compiler/main_compiler.c`: `bin/compilecraft-c.exe` — C Flex → C Bison → AST → semantic → TAC.
+- `for` lowered to `Block { init; While { cond; Block { body; update } } }` (correct scope + TAC).
+- Tests: `tests/c/parser/`, `tests/c/semantic/`, `tests/c/tac/` (incl. demo program).
 
 ### Acceptance Checks
-- [ ] CLI accepts a source file argument: `./compilecraft file.mc`.
-- [ ] Executes pipeline: Lexer -> Parser -> AST -> Symbol Table -> Semantic Analysis -> TAC Generator.
-- [ ] Aborts pipeline gracefully after syntax errors or semantic errors, suppressing invalid TAC generation.
-- [ ] Returns exit code `0` on successful compilation; returns non-zero exit code (`1`) on failure.
-- [ ] CLI supports optional flags: `--ast` (print AST), `--symtab` (dump symbol table), `-o <file>` (output TAC to file).
+- [x] Parses `int main(void)` / `int main()` programs into shared AST.
+- [x] Supports `if` / `if-else` / `while` / `for` (decl or assign init; `i++` / `++i` / assign update).
+- [x] For-init declarations are scoped to the loop only.
+- [x] Six faculty semantic rules enforced via shared analyzer; no TAC on errors.
+- [x] Demo control-flow program generates correct TAC labels/jumps.
+- [x] Prior regression suites remain integrated via `mingw32-make test`.
+
+---
+
+## Milestone 10 (project): C++ Front-End Parser + Control Flow
+
+### Objective
+Add a dedicated C++ Bison grammar for the procedural subset (`int`/`float`/`bool`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
+
+### Status: **COMPLETED**
+- `CPP_Compiler/parser.y`: C++ procedural grammar with `bool`/`true`/`false` and for-loop lowering.
+- `CPP_Compiler/main_compiler.c`: `bin/compilecraft-cpp.exe` — C++ Flex → Bison → AST → semantic → TAC.
+- Independent Rule 4 vs Rule 5 semantic goldens (bool/numeric vs float→int).
+- Tests: `tests/cpp/parser/`, `tests/cpp/semantic/`, `tests/cpp/tac/` (incl. demo with bool + for + while).
+
+### Acceptance Checks
+- [x] Parses `int main()` / `int main(void)` into shared AST.
+- [x] Supports `bool`, `true`, `false` through lexer → TAC.
+- [x] Supports `if` / `if-else` / `while` / `for` with `++`/`--`.
+- [x] For-init declarations scoped to the loop only.
+- [x] Six faculty semantic rules independently tested under C++.
+- [x] Demo control-flow program generates correct TAC.
+- [x] Prior suites remain green via `mingw32-make test`.
+
+---
+
+## Milestone 11 (project): Java Front-End Parser + Control Flow
+
+### Objective
+Add a dedicated Java Bison grammar for the class/main-wrapped subset (`int`/`float`/`boolean`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
+
+### Status: **COMPLETED**
+- `Java_Compiler/parser.y`: Java subset grammar supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `boolean`/`true`/`false`, control flow, and for-loop lowering.
+- `Java_Compiler/main_compiler.c`: `bin/compilecraft-java.exe` — Java Flex → Bison → AST → semantic → TAC.
+- Independent Rule 4 vs Rule 5 semantic goldens (`boolean` vs numeric mismatch, narrowing `float`→`int` assignment).
+- Tests: `tests/java/parser/` (33 tests), `tests/java/semantic/` (9 tests), `tests/java/tac/` (10 tests incl. `demo_control_flow.java`).
+- Documentation: `docs/java_frontend.md`, updated `README.md` and `docs/roadmap.md`.
+
+### Acceptance Checks
+- [x] Parses `[public] class Name { public static void main(String[] args) { ... } }` into shared AST.
+- [x] Supports `boolean`, `true`, `false` through lexer → TAC.
+- [x] Supports `if` / `if-else` / `while` / `for` with `++`/`--`.
+- [x] For-init declarations scoped to the loop only.
+- [x] Six faculty semantic rules independently tested under Java.
+- [x] Demo control-flow program generates correct TAC.
+- [x] Prior suites remain green via `mingw32-make test`.
+
+---
+
+## Milestone 12 (project): Multi-Language Semantic & TAC Hardening
+
+### Objective
+Harden all four compiler pipelines (`.mc`, C, C++, Java) for cross-language semantic consistency, loop/precedence TAC correctness, error gating, and C Rule 4 support before frontend integration.
+
+### Status: **COMPLETED**
+- Added C99 `_Bool` / `bool` + `true` / `false` support to `C_Compiler/` (`tokens.def`, `tokens.h`, `lexer.l`, `main_c.c`, `parser.y`), unlocking independent Faculty Rule 4 testing in C.
+- Expanded cross-language TAC and semantic hardening suites across `tests/tac/golden/`, `tests/c/`, `tests/cpp/tac/`, and `tests/java/tac/`.
+- Preserved DEC-07 interim eager logical evaluation policy and verified line-numbered diagnostics and semantic error gating across all four pipelines.
+
+### Acceptance Checks
+- [x] All six faculty semantic rules verified independently across `.mc`, C, C++, and Java.
+- [x] Arithmetic precedence, relational, logical, unary, nested `if-else`, nested `while`, nested `for`, and prefix/postfix `++`/`--` TAC verified across languages.
+- [x] Lexical, syntax, and semantic errors emit line numbers, return nonzero exit code, and produce zero TAC.
+- [x] Clean build and full regression (`mingw32-make clean && all && test`) green with zero compiler warnings or Bison conflicts.
+
+---
+
+## Milestone 8: Unified Multi-Language CLI Driver
+
+### Objective
+Provide one unified command-line executable (`bin/compilecraft.exe`) that detects input language by extension (`.c`, `.cpp`, `.java`), dispatches safely to the matching front-end compiler pipeline, propagates diagnostics and TAC/AST output, and returns OS exit codes.
+
+### Status: **COMPLETED** (committed on `dev` as `a1a5caf`; `--tokens` and `--symtab` added in M13)
+- `src/main.c`: Unified CLI (`bin/compilecraft.exe`) supporting `--help`, `-h`, `--tokens`, `--ast`, `--symtab`, `.c`/`.cpp`/`.java` extension dispatch, missing/unsupported file checks (including `.mc` rejection in the CLI while preserving baseline `.mc` tools), safe native OS process spawning (`CreateProcessA` / `fork`+`execv` without shell), sibling path resolution from outside the repository root, and paths with spaces.
+- `Makefile`: Added `cli` (`$(BIN_DIR)/compilecraft.exe`), `test-cli`, and wired into `all`, `test`, `clean`, and `help`.
+- `tests/cli/`: 52 automated CLI integration tests covering C, C++, Java, `--tokens`/`--ast`/`--symtab`, console output/headers, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
+
+### Acceptance Checks
+- [x] CLI dispatches `.c`, `.cpp`, and `.java` inputs by extension (only these three languages).
+- [x] Executes full pipeline (Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC) and preserves existing individual compiler binaries.
+- [x] Suppresses TAC on lexical, syntax, semantic, or CLI errors and exits with code `1`.
+- [x] Returns exit code `0` on valid compilation and `--help`; supports `--ast`.
+- [x] Works reliably with spaces in paths and from outside the repository root.
 
 ### Suggested Commit Messages
 - `feat(driver): implement main CLI driver coordinating all compiler phases`
@@ -294,52 +386,48 @@ Integrate all phases into a cohesive command-line executable (`compilecraft`) th
 
 ---
 
-## Milestone 9: Automated Regression Test Suite
+## Historical Baseline M9/M10 Milestones *(Archived Baseline Planning)*
 
-### Objective
-Build an automated test suite under `tests/` covering all valid language constructs and every mandatory error case, paired with expected output files.
-
-### Target Deliverables
-- `tests/valid/`: Valid test programs and `.expected` TAC files (including Section 5.5 program).
-- `tests/lexical_errors/`: Tests for invalid characters and malformed tokens.
-- `tests/syntax_errors/`: Tests for missing semicolons, unbalanced braces, malformed statements.
-- `tests/semantic_errors/`: Dedicated tests for each of the 6 mandatory semantic error rules.
-- `mingw32-make test`: Automated test target diffing actual vs expected output.
-
-### Acceptance Checks
-- [ ] `mingw32-make test` runs all tests and reports pass/fail summary.
-- [ ] Valid programs pass through to TAC without errors.
-- [ ] Every error test correctly triggers the intended error message and line number.
-- [ ] Automated regression check ensures no unexpected regressions occur during changes.
-
-### Suggested Commit Messages
-- `test(suite): create test directories and valid program test suite`
-- `test(suite): add test cases for lexical errors and syntax errors`
-- `test(suite): add targeted test cases for all six mandatory semantic rules`
-- `test(automation): add test runner script with automated diff verification`
+> **Note:** Project M9/M10/M11/M12 C, C++, and Java implementations are documented above and tracked in the 471/471 regression suites (`tests/run_tests.py` + `tests/cli/test_cli.py`). See M13 and M14 below for current active status.
 
 ---
 
-## Milestone 10: Technical Documentation & Architecture Report
+## Milestone 13 (project): Frontend–Compiler Integration (Electron IDE)
 
 ### Objective
-Document the complete formal grammar, pipeline architecture, symbol table scoping model, TAC generation strategy, and test matrix.
+Connect the React + Vite + Monaco IDE (`frontend/`) to the real unified CompileCraft CLI (`bin/compilecraft.exe`) through a hardened Electron host (`frontend/electron/main.cjs` + `preload.cjs`) for C, C++, and Java.
 
-### Target Deliverables
-- `docs/grammar.md`: Formal BNF specification.
-- `docs/architecture.md`: Pipeline architecture and data flow diagrams.
-- `docs/test_report.md`: Verification matrix across all valid and invalid test cases.
+### Status: **COMPLETED** (on `dev`, pending final audit & commit)
+- `src/symbol_table/` + `{C,CPP,Java}_Compiler/main_compiler.c` + `src/main.c`: Added `--tokens` and `--symtab` inspection modes alongside `--ast` and TAC generation (`52` automated CLI cases under `tests/cli/`).
+- `frontend/electron/main.cjs` & `frontend/electron/preload.cjs`: Electron main + preload IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, CSP + restricted `file://` navigation, external network blocking in desktop mode, direct `child_process.spawn` without shell, process-tree termination on timeout, isolated temp directory with automatic cleanup, graceful missing-CLI and empty-source handling).
+- `frontend/src/`: Configured Monaco offline bundling (`monaco-editor` + inline Vite worker + `loader.config({ monaco })`), connected Run button (`Ctrl+Enter`), C/C++/Java language selector (without `.mc`), real **Tokens**, **AST**, **Symbol Table**, **TAC**, and clickable line-numbered **Errors** tabs plus Output/Problems/Terminal bottom panel.
 
 ### Acceptance Checks
-- [ ] Formal CFG completely covers Section 5 language features.
-- [ ] Architecture document accurately reflects the implemented AST and TAC structures.
+- [x] Monaco loads cleanly from locally bundled assets with zero external CDN dependency.
+- [x] Run button compiles live editor content (including unsaved edits) through real `bin/compilecraft.exe`.
+- [x] Supports C, C++, and Java exclusively in the IDE selector while keeping baseline `.mc` compiler and tests intact.
+- [x] Each language demo (C, C++, Java) demonstrates declarations, arithmetic, `if`/`else if`/`else`, `while`, `for`, and console output (`printf`, `std::cout`/`std::endl`, `System.out.print`/`println`) compiling to TAC.
+- [x] Supports `#include <stdio.h>` (C), `#include <iostream>` (C++), validated `printf` format output (`OutputPrintf` -> `arg`/`printf` TAC), non-scoping `Seq` C++ output chains, AST-preserved Java concatenation (`AST_OUTPUT_CONCAT`), and string misuse semantic diagnostics while rejecting unsupported preprocessor directives (`#define`, `<stdlib.h>`, `<vector>`).
+- [x] Suppresses/clears TAC immediately whenever lexical, syntax, or any of the 6 semantic rules fail.
+- [x] Works cleanly with spaces in temp/source paths, missing CLI binary fallback, empty editor input, and repeated runs.
+
+---
+
+## Milestone 14 (project): Final Documentation, Desktop Packaging & Faculty Verification
+
+### Status: **PENDING**
+- Desktop installer / standalone packaging (`electron-builder` or `electron-forge` bundling `resources/bin/*.exe`) remains **Pending**.
+- Final technical report and faculty acceptance sign-off remain **Pending**.
 
 ---
 
 ## Planned Visual Interface Components
 
-### Visual Front-End (`frontend/` [Planned])
-- Interactive web/desktop visual user interface for source code editing, real-time lexical/syntax token stream inspection, AST graph visualization, and TAC output display.
+### Visual Front-End (`frontend/` [Implemented — M13])
+- Interactive desktop IDE (Electron + React + Monaco) for C, C++, and Java source editing, real-time token table, AST tree, scoped symbol table, TAC output, and line-numbered diagnostics.
 
-### Visual Back-End (`backend/` [Planned])
-- Interface API and compilation service connecting the interactive front-end to CompileCraft language compiler engines (`C_Compiler/`, `CPP_Compiler/`, `Java_Compiler/`).
+### Visual Back-End (`frontend/electron/` [Implemented — M13])
+- Hardened Electron main & preload IPC service dispatching temporary source files directly to `bin/compilecraft.exe` (`shell: false`).
+
+### Desktop Packaging (`[Pending]`)
+- Standalone Windows installer / portable bundle packaging `bin/compilecraft*.exe` under `resources/bin/` for external end-user distribution.

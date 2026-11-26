@@ -1,0 +1,10 @@
+flag = true
+t1 = flag == true
+if t1 goto L1
+goto L3
+L1:
+print flag
+goto L2
+L3:
+print flag
+L2:

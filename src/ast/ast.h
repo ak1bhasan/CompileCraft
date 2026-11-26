@@ -15,6 +15,7 @@ extern "C" {
 typedef enum AstKind {
     AST_PROGRAM,
     AST_BLOCK,
+    AST_SEQ,
     AST_VAR_DECL,
     AST_ASSIGN,
     AST_EXPR_STMT,
@@ -22,11 +23,18 @@ typedef enum AstKind {
     AST_IF,
     AST_WHILE,
     AST_PRINT,
+    AST_OUTPUT,
     AST_BINARY_OP,
     AST_UNARY_OP,
     AST_IDENTIFIER,
     AST_LITERAL
 } AstKind;
+
+typedef enum AstOutputMode {
+    AST_OUTPUT_RAW = 0,     /* Stream / raw output items (e.g. C++ std::cout) */
+    AST_OUTPUT_PRINTF,      /* C printf(format_literal, args...) */
+    AST_OUTPUT_CONCAT       /* Java System.out.print/println with '+' concat */
+} AstOutputMode;
 
 typedef enum AstTypeTag {
     AST_TYPE_INT,
@@ -58,7 +66,8 @@ typedef enum AstUnOp {
 typedef enum AstLitKind {
     AST_LIT_INT,
     AST_LIT_FLOAT,
-    AST_LIT_BOOL
+    AST_LIT_BOOL,
+    AST_LIT_STRING
 } AstLitKind;
 
 typedef struct AstNode AstNode;
@@ -83,6 +92,11 @@ struct AstNode {
             AstNode *stmts;
             AstNode *stmts_tail;
         } block;
+
+        struct {
+            AstNode *stmts;
+            AstNode *stmts_tail;
+        } seq;
 
         struct {
             AstTypeTag type_tag;
@@ -115,6 +129,13 @@ struct AstNode {
         } print_stmt;
 
         struct {
+            AstNode *items;
+            AstNode *items_tail;
+            int newline; /* 1 for println / std::endl, 0 otherwise */
+            AstOutputMode mode;
+        } output_stmt;
+
+        struct {
             AstBinOp op;
             AstNode *left;
             AstNode *right;
@@ -135,6 +156,7 @@ struct AstNode {
                 int ival;
                 double fval;
                 int bval;
+                char *sval; /* owned heap string for AST_LIT_STRING */
             } as;
         } literal;
     } u;
@@ -173,6 +195,9 @@ typedef struct AstList {
 AstList ast_list_empty(void);
 int ast_list_append(AstList *list, AstNode *stmt);
 AstNode *ast_list_head(AstList list);
+/* If *list holds exactly one node, detaches and returns it without mutating
+ * ownership externally (leaves *list empty). Returns NULL otherwise. */
+AstNode *ast_list_take_single(AstList *list);
 
 /*
  * Constructors
@@ -185,6 +210,8 @@ AstNode *ast_list_head(AstList list);
  */
 AstNode *ast_program(AstList stmts, int line, int column);
 AstNode *ast_block(AstList stmts, int line, int column);
+/* Flat non-scoping statement sequence (e.g. multi-line C++ cout chain). */
+AstNode *ast_seq(AstList stmts, int line, int column);
 AstNode *ast_var_decl(AstTypeTag type_tag, AstNode *name, AstNode *init,
                       int line, int column);
 AstNode *ast_assign(AstNode *target, AstNode *value, int line, int column);
@@ -196,15 +223,22 @@ AstNode *ast_while(AstNode *cond, AstNode *body, int line, int column);
 /* Print-statement constructor (named ast_print_stmt to avoid clashing with
  * the pretty-printer ast_print). */
 AstNode *ast_print_stmt(AstNode *expr, int line, int column);
+/* Multi-item console output statement (takes ownership of items chain). */
+AstNode *ast_output(AstList items, int newline, int line, int column);
+AstNode *ast_output_with_mode(AstList items, AstOutputMode mode, int newline,
+                              int line, int column);
+int ast_output_append_item(AstNode *output_node, AstNode *item);
+int ast_output_set_newline(AstNode *output_node, int newline);
 AstNode *ast_binary(AstBinOp op, AstNode *left, AstNode *right,
                     int line, int column);
 AstNode *ast_unary(AstUnOp op, AstNode *operand, int line, int column);
 
-/* Takes ownership of name. name must be non-NULL. */
+/* Takes ownership of name/value. Passed pointer must be non-NULL. */
 AstNode *ast_identifier(char *name, int line, int column);
 AstNode *ast_literal_int(int value, int line, int column);
 AstNode *ast_literal_float(double value, int line, int column);
 AstNode *ast_literal_bool(int value, int line, int column);
+AstNode *ast_literal_string(char *value, int line, int column);
 
 /*
  * ast_free: recursively frees a node, its owned children/strings, and the

@@ -1,0 +1,3 @@
+int notmain() {
+    int x;
+}

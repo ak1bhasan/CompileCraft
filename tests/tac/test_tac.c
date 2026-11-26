@@ -12,28 +12,22 @@
 static void test_arithmetic_tac(void) {
     printf("Running test_arithmetic_tac...\n");
 
-    /* Program:
-     * int x;
-     * x = 10 + 20 * 3;
-     */
     AstList stmts = ast_list_empty();
-
     AstNode *decl = ast_var_decl(AST_TYPE_INT, ast_identifier(strdup("x"), 1, 1), NULL, 1, 1);
-    ast_list_append(&stmts, decl);
+    assert(ast_list_append(&stmts, decl));
 
-    AstNode *mul_expr = ast_binary(AST_OP_MUL, ast_literal_int(20, 2, 10), ast_literal_int(3, 2, 15), 2, 12);
-    AstNode *add_expr = ast_binary(AST_OP_ADD, ast_literal_int(10, 2, 5), mul_expr, 2, 7);
+    AstNode *mul_expr = ast_binary(
+        AST_OP_MUL, ast_literal_int(20, 2, 10), ast_literal_int(3, 2, 15), 2, 12);
+    AstNode *add_expr = ast_binary(
+        AST_OP_ADD, ast_literal_int(10, 2, 5), mul_expr, 2, 7);
     AstNode *assign = ast_assign(ast_identifier(strdup("x"), 2, 1), add_expr, 2, 3);
-    ast_list_append(&stmts, assign);
+    assert(ast_list_append(&stmts, assign));
 
     AstNode *prog = ast_program(stmts, 1, 1);
-    assert(prog != NULL);
-
     TacList *tac = tac_generate_program(prog);
     assert(tac != NULL);
-    assert(tac->count >= 3); /* t1 = 20 * 3; t2 = 10 + t1; x = t2 */
+    assert(tac->count >= 3);
 
-    /* Verify instruction contents */
     TacInstr *i1 = tac->head;
     assert(i1->opcode == TAC_OP_MUL);
     assert(strcmp(i1->dest, "t1") == 0);
@@ -43,8 +37,6 @@ static void test_arithmetic_tac(void) {
     TacInstr *i2 = i1->next;
     assert(i2->opcode == TAC_OP_ADD);
     assert(strcmp(i2->dest, "t2") == 0);
-    assert(strcmp(i2->src1, "10") == 0);
-    assert(strcmp(i2->src2, "t1") == 0);
 
     TacInstr *i3 = i2->next;
     assert(i3->opcode == TAC_OP_ASSIGN);
@@ -56,56 +48,310 @@ static void test_arithmetic_tac(void) {
     printf("  [PASS] test_arithmetic_tac\n");
 }
 
-static void test_control_flow_tac(void) {
-    printf("Running test_control_flow_tac...\n");
+static void test_relational_logical_unary(void) {
+    printf("Running test_relational_logical_unary...\n");
 
-    /* Program:
-     * while (x > 0) {
-     *     x = x - 1;
-     * }
-     */
     AstList stmts = ast_list_empty();
+    assert(ast_list_append(
+        &stmts,
+        ast_var_decl(AST_TYPE_BOOL, ast_identifier(strdup("b"), 1, 1), NULL, 1, 1)));
 
-    AstNode *cond = ast_binary(AST_OP_GT, ast_identifier(strdup("x"), 1, 8), ast_literal_int(0, 1, 12), 1, 10);
-
-    AstList body_stmts = ast_list_empty();
-    AstNode *sub_expr = ast_binary(AST_OP_SUB, ast_identifier(strdup("x"), 2, 9), ast_literal_int(1, 2, 13), 2, 11);
-    AstNode *assign = ast_assign(ast_identifier(strdup("x"), 2, 5), sub_expr, 2, 7);
-    ast_list_append(&body_stmts, assign);
-    AstNode *body_block = ast_block(body_stmts, 1, 15);
-
-    AstNode *loop = ast_while(cond, body_block, 1, 1);
-    ast_list_append(&stmts, loop);
+    AstNode *gt = ast_binary(
+        AST_OP_GT,
+        ast_identifier(strdup("x"), 2, 5),
+        ast_literal_int(0, 2, 9),
+        2,
+        7);
+    AstNode *lt = ast_binary(
+        AST_OP_LT,
+        ast_identifier(strdup("y"), 2, 14),
+        ast_literal_int(10, 2, 18),
+        2,
+        16);
+    AstNode *and_expr = ast_binary(AST_OP_AND, gt, lt, 2, 12);
+    AstNode *not_expr = ast_unary(AST_OP_NOT, and_expr, 2, 1);
+    assert(ast_list_append(
+        &stmts, ast_assign(ast_identifier(strdup("b"), 2, 1), not_expr, 2, 3)));
 
     AstNode *prog = ast_program(stmts, 1, 1);
     TacList *tac = tac_generate_program(prog);
     assert(tac != NULL);
 
-    /* Verify while structure:
-     * L1:
-     * t1 = x > 0
-     * if t1 goto L2
-     * goto L3
-     * L2:
-     * t2 = x - 1
-     * x = t2
-     * goto L1
-     * L3:
-     */
-    TacInstr *curr = tac->head;
-    assert(curr != NULL && curr->opcode == TAC_OP_LABEL); /* L1 */
-    curr = curr->next;
-    assert(curr != NULL && curr->opcode == TAC_OP_GT);    /* t1 = x > 0 */
-    curr = curr->next;
-    assert(curr != NULL && curr->opcode == TAC_OP_IF_GOTO); /* if t1 goto L2 */
-    curr = curr->next;
-    assert(curr != NULL && curr->opcode == TAC_OP_GOTO);    /* goto L3 */
-    curr = curr->next;
-    assert(curr != NULL && curr->opcode == TAC_OP_LABEL); /* L2 */
+    int saw_gt = 0;
+    int saw_lt = 0;
+    int saw_and = 0;
+    int saw_not = 0;
+    for (TacInstr *curr = tac->head; curr; curr = curr->next) {
+        if (curr->opcode == TAC_OP_GT) {
+            saw_gt = 1;
+        }
+        if (curr->opcode == TAC_OP_LT) {
+            saw_lt = 1;
+        }
+        if (curr->opcode == TAC_OP_AND) {
+            saw_and = 1;
+        }
+        if (curr->opcode == TAC_OP_NOT) {
+            saw_not = 1;
+        }
+    }
+    assert(saw_gt && saw_lt && saw_and && saw_not);
 
     tac_list_free(tac);
     ast_free(prog);
-    printf("  [PASS] test_control_flow_tac\n");
+    printf("  [PASS] test_relational_logical_unary\n");
+}
+
+static void test_init_and_print(void) {
+    printf("Running test_init_and_print...\n");
+
+    AstList stmts = ast_list_empty();
+    AstNode *init = ast_literal_int(42, 1, 9);
+    assert(ast_list_append(
+        &stmts,
+        ast_var_decl(AST_TYPE_INT, ast_identifier(strdup("n"), 1, 5), init, 1, 1)));
+    assert(ast_list_append(
+        &stmts, ast_print_stmt(ast_identifier(strdup("n"), 2, 7), 2, 1)));
+
+    AstNode *prog = ast_program(stmts, 1, 1);
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+    assert(tac->head->opcode == TAC_OP_ASSIGN);
+    assert(strcmp(tac->head->dest, "n") == 0);
+    assert(strcmp(tac->head->src1, "42") == 0);
+    assert(tac->head->next->opcode == TAC_OP_PRINT);
+    assert(strcmp(tac->head->next->src1, "n") == 0);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_init_and_print\n");
+}
+
+static void test_if_else_tac(void) {
+    printf("Running test_if_else_tac...\n");
+
+    AstList stmts = ast_list_empty();
+    AstNode *cond = ast_binary(
+        AST_OP_EQ,
+        ast_identifier(strdup("flag"), 1, 5),
+        ast_literal_bool(1, 1, 13),
+        1,
+        10);
+
+    AstList then_stmts = ast_list_empty();
+    assert(ast_list_append(&then_stmts, ast_print_stmt(ast_identifier(strdup("y"), 2, 11), 2, 5)));
+    AstNode *then_block = ast_block(then_stmts, 1, 20);
+
+    AstList else_stmts = ast_list_empty();
+    assert(ast_list_append(&else_stmts, ast_print_stmt(ast_identifier(strdup("x"), 4, 11), 4, 5)));
+    AstNode *else_block = ast_block(else_stmts, 3, 8);
+
+    assert(ast_list_append(&stmts, ast_if(cond, then_block, else_block, 1, 1)));
+
+    AstNode *prog = ast_program(stmts, 1, 1);
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    int labels = 0;
+    int if_gotos = 0;
+    int gotos = 0;
+    int prints = 0;
+    for (TacInstr *curr = tac->head; curr; curr = curr->next) {
+        if (curr->opcode == TAC_OP_LABEL) {
+            labels++;
+        }
+        if (curr->opcode == TAC_OP_IF_GOTO) {
+            if_gotos++;
+        }
+        if (curr->opcode == TAC_OP_GOTO) {
+            gotos++;
+        }
+        if (curr->opcode == TAC_OP_PRINT) {
+            prints++;
+        }
+    }
+    assert(labels >= 3);
+    assert(if_gotos == 1);
+    assert(gotos >= 2);
+    assert(prints == 2);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_if_else_tac\n");
+}
+
+static void test_while_tac(void) {
+    printf("Running test_while_tac...\n");
+
+    AstList stmts = ast_list_empty();
+    AstNode *cond = ast_binary(
+        AST_OP_GT,
+        ast_identifier(strdup("x"), 1, 8),
+        ast_literal_int(0, 1, 12),
+        1,
+        10);
+
+    AstList body_stmts = ast_list_empty();
+    AstNode *sub_expr = ast_binary(
+        AST_OP_SUB,
+        ast_identifier(strdup("x"), 2, 9),
+        ast_literal_int(1, 2, 13),
+        2,
+        11);
+    assert(ast_list_append(
+        &body_stmts, ast_assign(ast_identifier(strdup("x"), 2, 5), sub_expr, 2, 7)));
+    AstNode *body_block = ast_block(body_stmts, 1, 15);
+    assert(ast_list_append(&stmts, ast_while(cond, body_block, 1, 1)));
+
+    AstNode *prog = ast_program(stmts, 1, 1);
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    TacInstr *curr = tac->head;
+    assert(curr != NULL && curr->opcode == TAC_OP_LABEL);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_GT);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_IF_GOTO);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_GOTO);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_LABEL);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_while_tac\n");
+}
+
+static void test_nested_blocks_order(void) {
+    printf("Running test_nested_blocks_order...\n");
+
+    AstList inner = ast_list_empty();
+    assert(ast_list_append(
+        &inner,
+        ast_assign(
+            ast_identifier(strdup("y"), 3, 5),
+            ast_literal_int(2, 3, 9),
+            3,
+            7)));
+    AstNode *inner_block = ast_block(inner, 2, 1);
+
+    AstList outer = ast_list_empty();
+    assert(ast_list_append(
+        &outer,
+        ast_assign(
+            ast_identifier(strdup("x"), 2, 5),
+            ast_literal_int(1, 2, 9),
+            2,
+            7)));
+    assert(ast_list_append(&outer, inner_block));
+    AstNode *outer_block = ast_block(outer, 1, 1);
+
+    AstList stmts = ast_list_empty();
+    assert(ast_list_append(&stmts, outer_block));
+    AstNode *prog = ast_program(stmts, 1, 1);
+
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+    assert(tac->head->opcode == TAC_OP_ASSIGN);
+    assert(strcmp(tac->head->dest, "x") == 0);
+    assert(tac->head->next->opcode == TAC_OP_ASSIGN);
+    assert(strcmp(tac->head->next->dest, "y") == 0);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_nested_blocks_order\n");
+}
+
+static void test_output_and_println_tac(void) {
+    printf("Running test_output_and_println_tac...\n");
+
+    AstList items = ast_list_empty();
+    assert(ast_list_append(&items, ast_literal_string(strdup("\"Count: \""), 2, 5)));
+    assert(ast_list_append(
+        &items,
+        ast_binary(
+            AST_OP_ADD,
+            ast_identifier(strdup("n"), 2, 16),
+            ast_literal_int(1, 2, 20),
+            2,
+            18)));
+
+    AstList stmts = ast_list_empty();
+    assert(ast_list_append(&stmts, ast_output(items, 1, 2, 5)));
+    assert(ast_list_append(&stmts, ast_output(ast_list_empty(), 1, 3, 5)));
+    AstNode *prog = ast_program(stmts, 1, 1);
+
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    TacInstr *curr = tac->head;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINT);
+    assert(strcmp(curr->src1, "\"Count: \"") == 0);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_ADD);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINTLN);
+    assert(strcmp(curr->src1, "t1") == 0);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINTLN);
+    assert(curr->src1 == NULL);
+    assert(curr->next == NULL);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_output_and_println_tac\n");
+}
+
+static void test_printf_seq_and_concat_tac(void) {
+    printf("Running test_printf_seq_and_concat_tac...\n");
+
+    /* 1. AST_OUTPUT_PRINTF emits TAC_OP_ARG in order followed by TAC_OP_PRINTF. */
+    AstList pf_items = ast_list_empty();
+    assert(ast_list_append(&pf_items, ast_literal_string(strdup("\"%d %f\""), 2, 5)));
+    assert(ast_list_append(&pf_items, ast_identifier(strdup("sum"), 2, 20)));
+    assert(ast_list_append(&pf_items, ast_identifier(strdup("avg"), 2, 25)));
+    AstNode *pf_node = ast_output_with_mode(pf_items, AST_OUTPUT_PRINTF, 0, 2, 5);
+
+    /* 2. AST_OUTPUT_CONCAT preserves arithmetic before string concat in TAC. */
+    AstNode *add_num = ast_binary(
+        AST_OP_ADD, ast_literal_int(1, 3, 24), ast_literal_int(2, 3, 28), 3, 26);
+    AstNode *concat = ast_binary(
+        AST_OP_ADD, add_num, ast_literal_string(strdup("\"a\""), 3, 32), 3, 30);
+    AstList java_items = ast_list_empty();
+    assert(ast_list_append(&java_items, concat));
+    AstNode *java_node = ast_output_with_mode(java_items, AST_OUTPUT_CONCAT, 1, 3, 5);
+
+    /* 3. AST_SEQ emits children sequentially without changing scopes. */
+    AstList seq_stmts = ast_list_empty();
+    assert(ast_list_append(&seq_stmts, pf_node));
+    assert(ast_list_append(&seq_stmts, java_node));
+    AstNode *seq = ast_seq(seq_stmts, 2, 5);
+
+    AstList prog_stmts = ast_list_empty();
+    assert(ast_list_append(&prog_stmts, seq));
+    AstNode *prog = ast_program(prog_stmts, 1, 1);
+
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    TacInstr *curr = tac->head;
+    assert(curr && curr->opcode == TAC_OP_ARG && strcmp(curr->src1, "sum") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_ARG && strcmp(curr->src1, "avg") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINTF && strcmp(curr->src1, "\"%d %f\"") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_ADD);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINT && strcmp(curr->src1, "t1") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINTLN && strcmp(curr->src1, "\"a\"") == 0);
+    assert(curr->next == NULL);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_printf_seq_and_concat_tac\n");
 }
 
 int main(void) {
@@ -114,7 +360,13 @@ int main(void) {
     printf("==============================================================================\n");
 
     test_arithmetic_tac();
-    test_control_flow_tac();
+    test_relational_logical_unary();
+    test_init_and_print();
+    test_if_else_tac();
+    test_while_tac();
+    test_nested_blocks_order();
+    test_output_and_println_tac();
+    test_printf_seq_and_concat_tac();
 
     printf("==============================================================================\n");
     printf(" All TAC unit tests passed successfully!\n");

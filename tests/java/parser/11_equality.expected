@@ -1,0 +1,8 @@
+a = 4
+b = 4
+t1 = a == b
+eq = t1
+t2 = a != b
+ne = t2
+t3 = eq == true
+be = t3

@@ -1,119 +1,144 @@
 import type { ExampleFile } from '../types/ide'
 
-export const PROJECT_NAME = 'demo-workspace'
+export const PROJECT_NAME = 'CompileCraft Workspace'
 
 export const EXAMPLE_FILES: ExampleFile[] = [
   {
-    id: 'main-c',
-    name: 'main.c',
-    path: 'src/c/main.c',
+    id: 'demo-c',
+    name: 'control_flow.c',
+    path: 'src/c/control_flow.c',
     language: 'c',
     content: `#include <stdio.h>
 
-int main(void) {
-    int total = 0;
+int main() {
+    int a = 10;
+    int b = 4;
+    int sum = 0;
 
-    for (int i = 1; i <= 5; i++) {
-        total += i;
+    for (int i = 0; i < 4; i++) {
+        sum = sum + i;
     }
 
-    printf("sum = %d\\n", total);
+    while (b > 0) {
+        sum = sum + b;
+        b = b - 1;
+    }
+
+    if (sum > a) {
+        sum = sum + 2;
+        printf("Large sum = %d", sum);
+    } else if (sum == a) {
+        printf("Exact sum = %d", sum);
+    } else {
+        sum = sum - 2;
+        printf("Small sum = %d", sum);
+    }
+
     return 0;
 }
 `,
   },
   {
-    id: 'utils-c',
-    name: 'utils.c',
-    path: 'src/c/utils.c',
-    language: 'c',
-    content: `int add(int left, int right) {
-    return left + right;
-}
-`,
-  },
-  {
-    id: 'main-cpp',
-    name: 'main.cpp',
-    path: 'src/cpp/main.cpp',
+    id: 'demo-cpp',
+    name: 'loops_logic.cpp',
+    path: 'src/cpp/loops_logic.cpp',
     language: 'cpp',
     content: `#include <iostream>
-#include <vector>
 
 int main() {
-    std::vector<int> values = {1, 2, 3, 4, 5};
+    int limit = 3;
     int total = 0;
 
-    for (int value : values) {
-        total += value;
+    for (int i = 1; i <= 3; i++) {
+        total = total + i * 2;
     }
 
-    std::cout << "sum = " << total << '\\n';
+    while (limit > 0) {
+        total = total + limit;
+        limit--;
+    }
+
+    if (total >= 12 && limit == 0) {
+        total = total + 10;
+        std::cout << "Total = " << total << std::endl;
+    } else if (total > 0) {
+        std::cout << "Positive = " << total << std::endl;
+    } else {
+        total = total - 1;
+        std::cout << "Fallback = " << total << std::endl;
+    }
+
     return 0;
 }
 `,
   },
   {
-    id: 'main-java',
+    id: 'demo-java',
     name: 'Main.java',
     path: 'src/java/Main.java',
     language: 'java',
     content: `public class Main {
     public static void main(String[] args) {
-        int total = 0;
+        int x = 2;
+        int y = 5;
+        int res = 0;
 
-        for (int i = 1; i <= 5; i++) {
-            total += i;
+        for (int i = 1; i <= 3; i++) {
+            res = res + x;
         }
 
-        System.out.println("sum = " + total);
+        while (y > 0) {
+            res = res + y;
+            y--;
+        }
+
+        if (res > 10 && true) {
+            res = res + 1;
+            System.out.println("Result = " + res);
+        } else if (res == 10) {
+            System.out.println("Exact 10");
+        } else {
+            res = res - 1;
+            System.out.println("Low = " + res);
+        }
     }
 }
 `,
   },
   {
-    id: 'sample-mc',
-    name: 'sample.mc',
-    path: 'src/baseline/sample.mc',
-    language: 'mc',
-    content: `// CompileCraft baseline mini-language sample
-int x;
-int y;
-bool flag;
-
-x = 10;
-y = 0;
-flag = true;
-
-while (x > 0) {
-    y = y + x;
-    x = x - 1;
-}
-
-if (flag == true) {
-    print y;
-} else {
-    print x;
+    id: 'invalid-c',
+    name: 'undeclared_var.c',
+    path: 'src/invalid/undeclared_var.c',
+    language: 'c',
+    content: `int main() {
+    int count = 5;
+    total = count + 1;
+    return 0;
 }
 `,
   },
   {
-    id: 'loops-mc',
-    name: 'loops.mc',
-    path: 'src/baseline/loops.mc',
-    language: 'mc',
-    content: `int n;
-int acc;
-
-n = 4;
-acc = 1;
-
-while (n > 0) {
-    acc = acc * n;
-    n = n - 1;
+    id: 'invalid-cpp',
+    name: 'type_mismatch.cpp',
+    path: 'src/invalid/type_mismatch.cpp',
+    language: 'cpp',
+    content: `int main() {
+    bool valid = 10 + 5;
+    return 0;
 }
-
-print acc;
+`,
+  },
+  {
+    id: 'invalid-java',
+    name: 'SyntaxError.java',
+    path: 'src/invalid/SyntaxError.java',
+    language: 'java',
+    content: `public class SyntaxError {
+    public static void main(String[] args) {
+        int x = 10
+        int y = x + 2;
+    }
+}
 `,
   },
 ]

@@ -1,0 +1,11 @@
+a = 1
+b = 2
+c = 0
+t1 = a < b
+t2 = b > a
+t3 = t1 && t2
+if t3 goto L1
+goto L2
+L1:
+c = 1
+L2:

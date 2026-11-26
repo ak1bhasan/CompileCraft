@@ -1,0 +1,14 @@
+sum = 50
+average = 12.5
+arg sum
+printf "Int=%d\n"
+arg average
+printf "Float=%f\n"
+arg "OK"
+printf "Str=%s\n"
+arg sum
+arg average
+arg "Run"
+printf "Total = %d, Average = %f, Label = %s\tEnd\\\"100%%\n"
+arg sum
+printf "Percent: %d%%\n"
