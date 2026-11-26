@@ -44,6 +44,8 @@ C_COMPILER_BIN  ?= $(BIN_DIR)/compilecraft-c.exe
 CPP_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-cpp.exe
 # M11: Java front-end (lexer + parser + semantic + TAC)
 JAVA_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-java.exe
+# M8: Unified multi-language CLI driver
+CLI_BIN         ?= $(BIN_DIR)/compilecraft.exe
 
 BUILD_SYMTAB_DIR ?= $(BUILD_DIR)/symbol_table
 BUILD_SEMANTIC_DIR ?= $(BUILD_DIR)/semantic
@@ -51,6 +53,7 @@ BUILD_TAC_DIR   ?= $(BUILD_DIR)/tac
 BUILD_C_PARSER_DIR ?= $(BUILD_DIR)/c_parser
 BUILD_CPP_PARSER_DIR ?= $(BUILD_DIR)/cpp_parser
 BUILD_JAVA_PARSER_DIR ?= $(BUILD_DIR)/java_parser
+BUILD_CLI_DIR   ?= $(BUILD_DIR)/cli
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
@@ -66,12 +69,12 @@ TAC_O           := $(BUILD_TAC_DIR)/tac.o
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler java-compiler test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test-java-parser test-java-semantic test-java-tac test-java-compiler test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler java-compiler cli test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test-java-parser test-java-semantic test-java-tac test-java-compiler test-cli test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) $(CLI_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (through Milestone 11: Java Parser)"
+	@echo " CompileCraft - Build Succeeded (through Milestone 8: Unified CLI)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -80,6 +83,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   PYTHON        : $(PYTHON)"
 	@echo ""
 	@echo " Built Artifacts:"
+	@echo "   Unified CLI   : $(CLI_BIN)"
 	@echo "   Baseline Lexer: $(LEXER_BIN)"
 	@echo "   C Lexer       : $(LEXER_C_BIN)"
 	@echo "   C++ Lexer     : $(LEXER_CPP_BIN)"
@@ -464,11 +468,27 @@ test-java-tac: $(JAVA_COMPILER_BIN)
 
 test-java-compiler: test-java-parser test-java-semantic test-java-tac
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler test-cpp-compiler test-java-compiler
+# ------------------------------------------------------------------------------
+# Milestone 8: Unified Multi-Language CLI Driver (bin/compilecraft.exe)
+# ------------------------------------------------------------------------------
+$(BUILD_CLI_DIR)/main.o: src/main.c
+	@mkdir -p $(BUILD_CLI_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(CLI_BIN): $(BUILD_CLI_DIR)/main.o
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+cli: $(CLI_BIN) $(TAC_BIN) $(PARSER_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN)
+
+test-cli: cli
+	$(PYTHON) tests/cli/test_cli.py $(CLI_BIN)
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler test-cpp-compiler test-java-compiler test-cli
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(CLI_BIN) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -509,11 +529,13 @@ help:
 	@echo "   test-cpp-tac      Runs C++ TAC golden suite (tests/cpp/tac; M10)"
 	@echo "   test-cpp-compiler Runs all C++ front-end suites (M10)"
 	@echo "   java-compiler     Builds Java front-end driver (bin/compilecraft-java.exe; M11)"
+	@echo "   cli               Builds unified multi-language CLI (bin/compilecraft.exe; M8) and front-ends"
 	@echo "   test-java-parser  Runs Java parser regression suite (tests/java/parser; M11)"
 	@echo "   test-java-semantic Runs Java semantic regression suite (tests/java/semantic; M11)"
 	@echo "   test-java-tac     Runs Java TAC golden suite (tests/java/tac; M11)"
 	@echo "   test-java-compiler Runs all Java front-end suites (M11)"
-	@echo "   test              Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac + C + C++ + Java)"
+	@echo "   test-cli          Runs unified CLI regression suite (tests/cli; M8)"
+	@echo "   test              Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac + C + C++ + Java + CLI)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""

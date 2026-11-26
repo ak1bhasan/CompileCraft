@@ -20,10 +20,10 @@
 [DONE] M5: Symbol Table ──► [DONE] M6: Semantic Analysis ──► [DONE] M7: TAC
            │
            ▼
-M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
+[DONE] M8: Unified CLI ──► [DONE] M9–M12: C/C++/Java Front-Ends & Hardening ──► M13: Frontend Integration
 ```
 
-**Current project status:** Baseline `.mc` (**M0–M7**) and the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** compiler front ends—plus **M12 multi-language semantic & TAC hardening** (including C `_Bool`/`bool` + Rule 4 verification)—are complete on `dev`, sharing the AST, scoped symbol table, semantic analyzer, and TAC generator. **Remaining work:** **M8** Unified CLI Driver, **M13** Frontend–Compiler Integration, **M14** Final Documentation & Faculty Verification, and finalizing **DEC-07** (short-circuit vs eager `&&`/`||`, currently using the M7 interim eager policy).
+**Current project status:** Baseline `.mc` (**M0–M7**), the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** front ends, **M12 multi-language semantic & TAC hardening**, and the **M8 Unified CLI Driver (`bin/compilecraft.exe`)** are complete on `dev`. **Remaining work:** **M13** Frontend–Compiler Integration, **M14** Final Documentation & Faculty Verification, and finalizing **DEC-07** (short-circuit vs eager `&&`/`||`, currently using the M7 interim eager policy).
 
 ---
 
@@ -349,7 +349,7 @@ Add a dedicated Java Bison grammar for the class/main-wrapped subset (`int`/`flo
 ### Objective
 Harden all four compiler pipelines (`.mc`, C, C++, Java) for cross-language semantic consistency, loop/precedence TAC correctness, error gating, and C Rule 4 support before frontend integration.
 
-### Status: **COMPLETED** (on `dev`, pending commit approval)
+### Status: **COMPLETED**
 - Added C99 `_Bool` / `bool` + `true` / `false` support to `C_Compiler/` (`tokens.def`, `tokens.h`, `lexer.l`, `main_c.c`, `parser.y`), unlocking independent Faculty Rule 4 testing in C.
 - Expanded cross-language TAC and semantic hardening suites across `tests/tac/golden/`, `tests/c/`, `tests/cpp/tac/`, and `tests/java/tac/`.
 - Preserved DEC-07 interim eager logical evaluation policy and verified line-numbered diagnostics and semantic error gating across all four pipelines.
@@ -362,21 +362,22 @@ Harden all four compiler pipelines (`.mc`, C, C++, Java) for cross-language sema
 
 ---
 
-## Milestone 8: Compiler Driver & Pipeline Integration
+## Milestone 8: Unified Multi-Language CLI Driver
 
 ### Objective
-Integrate all phases into a cohesive command-line executable (`compilecraft`) that accepts an input file, runs the pipeline sequentially, displays errors or outputs TAC, and returns proper OS exit codes.
+Provide one unified command-line executable (`bin/compilecraft.exe`) that detects input language by extension (`.c`, `.cpp`, `.java`), dispatches safely to the matching front-end compiler pipeline, propagates diagnostics and TAC/AST output, and returns OS exit codes.
 
-### Target Deliverables
-- `src/main.c`: CLI entry point, argument parsing (`argv[1]`), file reader, phase coordinator.
-- Diagnostic reporter summarizing errors across lexer, parser, and semantic analyzer.
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- `src/main.c`: Unified CLI (`bin/compilecraft.exe`) supporting `--help`, `-h`, `--ast`, `.c`/`.cpp`/`.java` extension dispatch, missing/unsupported file checks (including `.mc` rejection in the CLI while preserving baseline `.mc` tools), safe native OS process spawning (`CreateProcessA` / `fork`+`execv` without shell), sibling path resolution from outside the repository root, and paths with spaces.
+- `Makefile`: Added `cli` (`$(BIN_DIR)/compilecraft.exe`), `test-cli`, and wired into `all`, `test`, `clean`, and `help`.
+- `tests/cli/`: 27 automated CLI integration tests covering C, C++, Java, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
 
 ### Acceptance Checks
-- [ ] CLI accepts a source file argument: `./compilecraft file.mc`.
-- [ ] Executes pipeline: Lexer -> Parser -> AST -> Symbol Table -> Semantic Analysis -> TAC Generator.
-- [ ] Aborts pipeline gracefully after syntax errors or semantic errors, suppressing invalid TAC generation.
-- [ ] Returns exit code `0` on successful compilation; returns non-zero exit code (`1`) on failure.
-- [ ] CLI supports optional flags: `--ast` (print AST), `--symtab` (dump symbol table), `-o <file>` (output TAC to file).
+- [x] CLI dispatches `.c`, `.cpp`, and `.java` inputs by extension (only these three languages).
+- [x] Executes full pipeline (Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC) and preserves existing individual compiler binaries.
+- [x] Suppresses TAC on lexical, syntax, semantic, or CLI errors and exits with code `1`.
+- [x] Returns exit code `0` on valid compilation and `--help`; supports `--ast`.
+- [x] Works reliably with spaces in paths and from outside the repository root.
 
 ### Suggested Commit Messages
 - `feat(driver): implement main CLI driver coordinating all compiler phases`

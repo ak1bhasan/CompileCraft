@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` through **M7 TAC**, plus **M9 C**, **M10 C++**, **M11 Java**, and **M12 Multi-Language Semantic & TAC Hardening**. Remaining: **M8** unified CLI, **M13** frontend integration, **M14** final docs & verification.
+> **Current focus**: baseline `.mc` (**M0–M7**), **M9 C**, **M10 C++**, **M11 Java**, **M12 Hardening**, and **M8 Unified CLI (`compilecraft.exe`)**. Remaining: **M13** frontend integration, **M14** final docs & verification.
 
 ---
 
@@ -14,8 +14,9 @@
 
 There is **no backend codegen**; the pipeline terminates at Three-Address Code (TAC).
 
-**Implemented today (through Milestone 12 / Multi-Language Semantic & TAC Hardening):**
+**Implemented today (through Milestone 12 + Milestone 8 / Unified CLI):**
 
+- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--ast` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
 - Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
 - Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
 - **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
@@ -23,7 +24,7 @@ There is **no backend codegen**; the pipeline terminates at Three-Address Code (
 - **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
 - Production parser and language compiler CLIs with optional `--ast` output.
 
-**Remaining / Not yet implemented:** Unified `compilecraft` CLI (**M8**), frontend–compiler integration (**M13**), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
+**Remaining / Not yet implemented:** Frontend–compiler integration (**M13**), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
 
 ---
 
@@ -96,8 +97,8 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 12 — Multi-Language Semantic & TAC Hardening (complete on `dev`)**
-> *Baseline `.mc`, C, C++, and Java pipelines verified end-to-end through semantic analysis and TAC.*
+> **Status**: **Milestone 8 — Unified CLI Driver (complete on `dev` alongside M9–M12)**
+> *Single unified `bin/compilecraft.exe` dispatching `.c`, `.cpp`, and `.java` end-to-end through semantic analysis and TAC.*
 
 ### Status matrix
 
@@ -119,7 +120,7 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9/M12)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
 | **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10/M12)** | `compilecraft-cpp.exe`; `bool`; for-loops; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
 | **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11/M12)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Language-specific compiler drivers implemented; unified `compilecraft` CLI pending. |
+| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` (`tests/cli/`: 27 cases). |
 | **Frontend–Compiler Integration** | Visual frontend integration | **PENDING (M13)** | Planned next milestone. |
 | **Final Docs & Faculty Verification** | Final release verification | **PENDING (M14)** | Planned final milestone. |
 
@@ -167,9 +168,21 @@ Expression-capture hooks remain **test-only** for `tests/expr_ast/` and are disa
 
 ---
 
-## 6. Parser CLI
+## 6. Unified CLI & Parser CLI
 
-Artifact: `bin/compilecraft-parser.exe`
+### Unified Multi-Language CLI (`bin/compilecraft.exe`)
+
+```powershell
+.\bin\compilecraft.exe program.c
+.\bin\compilecraft.exe program.cpp
+.\bin\compilecraft.exe Main.java
+.\bin\compilecraft.exe --ast Main.java
+.\bin\compilecraft.exe --help
+```
+
+- Supports **C (`.c`)**, **C++ (`.cpp`)**, and **Java (`.java`)** only; automatically selects the matching compiler pipeline by extension, passes `--ast` when requested, invokes the resolved sibling binary via OS process APIs (no shell), emits TAC (or AST with `--ast`) on success (`exit 0`), and suppresses TAC on any lexical, syntax, semantic, or CLI error (`exit 1`). Baseline `.mc` remains served by `bin/compilecraft-{lexer,parser,semantic,tac}.exe`.
+
+### Baseline Parser CLI (`bin/compilecraft-parser.exe`)
 
 ```powershell
 # Default: syntax validation only
@@ -221,6 +234,7 @@ CompileCraft/
 ├── CPP_Compiler/                # C++-subset lexer + Bison parser + driver (M2.2/M10)
 ├── Java_Compiler/               # Java-subset lexer + Bison parser + driver (M2.3/M11)
 ├── src/
+│   ├── main.c                   # [M8] Unified multi-language CLI dispatcher
 │   ├── ast/                     # [M4] Shared AST core
 │   ├── lexer/                   # Baseline .mc lexer
 │   ├── parser/                  # Baseline .mc parser + AST wiring + CLI
@@ -229,6 +243,7 @@ CompileCraft/
 │   └── tac/                     # [M7] Shared Three-Address Code generator
 └── tests/
     ├── run_tests.py
+    ├── cli/                     # 27 unified CLI integration & error tests (M8)
     ├── lexer/                   # 18
     ├── c/                       # 27 lexer + parser/ (22) + semantic/ (10) + tac/ (11)
     ├── cpp/                     # 24 lexer + parser/ (30) + semantic/ (9)  + tac/ (15)
@@ -261,22 +276,23 @@ Generated outputs (`bin/`, `build/`, Flex/Bison intermediates) are gitignored.
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" all
 
 # Individual compiler/lexer targets:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" cli
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-c lexer-cpp lexer-java
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" parser
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" c-compiler cpp-compiler java-compiler
 ```
 
-Builds also produce `bin/compilecraft-semantic.exe`, `bin/compilecraft-tac.exe`, AST harnesses, and three standalone C unit-test executables (`bin/test-ast-list-ownership.exe`, `bin/test-symbol-table.exe`, `bin/test-tac.exe`).
+Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bin/compilecraft-tac.exe`, AST harnesses, and three standalone C unit-test executables (`bin/test-ast-list-ownership.exe`, `bin/test-symbol-table.exe`, `bin/test-tac.exe`).
 
 ### 8.3 Regression tests
 
 | Suite | Passed |
 |---|---:|
-| Automated regression (19 suites) | 388/388 |
+| Automated regression (20 suites) | 415/415 |
 | Unit-test executables | 3/3 |
 
-Breakdown of the **388/388** automated regression cases:
+Breakdown of the **415/415** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
@@ -293,7 +309,8 @@ Breakdown of the **388/388** automated regression cases:
 | C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 22 + 10 + 11 |
 | C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 30 + 9 + 15 |
 | Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 33 + 9 + 15 |
-| **Total (automated regression)** | **388/388** |
+| Unified CLI (`tests/cli`) | 27 |
+| **Total (automated regression)** | **415/415** |
 
 Standalone unit-test executables (`3/3` passing):
 - `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
@@ -301,10 +318,11 @@ Standalone unit-test executables (`3/3` passing):
 - `bin/test-tac.exe` (`test-tac-unit`)
 
 ```powershell
-# All suites (388 automated tests + 3 unit-test executables):
+# All suites (415 automated tests + 3 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
-# Language compiler suites:
+# Unified CLI & language compiler suites:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cli
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java-compiler
@@ -318,7 +336,6 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 
 | Item | Focus | Status |
 |---|---|---|
-| **M8** | Unified CLI driver (`compilecraft`) | Pending |
 | **M13** | Frontend–compiler integration | Pending |
 | **M14** | Final documentation and faculty verification | Pending |
 | **DEC-07** | Short-circuit vs eager logical evaluation (`&&` / `||`) | Open (interim eager TAC policy) |
