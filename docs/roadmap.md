@@ -23,7 +23,7 @@
 M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
 ```
 
-**Current project status (baseline `.mc`):** M0–M7 complete on `friend/m5-m6-semantic`. C / C++ / Java remain lexer-only. Next development milestone: **M8 Driver Integration**.
+**Current project status (baseline `.mc`):** M0–M7 complete on `dev` (semantic-gated TAC + goldens). C / C++ / Java remain lexer-only. Next development milestone: **M8 Driver Integration**. DEC-07 (short-circuit vs eager `&&`/`||`) remains OPEN with an M7 interim eager policy.
 
 ---
 
@@ -248,10 +248,12 @@ Implement an AST visitor that walks the tree, interacts with the scoped symbol t
 ### Objective
 Generate linear Three-Address Code (TAC) from the validated AST, allocating temporaries, emitting relational and arithmetic instructions, and generating control flow labels and jumps.
 
-### Status: **COMPLETED**
-- `src/tac/tac.h`: TAC instruction types, operand representation, and instruction list.
-- `src/tac/tac.c`: TAC instruction emission, temporary allocator (`t1`, `t2`, ...), label allocator (`L1`, `L2`, ...), and AST code generator.
-- `tests/tac/test_tac.c`: Unit tests verifying arithmetic expressions and control flow translation.
+### Status: **COMPLETED** (M7 hardening on `dev`)
+- `src/tac/tac.h` / `src/tac/tac.c`: TAC IR, temps/labels, control-flow emission, explicit generation failure (no partial success).
+- `src/tac/main.c`: Semantic-to-TAC integration driver `bin/compilecraft-tac.exe` (not M8 CLI).
+- `tests/tac/test_tac.c`: Structural unit tests (arith, relational/logical/unary, init/print, if-else, while, nested blocks).
+- `tests/tac/golden/`: Golden TAC suite including Section 5.5 sample + semantic rejection case.
+- `docs/tac.md`: TAC format, control-flow shapes, DEC-07 interim policy.
 
 ### Acceptance Checks
 - [x] Emits arithmetic TAC instructions with at most three operands: `t1 = b * 2`, `t2 = a + t1`.
@@ -259,7 +261,9 @@ Generate linear Three-Address Code (TAC) from the validated AST, allocating temp
 - [x] Generates conditional jumps (`if t0 goto L1`) and unconditional jumps (`goto L2`) for `if`, `if-else`, and `while` loops.
 - [x] Translates `while` loops with loop-header labels, condition evaluation, conditional exit jump, and back-jump.
 - [x] Generates TAC for `print` statements (e.g., `print a`).
-- [x] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC.
+- [x] Successfully compiles the Section 5.5 sample program into clean, verifiable TAC (`tests/tac/golden/12_sample_program.*`).
+- [x] TAC is generated only after successful semantic analysis in the integration driver.
+- [x] Allocation/emission failures return `NULL` (no silent incomplete TAC).
 
 ### Suggested Commit Messages
 - `feat(tac): define intermediate representation data structures and instruction list`

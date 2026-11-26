@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline mini-language AST complete through **M4.5** (docs sync). Next: **M5** scoped symbol table.
+> **Current focus**: baseline `.mc` pipeline through **M7 TAC**. Next: **M8** unified `compilecraft` CLI.
 
 ---
 
@@ -14,16 +14,16 @@
 
 The long-term design shares AST, symbol-table, and Three-Address Code (TAC) infrastructure across languages. There is **no backend codegen**; the intended pipeline ends at TAC.
 
-**Implemented today (through Milestone 4.5):**
+**Implemented today (through Milestone 7):**
 
 - Four standalone Flex lexers (baseline, C, C++, Java).
 - Hardened baseline Bison parser (detailed diagnostics, recovery, zero-conflict build gate).
 - Baseline AST core under `src/ast/`, wired into the parser with source locations, ownership rules, and structural regression suites.
+- Scoped symbol table (`src/symbol_table/`) and semantic analyzer (`src/semantic/`) with faculty-rule goldens.
+- TAC generator (`src/tac/`) with unit tests, semantic-gated integration driver (`compilecraft-tac.exe`), and golden suite including the Section 5.5 sample.
 - Production parser CLI with optional `--ast` output.
-- Production `tests/ast/` golden suite against `compilecraft-parser.exe --ast`.
-- Documentation synchronized with the implemented front end (`README.md`, `docs/ast.md`, `docs/parser.md`, `docs/roadmap.md`).
 
-**Not yet implemented:** C / C++ / Java parsers and language-specific ASTs, scoped symbol tables, semantic analysis, TAC generation, and the unified `compilecraft` driver (M8).
+**Not yet implemented:** Unified `compilecraft` CLI (M8), C / C++ / Java parsers and language-specific ASTs, and final DEC-07 short-circuit policy for `&&` / `||`.
 
 ---
 
@@ -55,11 +55,11 @@ Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
                                ▼    ▼    ▼
                     ┌──────────────────────────────┐
                     │ Shared Core (symbol / TAC)   │
-                    │ PLANNED (M5–M7)              │
+                    │ DONE for .mc (M5–M7)         │
                     └──────────────────────────────┘
 ```
 
-**Baseline AST today** lives under `src/ast/` (not yet a multi-language `src/common/ast/`).
+**Baseline AST today** lives under `src/ast/` (not yet a multi-language `src/common/ast/`). TAC docs: `docs/tac.md`.
 
 ### Out-of-scope boundaries
 
@@ -109,7 +109,7 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **Docs sync** | README + AST/parser/roadmap notes | **COMPLETED (M4.5)** | |
 | **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit tests. |
 | **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
-| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Linear instructions, temporaries, labels, jumps, unit tests. |
+| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Semantic-gated driver, unit + golden suites (incl. Sec 5.5); DEC-07 interim eager `&&`/`\|\|`. |
 | **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Next milestone. |
 
 ### Milestone summary (M4)

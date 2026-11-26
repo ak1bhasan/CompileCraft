@@ -26,8 +26,8 @@ typedef enum TacOpcode {
     TAC_OP_GT,          /* dest = src1 > src2 */
     TAC_OP_LE,          /* dest = src1 <= src2 */
     TAC_OP_GE,          /* dest = src1 >= src2 */
-    TAC_OP_AND,         /* dest = src1 && src2 */
-    TAC_OP_OR,          /* dest = src1 || src2 */
+    TAC_OP_AND,         /* dest = src1 && src2 (eager; see DEC-07) */
+    TAC_OP_OR,          /* dest = src1 || src2 (eager; see DEC-07) */
     TAC_OP_NOT,         /* dest = !src1 */
     TAC_OP_NEG,         /* dest = -src1 */
     TAC_OP_GOTO,        /* goto label */
@@ -54,13 +54,19 @@ typedef struct TacGenerator {
     TacList instructions;
     int next_temp_id;
     int next_label_id;
+    int failed; /* non-zero if generation cannot produce a complete stream */
 } TacGenerator;
 
 /* Lifecycle Operations */
 TacGenerator *tac_generator_create(void);
 void tac_generator_destroy(TacGenerator *gen);
 
-/* Generation from AST */
+/*
+ * Generate TAC for a program AST.
+ * Returns a newly allocated TacList on success (caller owns via tac_list_free).
+ * Returns NULL on failure (invalid root, OOM, or incomplete emission).
+ * Never returns a partial instruction list as success.
+ */
 TacList *tac_generate_program(const AstNode *root);
 
 /* Printing and Memory Management */

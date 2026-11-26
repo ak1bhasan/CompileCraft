@@ -1,0 +1,8 @@
+p = true
+q = false
+t1 = p && q
+r = t1
+t2 = p || q
+r = t2
+t3 = !p
+r = t3

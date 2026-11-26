@@ -1,5 +1,9 @@
 /* ==============================================================================
  * CompileCraft - Three-Address Code (TAC) Generation Implementation (Milestone 7)
+ *
+ * Logical && / ||: eager value evaluation into temporaries (DEC-07 still OPEN for
+ * short-circuit operand evaluation). Control-flow statements already use labels
+ * and conditional jumps around statement bodies.
  * ============================================================================== */
 
 #include "tac.h"
@@ -7,21 +11,45 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char *duplicate_str(const char *s) {
-    if (!s) return NULL;
-    return strdup(s);
+static void free_instruction_chain(TacInstr *head) {
+    TacInstr *curr = head;
+    while (curr) {
+        TacInstr *next = curr->next;
+        free(curr->dest);
+        free(curr->src1);
+        free(curr->src2);
+        free(curr);
+        curr = next;
+    }
 }
 
-static char *format_int_literal(int val) {
+static void mark_failed(TacGenerator *gen) {
+    if (gen) {
+        gen->failed = 1;
+    }
+}
+
+static char *duplicate_str(TacGenerator *gen, const char *s) {
+    if (!s) {
+        return NULL;
+    }
+    char *copy = strdup(s);
+    if (!copy) {
+        mark_failed(gen);
+    }
+    return copy;
+}
+
+static char *format_int_literal(TacGenerator *gen, int val) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", val);
-    return duplicate_str(buf);
+    return duplicate_str(gen, buf);
 }
 
-static char *format_float_literal(double val) {
+static char *format_float_literal(TacGenerator *gen, double val) {
     char buf[64];
     snprintf(buf, sizeof(buf), "%g", val);
-    return duplicate_str(buf);
+    return duplicate_str(gen, buf);
 }
 
 static TacOpcode binop_to_tac_opcode(AstBinOp op) {
@@ -45,43 +73,90 @@ static TacOpcode binop_to_tac_opcode(AstBinOp op) {
 
 TacGenerator *tac_generator_create(void) {
     TacGenerator *gen = (TacGenerator *)malloc(sizeof(TacGenerator));
-    if (!gen) return NULL;
+    if (!gen) {
+        return NULL;
+    }
 
     gen->instructions.head = NULL;
     gen->instructions.tail = NULL;
     gen->instructions.count = 0;
     gen->next_temp_id = 1;
     gen->next_label_id = 1;
+    gen->failed = 0;
     return gen;
 }
 
 void tac_generator_destroy(TacGenerator *gen) {
-    if (!gen) return;
-    /* Do not free instructions if they were returned to caller */
+    if (!gen) {
+        return;
+    }
     free(gen);
 }
 
 static char *new_temp(TacGenerator *gen) {
+    if (!gen || gen->failed) {
+        return NULL;
+    }
     char buf[32];
     snprintf(buf, sizeof(buf), "t%d", gen->next_temp_id++);
-    return duplicate_str(buf);
+    return duplicate_str(gen, buf);
 }
 
 static char *new_label(TacGenerator *gen) {
+    if (!gen || gen->failed) {
+        return NULL;
+    }
     char buf[32];
     snprintf(buf, sizeof(buf), "L%d", gen->next_label_id++);
-    return duplicate_str(buf);
+    return duplicate_str(gen, buf);
 }
 
-static void emit_instr(TacGenerator *gen, TacOpcode opcode, const char *dest, const char *src1, const char *src2) {
+static int emit_instr(
+    TacGenerator *gen,
+    TacOpcode opcode,
+    const char *dest,
+    const char *src1,
+    const char *src2) {
+    if (!gen || gen->failed) {
+        return 0;
+    }
+
     TacInstr *instr = (TacInstr *)malloc(sizeof(TacInstr));
-    if (!instr) return;
+    if (!instr) {
+        mark_failed(gen);
+        return 0;
+    }
 
     instr->opcode = opcode;
-    instr->dest = duplicate_str(dest);
-    instr->src1 = duplicate_str(src1);
-    instr->src2 = duplicate_str(src2);
+    instr->dest = NULL;
+    instr->src1 = NULL;
+    instr->src2 = NULL;
     instr->next = NULL;
+
+    if (dest) {
+        instr->dest = duplicate_str(gen, dest);
+        if (!instr->dest) {
+            free(instr);
+            return 0;
+        }
+    }
+    if (src1) {
+        instr->src1 = duplicate_str(gen, src1);
+        if (!instr->src1) {
+            free(instr->dest);
+            free(instr);
+            return 0;
+        }
+    }
+    if (src2) {
+        instr->src2 = duplicate_str(gen, src2);
+        if (!instr->src2) {
+            free(instr->dest);
+            free(instr->src1);
+            free(instr);
+            return 0;
+        }
+    }
 
     if (!gen->instructions.head) {
         gen->instructions.head = instr;
@@ -91,36 +166,59 @@ static void emit_instr(TacGenerator *gen, TacOpcode opcode, const char *dest, co
         gen->instructions.tail = instr;
     }
     gen->instructions.count++;
+    return 1;
 }
 
-/* Recursive expression generation: returns an operand string (variable, temp, or literal) */
+/* Returns owned operand string, or NULL on failure. */
 static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
-    if (!expr) return duplicate_str("");
+    if (!gen || gen->failed) {
+        return NULL;
+    }
+    if (!expr) {
+        mark_failed(gen);
+        return NULL;
+    }
 
     switch (expr->kind) {
         case AST_LITERAL: {
             switch (expr->u.literal.lit_kind) {
                 case AST_LIT_INT:
-                    return format_int_literal(expr->u.literal.as.ival);
+                    return format_int_literal(gen, expr->u.literal.as.ival);
                 case AST_LIT_FLOAT:
-                    return format_float_literal(expr->u.literal.as.fval);
+                    return format_float_literal(gen, expr->u.literal.as.fval);
                 case AST_LIT_BOOL:
-                    return duplicate_str(expr->u.literal.as.bval ? "true" : "false");
+                    return duplicate_str(gen, expr->u.literal.as.bval ? "true" : "false");
                 default:
-                    return duplicate_str("0");
+                    mark_failed(gen);
+                    return NULL;
             }
         }
 
         case AST_IDENTIFIER: {
-            return duplicate_str(expr->u.identifier.name);
+            if (!expr->u.identifier.name) {
+                mark_failed(gen);
+                return NULL;
+            }
+            return duplicate_str(gen, expr->u.identifier.name);
         }
 
         case AST_UNARY_OP: {
             char *op_val = generate_expr(gen, expr->u.unary.operand);
+            if (!op_val) {
+                return NULL;
+            }
             char *temp = new_temp(gen);
+            if (!temp) {
+                free(op_val);
+                return NULL;
+            }
 
             TacOpcode code = (expr->u.unary.op == AST_OP_NOT) ? TAC_OP_NOT : TAC_OP_NEG;
-            emit_instr(gen, code, temp, op_val, NULL);
+            if (!emit_instr(gen, code, temp, op_val, NULL)) {
+                free(op_val);
+                free(temp);
+                return NULL;
+            }
 
             free(op_val);
             return temp;
@@ -128,11 +226,28 @@ static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
 
         case AST_BINARY_OP: {
             char *left_val = generate_expr(gen, expr->u.binary.left);
+            if (!left_val) {
+                return NULL;
+            }
             char *right_val = generate_expr(gen, expr->u.binary.right);
+            if (!right_val) {
+                free(left_val);
+                return NULL;
+            }
             char *temp = new_temp(gen);
+            if (!temp) {
+                free(left_val);
+                free(right_val);
+                return NULL;
+            }
 
             TacOpcode code = binop_to_tac_opcode(expr->u.binary.op);
-            emit_instr(gen, code, temp, left_val, right_val);
+            if (!emit_instr(gen, code, temp, left_val, right_val)) {
+                free(left_val);
+                free(right_val);
+                free(temp);
+                return NULL;
+            }
 
             free(left_val);
             free(right_val);
@@ -140,49 +255,101 @@ static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
         }
 
         default:
-            return duplicate_str("");
+            mark_failed(gen);
+            return NULL;
     }
 }
 
 static void generate_statement(TacGenerator *gen, const AstNode *stmt);
 
 static void generate_block(TacGenerator *gen, const AstNode *block) {
+    if (!gen || gen->failed || !block) {
+        return;
+    }
     const AstNode *curr = block->u.block.stmts;
-    while (curr) {
+    while (curr && !gen->failed) {
         generate_statement(gen, curr);
         curr = curr->next;
     }
 }
 
 static void generate_if(TacGenerator *gen, const AstNode *stmt) {
+    if (!gen || gen->failed || !stmt) {
+        return;
+    }
+
     char *cond_val = generate_expr(gen, stmt->u.if_stmt.cond);
     char *l_then = new_label(gen);
     char *l_end = new_label(gen);
+    if (!cond_val || !l_then || !l_end) {
+        free(cond_val);
+        free(l_then);
+        free(l_end);
+        mark_failed(gen);
+        return;
+    }
 
     if (stmt->u.if_stmt.else_branch) {
         char *l_else = new_label(gen);
+        if (!l_else) {
+            free(cond_val);
+            free(l_then);
+            free(l_end);
+            return;
+        }
 
-        emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_then);
-        emit_instr(gen, TAC_OP_GOTO, l_else, NULL, NULL);
+        if (!emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_then) ||
+            !emit_instr(gen, TAC_OP_GOTO, l_else, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_else);
+            free(l_end);
+            return;
+        }
 
-        emit_instr(gen, TAC_OP_LABEL, l_then, NULL, NULL);
+        if (!emit_instr(gen, TAC_OP_LABEL, l_then, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_else);
+            free(l_end);
+            return;
+        }
         generate_statement(gen, stmt->u.if_stmt.then_branch);
-        emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL);
-
-        emit_instr(gen, TAC_OP_LABEL, l_else, NULL, NULL);
+        if (gen->failed ||
+            !emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL) ||
+            !emit_instr(gen, TAC_OP_LABEL, l_else, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_else);
+            free(l_end);
+            return;
+        }
         generate_statement(gen, stmt->u.if_stmt.else_branch);
-
-        emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL);
+        if (gen->failed || !emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_else);
+            free(l_end);
+            return;
+        }
 
         free(l_else);
     } else {
-        emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_then);
-        emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL);
-
-        emit_instr(gen, TAC_OP_LABEL, l_then, NULL, NULL);
+        if (!emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_then) ||
+            !emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL) ||
+            !emit_instr(gen, TAC_OP_LABEL, l_then, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_end);
+            return;
+        }
         generate_statement(gen, stmt->u.if_stmt.then_branch);
-
-        emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL);
+        if (gen->failed || !emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL)) {
+            free(cond_val);
+            free(l_then);
+            free(l_end);
+            return;
+        }
     }
 
     free(cond_val);
@@ -191,21 +358,49 @@ static void generate_if(TacGenerator *gen, const AstNode *stmt) {
 }
 
 static void generate_while(TacGenerator *gen, const AstNode *stmt) {
+    if (!gen || gen->failed || !stmt) {
+        return;
+    }
+
     char *l_head = new_label(gen);
     char *l_body = new_label(gen);
     char *l_end = new_label(gen);
+    if (!l_head || !l_body || !l_end) {
+        free(l_head);
+        free(l_body);
+        free(l_end);
+        return;
+    }
 
-    emit_instr(gen, TAC_OP_LABEL, l_head, NULL, NULL);
+    if (!emit_instr(gen, TAC_OP_LABEL, l_head, NULL, NULL)) {
+        free(l_head);
+        free(l_body);
+        free(l_end);
+        return;
+    }
 
     char *cond_val = generate_expr(gen, stmt->u.while_stmt.cond);
-    emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_body);
-    emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL);
+    if (!cond_val ||
+        !emit_instr(gen, TAC_OP_IF_GOTO, NULL, cond_val, l_body) ||
+        !emit_instr(gen, TAC_OP_GOTO, l_end, NULL, NULL) ||
+        !emit_instr(gen, TAC_OP_LABEL, l_body, NULL, NULL)) {
+        free(cond_val);
+        free(l_head);
+        free(l_body);
+        free(l_end);
+        return;
+    }
 
-    emit_instr(gen, TAC_OP_LABEL, l_body, NULL, NULL);
     generate_statement(gen, stmt->u.while_stmt.body);
-    emit_instr(gen, TAC_OP_GOTO, l_head, NULL, NULL);
-
-    emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL);
+    if (gen->failed ||
+        !emit_instr(gen, TAC_OP_GOTO, l_head, NULL, NULL) ||
+        !emit_instr(gen, TAC_OP_LABEL, l_end, NULL, NULL)) {
+        free(cond_val);
+        free(l_head);
+        free(l_body);
+        free(l_end);
+        return;
+    }
 
     free(cond_val);
     free(l_head);
@@ -214,13 +409,28 @@ static void generate_while(TacGenerator *gen, const AstNode *stmt) {
 }
 
 static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
-    if (!stmt) return;
+    if (!gen || gen->failed || !stmt) {
+        return;
+    }
 
     switch (stmt->kind) {
         case AST_VAR_DECL: {
             if (stmt->u.var_decl.init) {
                 char *init_val = generate_expr(gen, stmt->u.var_decl.init);
-                emit_instr(gen, TAC_OP_ASSIGN, stmt->u.var_decl.name->u.identifier.name, init_val, NULL);
+                if (!init_val || !stmt->u.var_decl.name) {
+                    free(init_val);
+                    mark_failed(gen);
+                    return;
+                }
+                if (!emit_instr(
+                        gen,
+                        TAC_OP_ASSIGN,
+                        stmt->u.var_decl.name->u.identifier.name,
+                        init_val,
+                        NULL)) {
+                    free(init_val);
+                    return;
+                }
                 free(init_val);
             }
             break;
@@ -228,7 +438,21 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
 
         case AST_ASSIGN: {
             char *val = generate_expr(gen, stmt->u.assign.value);
-            emit_instr(gen, TAC_OP_ASSIGN, stmt->u.assign.target->u.identifier.name, val, NULL);
+            if (!val || !stmt->u.assign.target ||
+                stmt->u.assign.target->kind != AST_IDENTIFIER) {
+                free(val);
+                mark_failed(gen);
+                return;
+            }
+            if (!emit_instr(
+                    gen,
+                    TAC_OP_ASSIGN,
+                    stmt->u.assign.target->u.identifier.name,
+                    val,
+                    NULL)) {
+                free(val);
+                return;
+            }
             free(val);
             break;
         }
@@ -256,7 +480,11 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
 
         case AST_PRINT: {
             char *val = generate_expr(gen, stmt->u.print_stmt.expr);
-            emit_instr(gen, TAC_OP_PRINT, NULL, val, NULL);
+            if (!val || !emit_instr(gen, TAC_OP_PRINT, NULL, val, NULL)) {
+                free(val);
+                mark_failed(gen);
+                return;
+            }
             free(val);
             break;
         }
@@ -267,19 +495,30 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
 }
 
 TacList *tac_generate_program(const AstNode *root) {
-    if (!root || root->kind != AST_PROGRAM) return NULL;
+    if (!root || root->kind != AST_PROGRAM) {
+        return NULL;
+    }
 
     TacGenerator *gen = tac_generator_create();
-    if (!gen) return NULL;
+    if (!gen) {
+        return NULL;
+    }
 
     const AstNode *curr = root->u.program.stmts;
-    while (curr) {
+    while (curr && !gen->failed) {
         generate_statement(gen, curr);
         curr = curr->next;
     }
 
+    if (gen->failed) {
+        free_instruction_chain(gen->instructions.head);
+        tac_generator_destroy(gen);
+        return NULL;
+    }
+
     TacList *result = (TacList *)malloc(sizeof(TacList));
     if (!result) {
+        free_instruction_chain(gen->instructions.head);
         tac_generator_destroy(gen);
         return NULL;
     }
@@ -290,7 +529,9 @@ TacList *tac_generate_program(const AstNode *root) {
 }
 
 void tac_print(const TacList *list, FILE *out) {
-    if (!list || !out) return;
+    if (!list || !out) {
+        return;
+    }
 
     TacInstr *curr = list->head;
     while (curr) {
@@ -365,16 +606,9 @@ void tac_print(const TacList *list, FILE *out) {
 }
 
 void tac_list_free(TacList *list) {
-    if (!list) return;
-
-    TacInstr *curr = list->head;
-    while (curr) {
-        TacInstr *next = curr->next;
-        if (curr->dest) free(curr->dest);
-        if (curr->src1) free(curr->src1);
-        if (curr->src2) free(curr->src2);
-        free(curr);
-        curr = next;
+    if (!list) {
+        return;
     }
+    free_instruction_chain(list->head);
     free(list);
 }
