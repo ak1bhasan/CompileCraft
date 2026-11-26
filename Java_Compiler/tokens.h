@@ -90,9 +90,11 @@ typedef enum yytokentype yytoken_kind_t;
 #define SEMICOLON       SEMICOLON
 #define COMMA           COMMA
 
-/* Semantic Value Union for Standalone Lexer Mode */
-#ifndef YYSTYPE_DEFINED
-#define YYSTYPE_DEFINED
+/* Semantic Value Union: standalone lexer only. Parser builds use Bison YYSTYPE. */
+#if !defined(YYSTYPE_DEFINED) && !defined(YYSTYPE_IS_DECLARED) && !defined(YYSTYPE)
+#define YYSTYPE_DEFINED 1
+#define YYSTYPE_IS_DECLARED 1
+#define YYSTYPE_IS_TRIVIAL 1
 typedef union YYSTYPE {
     int ival;
     double fval;

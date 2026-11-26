@@ -1,0 +1,7 @@
+a = true
+b = false
+t1 = a && b
+c = t1
+t2 = !b
+t3 = a || t2
+d = t3

@@ -304,7 +304,7 @@ Add a dedicated C Bison grammar that reuses the shared AST, symbol table, semant
 ### Objective
 Add a dedicated C++ Bison grammar for the procedural subset (`int`/`float`/`bool`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
 
-### Status: **COMPLETED** (on `dev`, pending commit approval)
+### Status: **COMPLETED**
 - `CPP_Compiler/parser.y`: C++ procedural grammar with `bool`/`true`/`false` and for-loop lowering.
 - `CPP_Compiler/main_compiler.c`: `bin/compilecraft-cpp.exe` — C++ Flex → Bison → AST → semantic → TAC.
 - Independent Rule 4 vs Rule 5 semantic goldens (bool/numeric vs float→int).
@@ -316,6 +316,29 @@ Add a dedicated C++ Bison grammar for the procedural subset (`int`/`float`/`bool
 - [x] Supports `if` / `if-else` / `while` / `for` with `++`/`--`.
 - [x] For-init declarations scoped to the loop only.
 - [x] Six faculty semantic rules independently tested under C++.
+- [x] Demo control-flow program generates correct TAC.
+- [x] Prior suites remain green via `mingw32-make test`.
+
+---
+
+## Milestone 11 (project): Java Front-End Parser + Control Flow
+
+### Objective
+Add a dedicated Java Bison grammar for the class/main-wrapped subset (`int`/`float`/`boolean`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
+
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- `Java_Compiler/parser.y`: Java subset grammar supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `boolean`/`true`/`false`, control flow, and for-loop lowering.
+- `Java_Compiler/main_compiler.c`: `bin/compilecraft-java.exe` — Java Flex → Bison → AST → semantic → TAC.
+- Independent Rule 4 vs Rule 5 semantic goldens (`boolean` vs numeric mismatch, narrowing `float`→`int` assignment).
+- Tests: `tests/java/parser/` (33 tests), `tests/java/semantic/` (9 tests), `tests/java/tac/` (10 tests incl. `demo_control_flow.java`).
+- Documentation: `docs/java_frontend.md`, updated `README.md` and `docs/roadmap.md`.
+
+### Acceptance Checks
+- [x] Parses `[public] class Name { public static void main(String[] args) { ... } }` into shared AST.
+- [x] Supports `boolean`, `true`, `false` through lexer → TAC.
+- [x] Supports `if` / `if-else` / `while` / `for` with `++`/`--`.
+- [x] For-init declarations scoped to the loop only.
+- [x] Six faculty semantic rules independently tested under Java.
 - [x] Demo control-flow program generates correct TAC.
 - [x] Prior suites remain green via `mingw32-make test`.
 

@@ -113,6 +113,7 @@ desktop.ini
 !CPP_Compiler/**/*.h
 !CPP_Compiler/**/*.def
 !Java_Compiler/**/*.l
+!Java_Compiler/**/*.y
 !Java_Compiler/**/*.c
 !Java_Compiler/**/*.h
 !Java_Compiler/**/*.def
@@ -120,6 +121,7 @@ desktop.ini
 !tests/**/*.mc
 !tests/**/*.c
 !tests/**/*.cpp
+!tests/**/*.java
 !tests/**/*.txt
 !examples/**/*.mc
 !examples/**/*.c

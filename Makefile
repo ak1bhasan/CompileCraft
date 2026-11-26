@@ -42,12 +42,15 @@ TAC_BIN         ?= $(BIN_DIR)/compilecraft-tac.exe
 C_COMPILER_BIN  ?= $(BIN_DIR)/compilecraft-c.exe
 # M10: C++ front-end (lexer + parser + semantic + TAC)
 CPP_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-cpp.exe
+# M11: Java front-end (lexer + parser + semantic + TAC)
+JAVA_COMPILER_BIN ?= $(BIN_DIR)/compilecraft-java.exe
 
 BUILD_SYMTAB_DIR ?= $(BUILD_DIR)/symbol_table
 BUILD_SEMANTIC_DIR ?= $(BUILD_DIR)/semantic
 BUILD_TAC_DIR   ?= $(BUILD_DIR)/tac
 BUILD_C_PARSER_DIR ?= $(BUILD_DIR)/c_parser
 BUILD_CPP_PARSER_DIR ?= $(BUILD_DIR)/cpp_parser
+BUILD_JAVA_PARSER_DIR ?= $(BUILD_DIR)/java_parser
 
 PARSER_TAB_C    := $(BUILD_PARSER_DIR)/parser.tab.c
 PARSER_TAB_H    := $(BUILD_PARSER_DIR)/parser.tab.h
@@ -63,12 +66,12 @@ TAC_O           := $(BUILD_TAC_DIR)/tac.o
 # Do not use %expect — conflicts must fail the build, not be hidden.
 BISONFLAGS      ?= -d -v -Werror=conflicts-sr -Werror=conflicts-rr
 
-.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test clean help
+.PHONY: all toolchain-check lexer lexer-c lexer-cpp lexer-java parser c-compiler cpp-compiler java-compiler test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-tac-unit test-tac-golden test-c-parser test-c-semantic test-c-tac test-c-compiler test-cpp-parser test-cpp-semantic test-cpp-tac test-cpp-compiler test-java-parser test-java-semantic test-java-tac test-java-compiler test clean help
 
-all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN)
+all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN)
 	@echo ""
 	@echo "=============================================================================="
-	@echo " CompileCraft - Build Succeeded (through Milestone 10: C++ Parser)"
+	@echo " CompileCraft - Build Succeeded (through Milestone 11: Java Parser)"
 	@echo "=============================================================================="
 	@echo " Verified Toolchain:"
 	@echo "   CC            : $(CC)"
@@ -84,6 +87,7 @@ all: toolchain-check $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_B
 	@echo "   Parser        : $(PARSER_BIN)"
 	@echo "   C Compiler    : $(C_COMPILER_BIN)"
 	@echo "   C++ Compiler  : $(CPP_COMPILER_BIN)"
+	@echo "   Java Compiler : $(JAVA_COMPILER_BIN)"
 	@echo "   Expr AST test : $(EXPR_AST_BIN)"
 	@echo "   Program AST   : $(PROGRAM_AST_BIN)"
 	@echo "   AST ownership : $(AST_OWNERSHIP_BIN)"
@@ -414,11 +418,57 @@ test-cpp-tac: $(CPP_COMPILER_BIN)
 
 test-cpp-compiler: test-cpp-parser test-cpp-semantic test-cpp-tac
 
-test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler test-cpp-compiler
+# ------------------------------------------------------------------------------
+# Milestone 11: Java Front-End (parser + semantic + TAC)
+# ------------------------------------------------------------------------------
+JAVA_PARSER_TAB_C := $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.c
+JAVA_PARSER_TAB_H := $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.h
+JAVA_PARSER_LEX_O := $(BUILD_JAVA_PARSER_DIR)/lex.yy.o
+
+$(BUILD_JAVA_PARSER_DIR)/java_parser.tab.c $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.h: Java_Compiler/parser.y
+	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
+	$(BISON) $(BISONFLAGS) -o $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.c $<
+
+$(BUILD_JAVA_PARSER_DIR)/java_parser.tab.o: $(JAVA_PARSER_TAB_C) $(JAVA_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
+	$(CC) $(CFLAGS) -IJava_Compiler -Isrc/ast -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
+
+$(JAVA_PARSER_LEX_O): $(BUILD_JAVA_DIR)/lex.yy.c Java_Compiler/tokens.h Java_Compiler/tokens.def $(JAVA_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
+	$(CC) $(CFLAGS) -IJava_Compiler -Isrc/ast -I$(BUILD_JAVA_PARSER_DIR) -Isrc \
+		-include java_parser.tab.h \
+		-c $(BUILD_JAVA_DIR)/lex.yy.c -o $@
+
+$(BUILD_JAVA_PARSER_DIR)/tokens.o: Java_Compiler/tokens.c Java_Compiler/tokens.h Java_Compiler/tokens.def $(JAVA_PARSER_TAB_H) src/ast/ast.h
+	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
+	$(CC) $(CFLAGS) -DBISON_OWNS_YYLVAL -IJava_Compiler -Isrc/ast -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
+
+$(BUILD_JAVA_PARSER_DIR)/main_compiler.o: Java_Compiler/main_compiler.c Java_Compiler/parser.h $(JAVA_PARSER_TAB_H) src/ast/ast.h src/semantic/semantic.h src/tac/tac.h
+	@mkdir -p $(BUILD_JAVA_PARSER_DIR)
+	$(CC) $(CFLAGS) -IJava_Compiler -Isrc/ast -Isrc/symbol_table -Isrc/semantic -Isrc/tac -I$(BUILD_JAVA_PARSER_DIR) -Isrc -c $< -o $@
+
+$(JAVA_COMPILER_BIN): $(BUILD_JAVA_PARSER_DIR)/java_parser.tab.o $(JAVA_PARSER_LEX_O) $(BUILD_JAVA_PARSER_DIR)/tokens.o $(BUILD_JAVA_PARSER_DIR)/main_compiler.o $(AST_O) $(SYMTAB_O) $(SEMANTIC_O) $(TAC_O)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $^
+
+java-compiler: $(JAVA_COMPILER_BIN)
+
+test-java-parser: $(JAVA_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(JAVA_COMPILER_BIN) tests/java/parser
+
+test-java-semantic: $(JAVA_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(JAVA_COMPILER_BIN) tests/java/semantic
+
+test-java-tac: $(JAVA_COMPILER_BIN)
+	$(PYTHON) tests/run_tests.py $(JAVA_COMPILER_BIN) tests/java/tac
+
+test-java-compiler: test-java-parser test-java-semantic test-java-tac
+
+test: test-lexer test-c test-cpp test-java test-parser test-expr-ast test-program-ast test-ast test-ast-ownership test-symtab test-semantic test-tac test-c-compiler test-cpp-compiler test-java-compiler
 
 clean:
 	@echo "Cleaning build and generated artifacts..."
-	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
+	rm -f $(TARGET) $(LEXER_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(PARSER_BIN) $(EXPR_AST_BIN) $(PROGRAM_AST_BIN) $(AST_OWNERSHIP_BIN) $(SYMTAB_BIN) $(SEMANTIC_BIN) $(TEST_TAC_BIN) $(TAC_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN) *.exe *.o *.tab.c *.tab.h lex.yy.c *.actual *.output
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 	@echo "Clean completed."
 
@@ -453,12 +503,17 @@ help:
 	@echo "   test-c-semantic  Runs C semantic regression suite (tests/c/semantic; M9)"
 	@echo "   test-c-tac       Runs C TAC golden suite (tests/c/tac; M9)"
 	@echo "   test-c-compiler  Runs all C front-end suites (M9)"
-	@echo "   cpp-compiler     Builds C++ front-end driver (bin/compilecraft-cpp.exe; M10)"
-	@echo "   test-cpp-parser  Runs C++ parser regression suite (tests/cpp/parser; M10)"
+	@echo "   cpp-compiler      Builds C++ front-end driver (bin/compilecraft-cpp.exe; M10)"
+	@echo "   test-cpp-parser   Runs C++ parser regression suite (tests/cpp/parser; M10)"
 	@echo "   test-cpp-semantic Runs C++ semantic regression suite (tests/cpp/semantic; M10)"
-	@echo "   test-cpp-tac     Runs C++ TAC golden suite (tests/cpp/tac; M10)"
+	@echo "   test-cpp-tac      Runs C++ TAC golden suite (tests/cpp/tac; M10)"
 	@echo "   test-cpp-compiler Runs all C++ front-end suites (M10)"
-	@echo "   test             Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac + C + C++)"
+	@echo "   java-compiler     Builds Java front-end driver (bin/compilecraft-java.exe; M11)"
+	@echo "   test-java-parser  Runs Java parser regression suite (tests/java/parser; M11)"
+	@echo "   test-java-semantic Runs Java semantic regression suite (tests/java/semantic; M11)"
+	@echo "   test-java-tac     Runs Java TAC golden suite (tests/java/tac; M11)"
+	@echo "   test-java-compiler Runs all Java front-end suites (M11)"
+	@echo "   test              Runs all automated test suites (lexer + parser + AST + symtab + semantic + tac + C + C++ + Java)"
 	@echo "   clean            Removes compiled binaries and intermediate build artifacts"
 	@echo "   help             Displays this help screen"
 	@echo ""
