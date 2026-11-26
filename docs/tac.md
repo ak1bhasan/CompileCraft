@@ -1,7 +1,8 @@
 # CompileCraft — Three-Address Code (TAC)
 
-> **Milestone**: M7  
-> **Scope**: Baseline mini-language (`.mc`) only
+> **Milestone**: M7 (extended for multi-language console output)
+
+> **Scope**: Shared TAC IR across `.mc`, C (`compilecraft-c`), C++ (`compilecraft-cpp`), and Java (`compilecraft-java`)
 
 ## Pipeline position
 
@@ -21,7 +22,10 @@ TAC is emitted only after a successful semantic analysis pass. The integration d
 | Conditional jump | `if t1 goto L2` |
 | Unconditional jump | `goto L3` |
 | Label | `L1:` |
-| Print | `print y` |
+| Print | `print y`, `print "Hello"` |
+| Println | `println`, `println total` |
+| Call Arg | `arg sum` |
+| Printf | `printf "Total = %d\n"` |
 
 Temporaries: `t1`, `t2`, …  
 Labels: `L1`, `L2`, …

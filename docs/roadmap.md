@@ -370,7 +370,7 @@ Provide one unified command-line executable (`bin/compilecraft.exe`) that detect
 ### Status: **COMPLETED** (committed on `dev` as `a1a5caf`; `--tokens` and `--symtab` added in M13)
 - `src/main.c`: Unified CLI (`bin/compilecraft.exe`) supporting `--help`, `-h`, `--tokens`, `--ast`, `--symtab`, `.c`/`.cpp`/`.java` extension dispatch, missing/unsupported file checks (including `.mc` rejection in the CLI while preserving baseline `.mc` tools), safe native OS process spawning (`CreateProcessA` / `fork`+`execv` without shell), sibling path resolution from outside the repository root, and paths with spaces.
 - `Makefile`: Added `cli` (`$(BIN_DIR)/compilecraft.exe`), `test-cli`, and wired into `all`, `test`, `clean`, and `help`.
-- `tests/cli/`: 33 automated CLI integration tests covering C, C++, Java, `--tokens`/`--ast`/`--symtab`, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
+- `tests/cli/`: 52 automated CLI integration tests covering C, C++, Java, `--tokens`/`--ast`/`--symtab`, console output/headers, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
 
 ### Acceptance Checks
 - [x] CLI dispatches `.c`, `.cpp`, and `.java` inputs by extension (only these three languages).
@@ -388,7 +388,7 @@ Provide one unified command-line executable (`bin/compilecraft.exe`) that detect
 
 ## Historical Baseline M9/M10 Milestones *(Archived Baseline Planning)*
 
-> **Note:** Project M9/M10/M11/M12 C, C++, and Java implementations are documented above and tracked in the 421/421 regression suites (`tests/run_tests.py` + `tests/cli/test_cli.py`). See M13 and M14 below for current active status.
+> **Note:** Project M9/M10/M11/M12 C, C++, and Java implementations are documented above and tracked in the 471/471 regression suites (`tests/run_tests.py` + `tests/cli/test_cli.py`). See M13 and M14 below for current active status.
 
 ---
 
@@ -398,7 +398,7 @@ Provide one unified command-line executable (`bin/compilecraft.exe`) that detect
 Connect the React + Vite + Monaco IDE (`frontend/`) to the real unified CompileCraft CLI (`bin/compilecraft.exe`) through a hardened Electron host (`frontend/electron/main.cjs` + `preload.cjs`) for C, C++, and Java.
 
 ### Status: **COMPLETED** (on `dev`, pending final audit & commit)
-- `src/symbol_table/` + `{C,CPP,Java}_Compiler/main_compiler.c` + `src/main.c`: Added `--tokens` and `--symtab` inspection modes alongside `--ast` and TAC generation (`33` automated CLI cases under `tests/cli/`).
+- `src/symbol_table/` + `{C,CPP,Java}_Compiler/main_compiler.c` + `src/main.c`: Added `--tokens` and `--symtab` inspection modes alongside `--ast` and TAC generation (`52` automated CLI cases under `tests/cli/`).
 - `frontend/electron/main.cjs` & `frontend/electron/preload.cjs`: Electron main + preload IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, CSP + restricted `file://` navigation, external network blocking in desktop mode, direct `child_process.spawn` without shell, process-tree termination on timeout, isolated temp directory with automatic cleanup, graceful missing-CLI and empty-source handling).
 - `frontend/src/`: Configured Monaco offline bundling (`monaco-editor` + inline Vite worker + `loader.config({ monaco })`), connected Run button (`Ctrl+Enter`), C/C++/Java language selector (without `.mc`), real **Tokens**, **AST**, **Symbol Table**, **TAC**, and clickable line-numbered **Errors** tabs plus Output/Problems/Terminal bottom panel.
 
@@ -406,7 +406,8 @@ Connect the React + Vite + Monaco IDE (`frontend/`) to the real unified CompileC
 - [x] Monaco loads cleanly from locally bundled assets with zero external CDN dependency.
 - [x] Run button compiles live editor content (including unsaved edits) through real `bin/compilecraft.exe`.
 - [x] Supports C, C++, and Java exclusively in the IDE selector while keeping baseline `.mc` compiler and tests intact.
-- [x] Each language demo (C, C++, Java) demonstrates declarations, arithmetic, `if/else`, `while`, and `for` compiling to TAC.
+- [x] Each language demo (C, C++, Java) demonstrates declarations, arithmetic, `if`/`else if`/`else`, `while`, `for`, and console output (`printf`, `std::cout`/`std::endl`, `System.out.print`/`println`) compiling to TAC.
+- [x] Supports `#include <stdio.h>` (C), `#include <iostream>` (C++), validated `printf` format output (`OutputPrintf` -> `arg`/`printf` TAC), non-scoping `Seq` C++ output chains, AST-preserved Java concatenation (`AST_OUTPUT_CONCAT`), and string misuse semantic diagnostics while rejecting unsupported preprocessor directives (`#define`, `<stdlib.h>`, `<vector>`).
 - [x] Suppresses/clears TAC immediately whenever lexical, syntax, or any of the 6 semantic rules fail.
 - [x] Works cleanly with spaces in temp/source paths, missing CLI binary fallback, empty editor input, and repeated runs.
 

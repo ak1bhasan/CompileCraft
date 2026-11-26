@@ -263,6 +263,97 @@ static void test_nested_blocks_order(void) {
     printf("  [PASS] test_nested_blocks_order\n");
 }
 
+static void test_output_and_println_tac(void) {
+    printf("Running test_output_and_println_tac...\n");
+
+    AstList items = ast_list_empty();
+    assert(ast_list_append(&items, ast_literal_string(strdup("\"Count: \""), 2, 5)));
+    assert(ast_list_append(
+        &items,
+        ast_binary(
+            AST_OP_ADD,
+            ast_identifier(strdup("n"), 2, 16),
+            ast_literal_int(1, 2, 20),
+            2,
+            18)));
+
+    AstList stmts = ast_list_empty();
+    assert(ast_list_append(&stmts, ast_output(items, 1, 2, 5)));
+    assert(ast_list_append(&stmts, ast_output(ast_list_empty(), 1, 3, 5)));
+    AstNode *prog = ast_program(stmts, 1, 1);
+
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    TacInstr *curr = tac->head;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINT);
+    assert(strcmp(curr->src1, "\"Count: \"") == 0);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_ADD);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINTLN);
+    assert(strcmp(curr->src1, "t1") == 0);
+    curr = curr->next;
+    assert(curr != NULL && curr->opcode == TAC_OP_PRINTLN);
+    assert(curr->src1 == NULL);
+    assert(curr->next == NULL);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_output_and_println_tac\n");
+}
+
+static void test_printf_seq_and_concat_tac(void) {
+    printf("Running test_printf_seq_and_concat_tac...\n");
+
+    /* 1. AST_OUTPUT_PRINTF emits TAC_OP_ARG in order followed by TAC_OP_PRINTF. */
+    AstList pf_items = ast_list_empty();
+    assert(ast_list_append(&pf_items, ast_literal_string(strdup("\"%d %f\""), 2, 5)));
+    assert(ast_list_append(&pf_items, ast_identifier(strdup("sum"), 2, 20)));
+    assert(ast_list_append(&pf_items, ast_identifier(strdup("avg"), 2, 25)));
+    AstNode *pf_node = ast_output_with_mode(pf_items, AST_OUTPUT_PRINTF, 0, 2, 5);
+
+    /* 2. AST_OUTPUT_CONCAT preserves arithmetic before string concat in TAC. */
+    AstNode *add_num = ast_binary(
+        AST_OP_ADD, ast_literal_int(1, 3, 24), ast_literal_int(2, 3, 28), 3, 26);
+    AstNode *concat = ast_binary(
+        AST_OP_ADD, add_num, ast_literal_string(strdup("\"a\""), 3, 32), 3, 30);
+    AstList java_items = ast_list_empty();
+    assert(ast_list_append(&java_items, concat));
+    AstNode *java_node = ast_output_with_mode(java_items, AST_OUTPUT_CONCAT, 1, 3, 5);
+
+    /* 3. AST_SEQ emits children sequentially without changing scopes. */
+    AstList seq_stmts = ast_list_empty();
+    assert(ast_list_append(&seq_stmts, pf_node));
+    assert(ast_list_append(&seq_stmts, java_node));
+    AstNode *seq = ast_seq(seq_stmts, 2, 5);
+
+    AstList prog_stmts = ast_list_empty();
+    assert(ast_list_append(&prog_stmts, seq));
+    AstNode *prog = ast_program(prog_stmts, 1, 1);
+
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    TacInstr *curr = tac->head;
+    assert(curr && curr->opcode == TAC_OP_ARG && strcmp(curr->src1, "sum") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_ARG && strcmp(curr->src1, "avg") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINTF && strcmp(curr->src1, "\"%d %f\"") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_ADD);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINT && strcmp(curr->src1, "t1") == 0);
+    curr = curr->next;
+    assert(curr && curr->opcode == TAC_OP_PRINTLN && strcmp(curr->src1, "\"a\"") == 0);
+    assert(curr->next == NULL);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_printf_seq_and_concat_tac\n");
+}
+
 int main(void) {
     printf("==============================================================================\n");
     printf(" CompileCraft - Three-Address Code (TAC) Unit Tests\n");
@@ -274,6 +365,8 @@ int main(void) {
     test_if_else_tac();
     test_while_tac();
     test_nested_blocks_order();
+    test_output_and_println_tac();
+    test_printf_seq_and_concat_tac();
 
     printf("==============================================================================\n");
     printf(" All TAC unit tests passed successfully!\n");

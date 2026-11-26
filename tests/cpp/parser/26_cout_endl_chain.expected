@@ -1,0 +1,6 @@
+x = 1
+println
+println "A"
+print x
+t1 = x + 1
+y = t1

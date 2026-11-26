@@ -64,10 +64,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
     switch (expr->kind) {
         case AST_LITERAL: {
             switch (expr->u.literal.lit_kind) {
-                case AST_LIT_INT:   return TYPE_INT;
-                case AST_LIT_FLOAT: return TYPE_FLOAT;
-                case AST_LIT_BOOL:  return TYPE_BOOL;
-                default:            return TYPE_UNKNOWN;
+                case AST_LIT_INT:    return TYPE_INT;
+                case AST_LIT_FLOAT:  return TYPE_FLOAT;
+                case AST_LIT_BOOL:   return TYPE_BOOL;
+                case AST_LIT_STRING: return TYPE_STRING;
+                default:             return TYPE_UNKNOWN;
             }
         }
 
@@ -113,6 +114,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                                  "Invalid expression: Unary negation '-' operator cannot be applied to boolean operand.");
                     return TYPE_UNKNOWN;
                 }
+                if (op_type == TYPE_STRING) {
+                    report_error(sa, expr->line,
+                                 "Invalid expression: Unary negation '-' operator cannot be applied to string operand.");
+                    return TYPE_UNKNOWN;
+                }
                 return op_type;
             }
             return TYPE_UNKNOWN;
@@ -137,6 +143,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                                      "Invalid expression: Arithmetic operator cannot be applied to boolean operands.");
                         return TYPE_UNKNOWN;
                     }
+                    if (left == TYPE_STRING || right == TYPE_STRING) {
+                        report_error(sa, expr->line,
+                                     "Invalid expression: Arithmetic operator cannot be applied to string operands.");
+                        return TYPE_UNKNOWN;
+                    }
                     /* Numeric promotion: float if either is float, otherwise int */
                     if (left == TYPE_FLOAT || right == TYPE_FLOAT) {
                         return TYPE_FLOAT;
@@ -149,6 +160,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                     if (left == TYPE_BOOL || right == TYPE_BOOL) {
                         report_error(sa, expr->line,
                                      "Invalid expression: Modulo operator '%%' cannot be applied to boolean operands.");
+                        return TYPE_UNKNOWN;
+                    }
+                    if (left == TYPE_STRING || right == TYPE_STRING) {
+                        report_error(sa, expr->line,
+                                     "Invalid expression: Modulo operator '%%' requires integer operands, string is not allowed.");
                         return TYPE_UNKNOWN;
                     }
                     if (left == TYPE_FLOAT || right == TYPE_FLOAT) {
@@ -167,6 +183,11 @@ static DataType analyze_expression(SemanticAnalyzer *sa, const AstNode *expr) {
                     if (left == TYPE_BOOL || right == TYPE_BOOL) {
                         report_error(sa, expr->line,
                                      "Invalid expression: Relational ordering operator requires numeric operands, got boolean.");
+                        return TYPE_UNKNOWN;
+                    }
+                    if (left == TYPE_STRING || right == TYPE_STRING) {
+                        report_error(sa, expr->line,
+                                     "Invalid expression: Relational ordering operator requires numeric operands, got string.");
                         return TYPE_UNKNOWN;
                     }
                     return TYPE_BOOL;
@@ -245,6 +266,11 @@ static void analyze_var_decl(SemanticAnalyzer *sa, const AstNode *decl) {
             } else if (decl_type == TYPE_FLOAT && init_type == TYPE_BOOL) {
                 report_error(sa, decl->line,
                              "Invalid assignment: Cannot assign 'bool' to 'float'.");
+            } else if (init_type == TYPE_STRING &&
+                       (decl_type == TYPE_INT || decl_type == TYPE_FLOAT)) {
+                report_error(sa, decl->line,
+                             "Invalid assignment: Cannot assign 'string' to '%s'.",
+                             datatype_to_string(decl_type));
             }
         }
     }
@@ -296,20 +322,170 @@ static void analyze_assignment(SemanticAnalyzer *sa, const AstNode *assign) {
         } else if (target_type == TYPE_FLOAT && val_type == TYPE_BOOL) {
             report_error(sa, assign->line,
                          "Invalid assignment: Cannot assign 'bool' to 'float'.");
+        } else if (val_type == TYPE_STRING &&
+                   (target_type == TYPE_INT || target_type == TYPE_FLOAT)) {
+            report_error(sa, assign->line,
+                         "Invalid assignment: Cannot assign 'string' to '%s'.",
+                         datatype_to_string(target_type));
         }
+    }
+}
+
+static void analyze_stmt_list(SemanticAnalyzer *sa, const AstNode *first) {
+    const AstNode *curr = first;
+    while (curr) {
+        analyze_statement(sa, curr);
+        curr = curr->next;
     }
 }
 
 static void analyze_block(SemanticAnalyzer *sa, const AstNode *block) {
     enter_scope(sa->symtab);
+    analyze_stmt_list(sa, block->u.block.stmts);
+    exit_scope(sa->symtab);
+}
 
-    const AstNode *curr = block->u.block.stmts;
-    while (curr) {
-        analyze_statement(sa, curr);
-        curr = curr->next;
+static DataType analyze_concat_expr(SemanticAnalyzer *sa, const AstNode *expr) {
+    if (!expr) return TYPE_UNKNOWN;
+
+    if (expr->kind == AST_BINARY_OP && expr->u.binary.op == AST_OP_ADD) {
+        DataType left = analyze_concat_expr(sa, expr->u.binary.left);
+        DataType right = analyze_concat_expr(sa, expr->u.binary.right);
+
+        if (left == TYPE_UNKNOWN || right == TYPE_UNKNOWN) {
+            return TYPE_UNKNOWN;
+        }
+        if (left == TYPE_STRING || right == TYPE_STRING) {
+            return TYPE_STRING;
+        }
+        if (left == TYPE_BOOL || right == TYPE_BOOL) {
+            report_error(sa, expr->line,
+                         "Invalid expression: Arithmetic operator cannot be applied to boolean operands.");
+            return TYPE_UNKNOWN;
+        }
+        return (left == TYPE_FLOAT || right == TYPE_FLOAT) ? TYPE_FLOAT : TYPE_INT;
     }
 
-    exit_scope(sa->symtab);
+    return analyze_expression(sa, expr);
+}
+
+static void analyze_printf_output(SemanticAnalyzer *sa, const AstNode *stmt) {
+    const AstNode *fmt_node = stmt->u.output_stmt.items;
+    if (!fmt_node) {
+        report_error(sa, stmt->line, "Invalid printf call: Expected a format string argument.");
+        return;
+    }
+
+    int is_string_lit = (fmt_node->kind == AST_LITERAL &&
+                         fmt_node->u.literal.lit_kind == AST_LIT_STRING);
+    DataType fmt_type = analyze_expression(sa, fmt_node);
+    const AstNode *curr_arg = fmt_node->next;
+
+    if (!is_string_lit) {
+        if (fmt_type != TYPE_UNKNOWN) {
+            report_error(sa, fmt_node->line,
+                         "Invalid printf format: First argument must be a string literal.");
+        }
+        while (curr_arg) {
+            analyze_expression(sa, curr_arg);
+            curr_arg = curr_arg->next;
+        }
+        return;
+    }
+
+    const char *s = fmt_node->u.literal.as.sval ? fmt_node->u.literal.as.sval : "";
+    size_t len = strlen(s);
+    size_t i = (len >= 2 && s[0] == '"' && s[len - 1] == '"') ? 1 : 0;
+    size_t end = (len >= 2 && s[0] == '"' && s[len - 1] == '"') ? (len - 1) : len;
+    int spec_aborted = 0;
+
+    while (i < end) {
+        if (s[i] == '\\') {
+            if (i + 1 >= end) {
+                report_error(sa, fmt_node->line,
+                             "Invalid escape sequence at end of printf format string.");
+                spec_aborted = 1;
+                break;
+            }
+            char esc = s[i + 1];
+            if (esc == '0') {
+                break;
+            }
+            if (esc != 'n' && esc != 't' && esc != 'r' &&
+                esc != '\\' && esc != '"' && esc != '\'') {
+                report_error(sa, fmt_node->line,
+                             "Invalid escape sequence '\\%c' in printf format string.", esc);
+                spec_aborted = 1;
+                break;
+            }
+            i += 2;
+            continue;
+        }
+
+        if (s[i] == '%') {
+            if (i + 1 >= end) {
+                report_error(sa, fmt_node->line,
+                             "Invalid printf format: Incomplete conversion specifier '%%' at end of format string.");
+                spec_aborted = 1;
+                break;
+            }
+            char spec = s[i + 1];
+            if (spec == '%') {
+                i += 2;
+                continue;
+            }
+
+            DataType expected = TYPE_UNKNOWN;
+            if (spec == 'd') {
+                expected = TYPE_INT;
+            } else if (spec == 'f') {
+                expected = TYPE_FLOAT;
+            } else if (spec == 's') {
+                expected = TYPE_STRING;
+            } else {
+                report_error(sa, fmt_node->line,
+                             "Invalid printf format: Unsupported conversion specifier '%%%c'. Supported specifiers are %%d, %%f, %%s, and %%%%.",
+                             spec);
+                spec_aborted = 1;
+                break;
+            }
+
+            if (!curr_arg) {
+                report_error(sa, fmt_node->line,
+                             "Invalid printf call: Too few arguments for format specifier '%%%c'.",
+                             spec);
+                spec_aborted = 1;
+                break;
+            }
+
+            DataType arg_type = analyze_expression(sa, curr_arg);
+            if (arg_type != TYPE_UNKNOWN && arg_type != expected) {
+                report_error(sa, curr_arg->line,
+                             "Invalid printf argument: Format specifier '%%%c' expects '%s', got '%s'.",
+                             spec, datatype_to_string(expected), datatype_to_string(arg_type));
+            }
+            curr_arg = curr_arg->next;
+            i += 2;
+            continue;
+        }
+
+        i++;
+    }
+
+    if (spec_aborted) {
+        while (curr_arg) {
+            analyze_expression(sa, curr_arg);
+            curr_arg = curr_arg->next;
+        }
+    } else if (curr_arg != NULL) {
+        int extra_line = curr_arg->line;
+        while (curr_arg) {
+            analyze_expression(sa, curr_arg);
+            curr_arg = curr_arg->next;
+        }
+        report_error(sa, extra_line,
+                     "Invalid printf call: Too many arguments supplied for format string.");
+    }
 }
 
 static void analyze_if(SemanticAnalyzer *sa, const AstNode *stmt) {
@@ -359,6 +535,10 @@ static void analyze_statement(SemanticAnalyzer *sa, const AstNode *stmt) {
             analyze_block(sa, stmt);
             break;
 
+        case AST_SEQ:
+            analyze_stmt_list(sa, stmt->u.seq.stmts);
+            break;
+
         case AST_IF:
             analyze_if(sa, stmt);
             break;
@@ -370,6 +550,25 @@ static void analyze_statement(SemanticAnalyzer *sa, const AstNode *stmt) {
         case AST_PRINT:
             analyze_expression(sa, stmt->u.print_stmt.expr);
             break;
+
+        case AST_OUTPUT: {
+            if (stmt->u.output_stmt.mode == AST_OUTPUT_PRINTF) {
+                analyze_printf_output(sa, stmt);
+            } else if (stmt->u.output_stmt.mode == AST_OUTPUT_CONCAT) {
+                const AstNode *item = stmt->u.output_stmt.items;
+                while (item) {
+                    analyze_concat_expr(sa, item);
+                    item = item->next;
+                }
+            } else {
+                const AstNode *item = stmt->u.output_stmt.items;
+                while (item) {
+                    analyze_expression(sa, item);
+                    item = item->next;
+                }
+            }
+            break;
+        }
 
         case AST_EXPR_STMT:
             analyze_expression(sa, stmt->u.expr_stmt.expr);

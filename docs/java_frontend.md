@@ -7,8 +7,9 @@
              → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-java.exe <file.java>`
-Optional: `--ast` prints the shared AST and skips semantic/TAC.
+Driver: `bin/compilecraft-java.exe <file.java>` (or `bin/compilecraft.exe <file.java>`)
+
+Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
 
 ## Supported Java Subset
 
@@ -21,7 +22,7 @@ Optional: `--ast` prints the shared AST and skips semantic/TAC.
 
 ### Data Types & Literals
 - Types: `int`, `float`, `boolean`
-- Literals: decimal integers, decimal floats, `true`, `false`
+- Literals: decimal integers, decimal floats, `true`, `false`, plus `STRING_LITERAL` inside `System.out.print`/`println`
 - `void` only in `public static void main(...)`
 
 ### Declarations, Statements & Expressions
@@ -30,7 +31,8 @@ Optional: `--ast` prints the shared AST and skips semantic/TAC.
 - Arithmetic: `+`, `-`, `*`, `/`, `%`, unary `-`, parentheses
 - Relational & equality: `<`, `>`, `<=`, `>=`, `==`, `!=`
 - Logical: `&&`, `||`, `!`
-- Control statements: compound blocks `{ ... }`, `if`, `if-else`, `while`, `for`, `return;`
+- Control statements: compound blocks `{ ... }`, `if`, `else if`, `if-else`, `while`, `for`, `return;`
+- Console output: `System.out.print(expr);`, `System.out.println(expr);`, `System.out.println();` (`Output` / `OutputLn` AST nodes preserving `Binary +` expression trees in AST, validated left-to-right for Java string concatenation in semantic analysis, and lowered to `print` / `println` fragments during TAC generation)
 - Increment/decrement as standalone statements or `for` updates: `i++`, `++i`, `i--`, `--i`
 
 ## Boolean Support
@@ -67,8 +69,8 @@ for (init; cond; update) body
 ## Unsupported Java Features (Non-Exhaustive)
 
 - General classes, multiple classes, fields, methods, constructors, inheritance, and interfaces
-- Object creation (`new`), `this`, member access expressions, and array indexing/allocation
-- Method calls and `System.out.println(...)` execution semantics
+- Object creation (`new`), `this`, arbitrary member access/calls (e.g. `System.err.println`, `Scanner`), and array indexing/allocation
+- `System.out.print()` with zero arguments (rejected with `Syntax Error`)
 - Generics, packages, `import` statements, and `try-catch` exceptions
-- `char` / `double` / `String` variable types, compound assignment (`+=` ...), `break` / `continue`, `switch`
-- JVM bytecode generation (the pipeline terminates at TAC)
+- `char` / `double` / `String` variable declarations, compound assignment (`+=` ...), `break` / `continue`, `switch`
+- JVM bytecode generation (the pipeline terminates at TAC; no runtime execution)

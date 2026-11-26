@@ -7,18 +7,27 @@
          → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-c.exe <file.c>`  
-Optional: `--ast` prints the shared AST and skips semantic/TAC.
+Driver: `bin/compilecraft-c.exe <file.c>` (or `bin/compilecraft.exe <file.c>`)
+
+Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
 
 ## Supported subset
 
-- Types: `int`, `float`, `_Bool` / `bool` (no `char`/`double` mapping)
-- Literals: decimal integers, decimal floats, `true`, `false`
+- Preprocessor directives: `#include <stdio.h>` at line start (optional trailing whitespace/`//` comment)
+- Types: `int`, `float`, `_Bool` / `bool` (no `char`/`double` mapping or `string` variables)
+- Literals: decimal integers, decimal floats, `true`, `false`, plus `STRING_LITERAL` inside `printf`
 - `void` only in `int main(void)` / `int main()`
 - Declarations / initialization / assignment
 - Arithmetic, relational, equality, logical `&&` `||` `!`, unary `-`
-- Statements: blocks, `if` / `if-else`, `while`, `for`, `return;`
+- Statements: blocks, `if` / `else if` / `if-else`, `while`, `for`, `printf(...)` (`OutputPrintf` AST node validated in semantic analysis and lowered to `arg` + `printf` TAC instructions), `return;`
 - Increment/decrement as statements or `for` updates: `i++` `++i` `i--` `--i`
+
+## Supported `printf` subset
+
+- First argument must be a `STRING_LITERAL` format string; empty `printf()` and non-string format arguments are rejected.
+- Supported format specifiers: `%d` (`int`), `%f` (`float`), `%s` (`string`), and `%%` (literal `%`).
+- Supported escape sequences in string literals: `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, `\0`.
+- Unsupported conversion specifiers (e.g. `%x`, `%c`, trailing `%`), missing or extra arguments, and argument type mismatches emit line-numbered diagnostics during semantic analysis and suppress TAC generation.
 
 ## For-loop lowering
 
@@ -45,9 +54,10 @@ The shared analyzer emits distinct diagnostics for these paths (`Type mismatch: 
 
 ## Unsupported (non-exhaustive)
 
-- `char` / `double` / pointer / array / struct types
-- Function definitions other than `main`
+- `char` / `double` / pointer / array / struct / `string` variable types
+- Format flags/width/precision specifiers (`%.2f`, `%04d`) and unsupported conversions (`%c`, `%x`, `%u`, `%p`)
+- User-defined functions or calls other than `printf(...)` (e.g. `scanf`, `printf()` with 0 arguments)
 - `break` / `continue` / `switch` / `goto`
 - Compound assignment (`+=` …)
-- Preprocessor (rejected by lexer)
-- String/character literals in executable statements
+- Other preprocessor directives (`#define`, `#include <stdlib.h>`, etc. rejected with `Lexical Error`)
+- String/character arithmetic or assigning string literals to numeric/boolean variables (rejected by semantic analysis)

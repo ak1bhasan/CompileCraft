@@ -171,6 +171,86 @@ static AstNode *cpp_lower_for(AstNode *init, AstNode *cond, AstNode *update,
     return outer_block;
 }
 
+/* Append an expression or std::endl cleanly to an AstList of AST_OUTPUT nodes
+ * without directly mutating internal list fields outside ast.c. */
+static int cpp_chain_cout_expr(AstList *chain, AstNode *expr, int line, int column) {
+    AstNode *last;
+    AstList items;
+    AstNode *out_node;
+
+    if (!chain || !expr) {
+        ast_free(expr);
+        return 0;
+    }
+
+    last = chain->tail;
+    if (last && last->kind == AST_OUTPUT && !last->u.output_stmt.newline) {
+        if (!ast_output_append_item(last, expr)) {
+            if (!expr->in_stmt_list) {
+                ast_free(expr);
+            }
+            return 0;
+        }
+        return 1;
+    }
+
+    items = ast_list_empty();
+    if (!ast_list_append(&items, expr)) {
+        if (!expr->in_stmt_list) {
+            ast_free(expr);
+        }
+        return 0;
+    }
+
+    out_node = ast_output(items, 0, line, column);
+    if (!out_node || !ast_list_append(chain, out_node)) {
+        if (out_node && !out_node->in_stmt_list) {
+            ast_free(out_node);
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
+static int cpp_chain_cout_endl(AstList *chain, char *ns, int ns_line,
+                               char *member, int op_line, int op_column) {
+    int valid_endl = (ns && member && strcmp(ns, "std") == 0 && strcmp(member, "endl") == 0);
+    AstNode *last;
+    AstNode *out_node;
+
+    if (!valid_endl) {
+        fprintf(stderr,
+                "Syntax Error at line %d: Unsupported stream manipulator '%s::%s' (expected 'std::endl')\n",
+                ns_line, ns ? ns : "", member ? member : "");
+        syntax_error_count++;
+        free(ns);
+        free(member);
+        return 1;
+    }
+
+    free(ns);
+    free(member);
+    if (!chain) {
+        return 0;
+    }
+
+    last = chain->tail;
+    if (last && last->kind == AST_OUTPUT && !last->u.output_stmt.newline) {
+        return ast_output_set_newline(last, 1);
+    }
+
+    out_node = ast_output(ast_list_empty(), 1, op_line, op_column);
+    if (!out_node || !ast_list_append(chain, out_node)) {
+        if (out_node && !out_node->in_stmt_list) {
+            ast_free(out_node);
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
 %}
 
 %code requires {
@@ -268,9 +348,9 @@ static AstNode *cpp_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 
 %type <node> program main_function statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
-%type <node> return_stmt inc_dec_stmt expression
+%type <node> return_stmt inc_dec_stmt output_stmt expression
 %type <node> for_init for_cond for_update
-%type <list> statement_list
+%type <list> statement_list cout_chain
 %type <type_tag> type_spec
 
 %nonassoc LOWER_THAN_ELSE 330
@@ -371,6 +451,7 @@ statement:
   | while_stmt      { $$ = $1; }
   | for_stmt        { $$ = $1; }
   | block_stmt      { $$ = $1; }
+  | output_stmt     { $$ = $1; }
   | expr_stmt       { $$ = $1; }
   | inc_dec_stmt    { $$ = $1; }
   | return_stmt     { $$ = $1; }
@@ -412,6 +493,83 @@ expr_stmt:
     expression SEMICOLON
     {
         $$ = ast_expr_stmt($1, @$.first_line, @$.first_column);
+    }
+  ;
+
+cout_chain:
+    LSHIFT IDENTIFIER SCOPE IDENTIFIER
+    {
+        $$ = ast_list_empty();
+        if (!cpp_chain_cout_endl(&$$, $2, @2.first_line, $4,
+                                 @1.first_line, @1.first_column)) {
+            syntax_error_count++;
+            ast_free($$.head);
+            $$ = ast_list_empty();
+        }
+    }
+  | LSHIFT expression
+    {
+        $$ = ast_list_empty();
+        if ($2 != NULL &&
+            !cpp_chain_cout_expr(&$$, $2, @2.first_line, @2.first_column)) {
+            syntax_error_count++;
+            ast_free($$.head);
+            $$ = ast_list_empty();
+        }
+    }
+  | cout_chain LSHIFT IDENTIFIER SCOPE IDENTIFIER
+    {
+        $$ = $1;
+        if (!cpp_chain_cout_endl(&$$, $3, @3.first_line, $5,
+                                 @2.first_line, @2.first_column)) {
+            syntax_error_count++;
+            ast_free($$.head);
+            $$ = ast_list_empty();
+        }
+    }
+  | cout_chain LSHIFT expression
+    {
+        $$ = $1;
+        if ($3 != NULL &&
+            !cpp_chain_cout_expr(&$$, $3, @3.first_line, @3.first_column)) {
+            syntax_error_count++;
+            ast_free($$.head);
+            $$ = ast_list_empty();
+        }
+    }
+  ;
+
+output_stmt:
+    IDENTIFIER SCOPE IDENTIFIER cout_chain SEMICOLON
+    {
+        if (!$1 || !$3 || strcmp($1, "std") != 0 || strcmp($3, "cout") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported qualified stream '%s::%s' (expected 'std::cout')\n",
+                    @1.first_line, $1 ? $1 : "", $3 ? $3 : "");
+            syntax_error_count++;
+            free($1);
+            free($3);
+            ast_free($4.head);
+            $$ = NULL;
+        } else {
+            AstNode *single;
+            free($1);
+            free($3);
+            if ($4.head == NULL) {
+                $$ = NULL;
+            } else if ((single = ast_list_take_single(&$4)) != NULL) {
+                $$ = single;
+            } else {
+                $$ = ast_seq($4, @$.first_line, @$.first_column);
+            }
+        }
+    }
+  | IDENTIFIER SCOPE IDENTIFIER error SEMICOLON
+    {
+        free($1);
+        free($3);
+        yyerrok;
+        $$ = NULL;
     }
   ;
 
@@ -671,6 +829,10 @@ expression:
   | KW_FALSE
     {
         $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
+  | STRING_LITERAL
+    {
+        $$ = ast_literal_string($1, @1.first_line, @1.first_column);
     }
   ;
 

@@ -1,0 +1,45 @@
+n = 4
+sum = 0
+i = 1
+L1:
+t1 = i <= n
+if t1 goto L2
+goto L3
+L2:
+t2 = sum + i
+sum = t2
+t3 = i + 1
+i = t3
+goto L1
+L3:
+t4 = sum > 10
+if t4 goto L4
+goto L6
+L4:
+printf "high"
+goto L5
+L6:
+t5 = sum == 10
+if t5 goto L7
+goto L9
+L7:
+printf "exact"
+goto L8
+L9:
+printf "low"
+L8:
+L5:
+k = 0
+L10:
+t6 = k < 2
+if t6 goto L11
+goto L12
+L11:
+arg k
+printf "%d"
+t7 = k + 1
+k = t7
+goto L10
+L12:
+arg sum
+printf "%d"

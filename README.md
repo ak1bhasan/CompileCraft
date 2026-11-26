@@ -20,9 +20,9 @@ There is **no backend codegen**; the pipeline terminates at Three-Address Code (
 - **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, and line-numbered **Errors**.
 - Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
 - Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
-- **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
-- **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `int`, `float`, `bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
-- **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
+- **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `#include <stdio.h>`, `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `printf(...)` console output, and all six faculty semantic rules.
+- **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `#include <iostream>`, `int`, `float`, `bool`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `std::cout << ...` / `std::endl` console output, and all six faculty semantic rules.
+- **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`else if`/`else`, `while`, `for`, `++`/`--`, `System.out.print` / `System.out.println`, and all six faculty semantic rules.
 - Production parser and language compiler CLIs with optional `--ast` and `--symtab` output.
 
 **Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
@@ -109,7 +109,7 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **Build Foundation** | Modular `Makefile` | **COMPLETED** | All lexers, parsers, AST/symtab/semantic/TAC targets, C/C++/Java front ends; Bison `-Werror=conflicts-*`. |
 | **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M13). |
 | **Baseline Lexer (`src/lexer/`)** | Flex scanner + driver | **COMPLETED** | 18 tests. |
-| **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 27 + 24 + 20 tests. C/C++/Java parsers done (M9/M10/M11/M12). |
+| **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 28 + 25 + 20 tests. C/C++/Java parsers & console I/O done (M9/M10/M11/M12/M13+). |
 | **Baseline Parser (`src/parser/`)** | Bison LALR(1) + recovery | **COMPLETED (M3.2–M3.3)** | 34 syntax tests. See `docs/parser.md`. |
 | **AST Core (`src/ast/`)** | Nodes, constructors, lists, `ast_free`, `ast_print` | **COMPLETED (M4.0–M4.1)** | Design: `docs/ast.md`. |
 | **AST ↔ Parser Integration** | Locations, `%union`, destructors, construction | **COMPLETED (M4.2–M4.2.7)** | Expr / program suites + ownership unit test. |
@@ -121,7 +121,7 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9/M12)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
 | **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10/M12)** | `compilecraft-cpp.exe`; `bool`; for-loops; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
 | **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11/M12)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab` (`tests/cli/`: 33 cases). |
+| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab` (`tests/cli/`: 52 cases). |
 | **Frontend–Compiler Integration** | Electron + React + Monaco IDE | **COMPLETED (M13)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` for C, C++, Java (desktop installer packaging pending). |
 | **Final Docs & Faculty Verification** | Final release verification | **PENDING (M14)** | Planned final milestone. |
 
@@ -255,11 +255,11 @@ CompileCraft/
 │   └── tac/                     # [M7] Shared Three-Address Code generator
 └── tests/
     ├── run_tests.py
-    ├── cli/                     # 33 unified CLI integration & error tests (M8/M13)
+    ├── cli/                     # 52 unified CLI integration & error tests (M8/M13+)
     ├── lexer/                   # 18
-    ├── c/                       # 27 lexer + parser/ (22) + semantic/ (10) + tac/ (11)
-    ├── cpp/                     # 24 lexer + parser/ (30) + semantic/ (9)  + tac/ (15)
-    ├── java/                    # 20 lexer + parser/ (33) + semantic/ (9)  + tac/ (15)
+    ├── c/                       # 28 lexer + parser/ (25) + semantic/ (17) + tac/ (13)
+    ├── cpp/                     # 25 lexer + parser/ (34) + semantic/ (11) + tac/ (17)
+    ├── java/                    # 20 lexer + parser/ (36) + semantic/ (13) + tac/ (17)
     ├── parser/                  # 34
     ├── expr_ast/                # 30 (structural; harness binary)
     ├── program_ast/             # 25 (structural; harness binary)
@@ -301,16 +301,16 @@ Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bi
 
 | Suite | Passed |
 |---|---:|
-| Automated regression (20 suites) | 421/421 |
+| Automated regression (20 suites) | 471/471 |
 | Unit-test executables | 3/3 |
 
-Breakdown of the **421/421** automated regression cases:
+Breakdown of the **471/471** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
 | Baseline lexer (`tests/lexer`) | 18 |
-| C lexer (`tests/c`) | 27 |
-| C++ lexer (`tests/cpp`) | 24 |
+| C lexer (`tests/c`) | 28 |
+| C++ lexer (`tests/cpp`) | 25 |
 | Java lexer (`tests/java`) | 20 |
 | Baseline parser (`tests/parser`) | 34 |
 | Expression AST (`tests/expr_ast`) | 30 |
@@ -318,11 +318,11 @@ Breakdown of the **421/421** automated regression cases:
 | Production AST (`tests/ast`) | 14 |
 | Semantic analyzer (`tests/semantic`) | 26 |
 | TAC golden (`tests/tac/golden`) | 16 |
-| C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 22 + 10 + 11 |
-| C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 30 + 9 + 15 |
-| Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 33 + 9 + 15 |
-| Unified CLI (`tests/cli`) | 33 |
-| **Total (automated regression)** | **421/421** |
+| C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 25 + 17 + 13 |
+| C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 34 + 11 + 17 |
+| Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 36 + 13 + 17 |
+| Unified CLI (`tests/cli`) | 52 |
+| **Total (automated regression)** | **471/471** |
 
 Standalone unit-test executables (`3/3` passing):
 - `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
@@ -330,7 +330,7 @@ Standalone unit-test executables (`3/3` passing):
 - `bin/test-tac.exe` (`test-tac-unit`)
 
 ```powershell
-# All suites (421 automated tests + 3 unit-test executables):
+# All suites (471 automated tests + 3 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
 # Unified CLI & language compiler suites:

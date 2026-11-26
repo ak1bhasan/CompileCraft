@@ -7,17 +7,19 @@
            → Symbol Table / Semantic Analyzer → TAC
 ```
 
-Driver: `bin/compilecraft-cpp.exe <file.cpp>`  
-Optional: `--ast` prints the shared AST and skips semantic/TAC.
+Driver: `bin/compilecraft-cpp.exe <file.cpp>` (or `bin/compilecraft.exe <file.cpp>`)
+
+Optional: `--tokens`, `--ast`, or `--symtab` prints tokens/AST/symbols and skips TAC.
 
 ## Supported procedural subset
 
+- Preprocessor directives: `#include <iostream>` at line start (optional trailing whitespace/`//` comment)
 - Types: `int`, `float`, `bool`
-- Literals: integers, floats, `true`, `false`
+- Literals: integers, floats, `true`, `false`, plus `STRING_LITERAL` inside `std::cout` output chains
 - `void` only in `int main()` / `int main(void)`
 - Declarations / initialization / assignment
 - Arithmetic, relational, equality, logical `&&` `||` `!`, unary `-`
-- Statements: blocks, `if` / `if-else`, `while`, `for`, `return;`
+- Statements: blocks, `if` / `else if` / `if-else`, `while`, `for`, `std::cout << ...` (chained expressions and `std::endl` lowered to `Output` / `OutputLn` or non-scoping `Seq` AST nodes -> TAC `print` / `println`), `return;`
 - Increment/decrement as statements or `for` updates: `i++` `++i` `i--` `--i`
 
 ## Boolean support
@@ -49,10 +51,10 @@ Init declarations are scoped to the outer block and are not visible after the lo
 
 ## Unsupported (non-exhaustive)
 
-- Classes, inheritance, virtuals, templates, STL
-- Pointers, references, operator overloading, exceptions
-- Stream I/O (`cout`/`cin` remain identifiers but are not special-cased)
-- `char` / `double` / arrays / structs
+- Classes, inheritance, virtuals, templates, STL containers
+- Pointers, references, operator overloading, exceptions, `using namespace std`
+- Input/error streams (`std::cin`, `std::cerr`) and unqualified `cout`/`endl`
+- `char` / `double` / `std::string` / arrays / structs
 - Compound assignment (`+=` …)
-- Preprocessor (rejected by lexer)
+- Other preprocessor directives (`#define`, `#include <vector>`, etc. rejected with `Lexical Error`)
 - Full ISO C++

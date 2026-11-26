@@ -254,9 +254,9 @@ static AstNode *cc_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 
 %type <node> program main_function statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
-%type <node> return_stmt inc_dec_stmt expression
+%type <node> return_stmt inc_dec_stmt output_stmt expression
 %type <node> for_init for_cond for_update
-%type <list> statement_list
+%type <list> statement_list printf_args
 %type <type_tag> type_spec
 
 %nonassoc LOWER_THAN_ELSE 310
@@ -357,6 +357,7 @@ statement:
   | while_stmt      { $$ = $1; }
   | for_stmt        { $$ = $1; }
   | block_stmt      { $$ = $1; }
+  | output_stmt     { $$ = $1; }
   | expr_stmt       { $$ = $1; }
   | inc_dec_stmt    { $$ = $1; }
   | return_stmt     { $$ = $1; }
@@ -398,6 +399,61 @@ expr_stmt:
     expression SEMICOLON
     {
         $$ = ast_expr_stmt($1, @$.first_line, @$.first_column);
+    }
+  ;
+
+printf_args:
+    expression
+    {
+        $$ = ast_list_empty();
+        if ($1 != NULL && !ast_list_append(&$$, $1)) {
+            if (!$1->in_stmt_list) {
+                ast_free($1);
+            }
+        }
+    }
+  | printf_args COMMA expression
+    {
+        $$ = $1;
+        if ($3 != NULL && !ast_list_append(&$$, $3)) {
+            if (!$3->in_stmt_list) {
+                ast_free($3);
+            }
+        }
+    }
+  ;
+
+output_stmt:
+    IDENTIFIER LPAREN printf_args RPAREN SEMICOLON
+    {
+        if (!$1 || strcmp($1, "printf") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported function call '%s' (only 'printf' is supported)\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            free($1);
+            ast_free($3.head);
+            $$ = NULL;
+        } else {
+            free($1);
+            $$ = ast_output_with_mode(
+                $3, AST_OUTPUT_PRINTF, 0, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER LPAREN RPAREN SEMICOLON
+    {
+        fprintf(stderr,
+                "Syntax Error at line %d: Invalid call '%s()' (expected at least one output argument)\n",
+                @1.first_line, $1 ? $1 : "");
+        syntax_error_count++;
+        free($1);
+        $$ = NULL;
+    }
+  | IDENTIFIER LPAREN error RPAREN SEMICOLON
+    {
+        free($1);
+        yyerrok;
+        $$ = NULL;
     }
   ;
 
@@ -657,6 +713,10 @@ expression:
   | KW_FALSE
     {
         $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
+  | STRING_LITERAL
+    {
+        $$ = ast_literal_string($1, @1.first_line, @1.first_column);
     }
   ;
 

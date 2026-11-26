@@ -125,6 +125,21 @@ AstNode *ast_list_head(AstList list) {
     return list.head;
 }
 
+AstNode *ast_list_take_single(AstList *list) {
+    AstNode *sole;
+
+    if (list == NULL || list->head == NULL || list->head != list->tail ||
+        list->head->next != NULL) {
+        return NULL;
+    }
+
+    sole = list->head;
+    sole->in_stmt_list = 0;
+    list->head = NULL;
+    list->tail = NULL;
+    return sole;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Constructors                                                               */
 /* -------------------------------------------------------------------------- */
@@ -148,6 +163,17 @@ AstNode *ast_block(AstList stmts, int line, int column) {
     }
     node->u.block.stmts = stmts.head;
     node->u.block.stmts_tail = stmts.tail;
+    return node;
+}
+
+AstNode *ast_seq(AstList stmts, int line, int column) {
+    AstNode *node = ast_node_new(AST_SEQ, line, column);
+    if (node == NULL) {
+        ast_free(stmts.head);
+        return NULL;
+    }
+    node->u.seq.stmts = stmts.head;
+    node->u.seq.stmts_tail = stmts.tail;
     return node;
 }
 
@@ -279,6 +305,50 @@ AstNode *ast_print_stmt(AstNode *expr, int line, int column) {
     return node;
 }
 
+AstNode *ast_output_with_mode(AstList items, AstOutputMode mode, int newline,
+                              int line, int column) {
+    AstNode *node = ast_node_new(AST_OUTPUT, line, column);
+    if (node == NULL) {
+        ast_free(items.head);
+        return NULL;
+    }
+    node->u.output_stmt.items = items.head;
+    node->u.output_stmt.items_tail = items.tail;
+    node->u.output_stmt.newline = newline ? 1 : 0;
+    node->u.output_stmt.mode = mode;
+    return node;
+}
+
+AstNode *ast_output(AstList items, int newline, int line, int column) {
+    return ast_output_with_mode(items, AST_OUTPUT_RAW, newline, line, column);
+}
+
+int ast_output_append_item(AstNode *output_node, AstNode *item) {
+    AstList list;
+
+    if (output_node == NULL || output_node->kind != AST_OUTPUT || item == NULL) {
+        return 0;
+    }
+
+    list.head = output_node->u.output_stmt.items;
+    list.tail = output_node->u.output_stmt.items_tail;
+    if (!ast_list_append(&list, item)) {
+        return 0;
+    }
+
+    output_node->u.output_stmt.items = list.head;
+    output_node->u.output_stmt.items_tail = list.tail;
+    return 1;
+}
+
+int ast_output_set_newline(AstNode *output_node, int newline) {
+    if (output_node == NULL || output_node->kind != AST_OUTPUT) {
+        return 0;
+    }
+    output_node->u.output_stmt.newline = newline ? 1 : 0;
+    return 1;
+}
+
 AstNode *ast_binary(AstBinOp op, AstNode *left, AstNode *right,
                     int line, int column) {
     AstNode *node;
@@ -367,6 +437,23 @@ AstNode *ast_literal_bool(int value, int line, int column) {
     return node;
 }
 
+AstNode *ast_literal_string(char *value, int line, int column) {
+    AstNode *node;
+
+    if (value == NULL) {
+        return NULL;
+    }
+
+    node = ast_node_new(AST_LITERAL, line, column);
+    if (node == NULL) {
+        free(value);
+        return NULL;
+    }
+    node->u.literal.lit_kind = AST_LIT_STRING;
+    node->u.literal.as.sval = value;
+    return node;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Memory cleanup                                                             */
 /* -------------------------------------------------------------------------- */
@@ -381,6 +468,9 @@ void ast_free(AstNode *node) {
                 break;
             case AST_BLOCK:
                 ast_free(node->u.block.stmts);
+                break;
+            case AST_SEQ:
+                ast_free(node->u.seq.stmts);
                 break;
             case AST_VAR_DECL:
                 ast_free(node->u.var_decl.name);
@@ -407,6 +497,9 @@ void ast_free(AstNode *node) {
             case AST_PRINT:
                 ast_free(node->u.print_stmt.expr);
                 break;
+            case AST_OUTPUT:
+                ast_free(node->u.output_stmt.items);
+                break;
             case AST_BINARY_OP:
                 ast_free(node->u.binary.left);
                 ast_free(node->u.binary.right);
@@ -419,6 +512,10 @@ void ast_free(AstNode *node) {
                 node->u.identifier.name = NULL;
                 break;
             case AST_LITERAL:
+                if (node->u.literal.lit_kind == AST_LIT_STRING) {
+                    free(node->u.literal.as.sval);
+                    node->u.literal.as.sval = NULL;
+                }
                 break;
             default:
                 break;
@@ -460,6 +557,14 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
             ast_print_spaces(out, depth);
             fputs("Block\n", out);
             for (stmt = node->u.block.stmts; stmt != NULL; stmt = stmt->next) {
+                ast_print_indent(stmt, out, depth + 1);
+            }
+            break;
+
+        case AST_SEQ:
+            ast_print_spaces(out, depth);
+            fputs("Seq\n", out);
+            for (stmt = node->u.seq.stmts; stmt != NULL; stmt = stmt->next) {
                 ast_print_indent(stmt, out, depth + 1);
             }
             break;
@@ -514,6 +619,21 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
             ast_print_indent(node->u.print_stmt.expr, out, depth + 1);
             break;
 
+        case AST_OUTPUT: {
+            const char *tag = "Output";
+            if (node->u.output_stmt.mode == AST_OUTPUT_PRINTF) {
+                tag = "OutputPrintf";
+            } else if (node->u.output_stmt.newline) {
+                tag = "OutputLn";
+            }
+            ast_print_spaces(out, depth);
+            fprintf(out, "%s\n", tag);
+            for (stmt = node->u.output_stmt.items; stmt != NULL; stmt = stmt->next) {
+                ast_print_indent(stmt, out, depth + 1);
+            }
+            break;
+        }
+
         case AST_BINARY_OP:
             ast_print_spaces(out, depth);
             fprintf(out, "Binary %s\n", ast_binop_name(node->u.binary.op));
@@ -545,6 +665,10 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
                 case AST_LIT_BOOL:
                     fprintf(out, "Literal bool %s\n",
                             node->u.literal.as.bval ? "true" : "false");
+                    break;
+                case AST_LIT_STRING:
+                    fprintf(out, "Literal string %s\n",
+                            node->u.literal.as.sval != NULL ? node->u.literal.as.sval : "\"\"");
                     break;
                 default:
                     fputs("Literal ?\n", out);

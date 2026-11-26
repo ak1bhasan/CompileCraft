@@ -163,6 +163,8 @@ static AstNode *java_lower_for(AstNode *init, AstNode *cond, AstNode *update,
     return ast_block(outer, line, column);
 }
 
+
+
 %}
 
 %code requires {
@@ -250,7 +252,7 @@ static AstNode *java_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 
 %type <node> program class_decl main_method statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
-%type <node> return_stmt inc_dec_stmt expression
+%type <node> return_stmt inc_dec_stmt output_stmt expression
 %type <node> for_init for_cond for_update
 %type <list> statement_list
 %type <type_tag> type_spec
@@ -395,6 +397,7 @@ statement:
   | while_stmt      { $$ = $1; }
   | for_stmt        { $$ = $1; }
   | block_stmt      { $$ = $1; }
+  | output_stmt     { $$ = $1; }
   | expr_stmt       { $$ = $1; }
   | inc_dec_stmt    { $$ = $1; }
   | return_stmt     { $$ = $1; }
@@ -436,6 +439,75 @@ expr_stmt:
     expression SEMICOLON
     {
         $$ = ast_expr_stmt($1, @$.first_line, @$.first_column);
+    }
+  ;
+
+output_stmt:
+    IDENTIFIER DOT IDENTIFIER DOT IDENTIFIER LPAREN RPAREN SEMICOLON
+    {
+        int is_sys_out = ($1 && $3 && strcmp($1, "System") == 0 && strcmp($3, "out") == 0);
+        if (!is_sys_out || !$5 || strcmp($5, "println") != 0) {
+            if (is_sys_out && $5 && strcmp($5, "print") == 0) {
+                fprintf(stderr,
+                        "Syntax Error at line %d: 'System.out.print()' requires an argument\n",
+                        @5.first_line);
+            } else {
+                fprintf(stderr,
+                        "Syntax Error at line %d: Unsupported output call '%s.%s.%s()' (expected 'System.out.println()')\n",
+                        @1.first_line, $1 ? $1 : "", $3 ? $3 : "", $5 ? $5 : "");
+            }
+            syntax_error_count++;
+            free($1);
+            free($3);
+            free($5);
+            $$ = NULL;
+        } else {
+            free($1);
+            free($3);
+            free($5);
+            $$ = ast_output(ast_list_empty(), 1, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER DOT IDENTIFIER DOT IDENTIFIER LPAREN expression RPAREN SEMICOLON
+    {
+        int is_sys_out = ($1 && $3 && strcmp($1, "System") == 0 && strcmp($3, "out") == 0);
+        int is_print = ($5 && strcmp($5, "print") == 0);
+        int is_println = ($5 && strcmp($5, "println") == 0);
+        if (!is_sys_out || (!is_print && !is_println)) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported output call '%s.%s.%s' (expected 'System.out.print' or 'System.out.println')\n",
+                    @1.first_line, $1 ? $1 : "", $3 ? $3 : "", $5 ? $5 : "");
+            syntax_error_count++;
+            free($1);
+            free($3);
+            free($5);
+            ast_free($7);
+            $$ = NULL;
+        } else {
+            AstList items = ast_list_empty();
+            free($1);
+            free($3);
+            free($5);
+            if (!$7 || !java_append_owned(&items, $7)) {
+                ast_free(items.head);
+                $$ = NULL;
+            } else {
+                $$ = ast_output_with_mode(
+                    items,
+                    AST_OUTPUT_CONCAT,
+                    is_println ? 1 : 0,
+                    @$.first_line,
+                    @$.first_column);
+            }
+        }
+    }
+  | IDENTIFIER DOT IDENTIFIER DOT IDENTIFIER LPAREN error RPAREN SEMICOLON
+    {
+        free($1);
+        free($3);
+        free($5);
+        yyerrok;
+        $$ = NULL;
     }
   ;
 
@@ -685,6 +757,10 @@ expression:
   | KW_FALSE
     {
         $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
+  | STRING_LITERAL
+    {
+        $$ = ast_literal_string($1, @1.first_line, @1.first_column);
     }
   ;
 

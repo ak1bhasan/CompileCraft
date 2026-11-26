@@ -18,7 +18,8 @@ typedef enum DataType {
     TYPE_UNKNOWN = 0,
     TYPE_INT,
     TYPE_FLOAT,
-    TYPE_BOOL
+    TYPE_BOOL,
+    TYPE_STRING
 } DataType;
 
 const char *datatype_to_string(DataType type);

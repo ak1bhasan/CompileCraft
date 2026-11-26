@@ -1,0 +1,4 @@
+x = 5
+printf "Hello World"
+arg x
+printf "%d"

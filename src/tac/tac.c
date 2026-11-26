@@ -188,6 +188,8 @@ static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
                     return format_float_literal(gen, expr->u.literal.as.fval);
                 case AST_LIT_BOOL:
                     return duplicate_str(gen, expr->u.literal.as.bval ? "true" : "false");
+                case AST_LIT_STRING:
+                    return duplicate_str(gen, expr->u.literal.as.sval ? expr->u.literal.as.sval : "\"\"");
                 default:
                     mark_failed(gen);
                     return NULL;
@@ -262,15 +264,88 @@ static char *generate_expr(TacGenerator *gen, const AstNode *expr) {
 
 static void generate_statement(TacGenerator *gen, const AstNode *stmt);
 
-static void generate_block(TacGenerator *gen, const AstNode *block) {
-    if (!gen || gen->failed || !block) {
-        return;
-    }
-    const AstNode *curr = block->u.block.stmts;
+static void generate_stmt_list(TacGenerator *gen, const AstNode *first) {
+    const AstNode *curr = first;
     while (curr && !gen->failed) {
         generate_statement(gen, curr);
         curr = curr->next;
     }
+}
+
+static void generate_block(TacGenerator *gen, const AstNode *block) {
+    if (!gen || gen->failed || !block) {
+        return;
+    }
+    generate_stmt_list(gen, block->u.block.stmts);
+}
+
+static int expr_has_string_add(const AstNode *node) {
+    if (!node) {
+        return 0;
+    }
+    if (node->kind == AST_LITERAL && node->u.literal.lit_kind == AST_LIT_STRING) {
+        return 1;
+    }
+    if (node->kind == AST_BINARY_OP && node->u.binary.op == AST_OP_ADD) {
+        return expr_has_string_add(node->u.binary.left) ||
+               expr_has_string_add(node->u.binary.right);
+    }
+    return 0;
+}
+
+static int generate_concat_item(TacGenerator *gen, const AstNode *expr, int newline) {
+    if (!gen || gen->failed || !expr) {
+        return 0;
+    }
+    if (expr->kind == AST_BINARY_OP && expr->u.binary.op == AST_OP_ADD &&
+        expr_has_string_add(expr)) {
+        if (!generate_concat_item(gen, expr->u.binary.left, 0)) {
+            return 0;
+        }
+        return generate_concat_item(gen, expr->u.binary.right, newline);
+    }
+
+    char *val = generate_expr(gen, expr);
+    TacOpcode op = newline ? TAC_OP_PRINTLN : TAC_OP_PRINT;
+    if (!val || !emit_instr(gen, op, NULL, val, NULL)) {
+        free(val);
+        mark_failed(gen);
+        return 0;
+    }
+    free(val);
+    return 1;
+}
+
+static int generate_printf_output(TacGenerator *gen, const AstNode *stmt) {
+    const AstNode *fmt = stmt->u.output_stmt.items;
+    const AstNode *arg;
+    char *fmt_val;
+
+    if (!fmt) {
+        mark_failed(gen);
+        return 0;
+    }
+
+    arg = fmt->next;
+    while (arg) {
+        char *val = generate_expr(gen, arg);
+        if (!val || !emit_instr(gen, TAC_OP_ARG, NULL, val, NULL)) {
+            free(val);
+            mark_failed(gen);
+            return 0;
+        }
+        free(val);
+        arg = arg->next;
+    }
+
+    fmt_val = generate_expr(gen, fmt);
+    if (!fmt_val || !emit_instr(gen, TAC_OP_PRINTF, NULL, fmt_val, NULL)) {
+        free(fmt_val);
+        mark_failed(gen);
+        return 0;
+    }
+    free(fmt_val);
+    return 1;
 }
 
 static void generate_if(TacGenerator *gen, const AstNode *stmt) {
@@ -470,6 +545,10 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
             generate_block(gen, stmt);
             break;
 
+        case AST_SEQ:
+            generate_stmt_list(gen, stmt->u.seq.stmts);
+            break;
+
         case AST_IF:
             generate_if(gen, stmt);
             break;
@@ -486,6 +565,43 @@ static void generate_statement(TacGenerator *gen, const AstNode *stmt) {
                 return;
             }
             free(val);
+            break;
+        }
+
+        case AST_OUTPUT: {
+            if (stmt->u.output_stmt.mode == AST_OUTPUT_PRINTF) {
+                if (!generate_printf_output(gen, stmt)) {
+                    return;
+                }
+                break;
+            }
+            const AstNode *item = stmt->u.output_stmt.items;
+            if (!item) {
+                if (stmt->u.output_stmt.newline &&
+                    !emit_instr(gen, TAC_OP_PRINTLN, NULL, NULL, NULL)) {
+                    mark_failed(gen);
+                    return;
+                }
+                break;
+            }
+            while (item) {
+                int nl = (stmt->u.output_stmt.newline && item->next == NULL);
+                if (stmt->u.output_stmt.mode == AST_OUTPUT_CONCAT) {
+                    if (!generate_concat_item(gen, item, nl)) {
+                        return;
+                    }
+                } else {
+                    char *val = generate_expr(gen, item);
+                    TacOpcode op = nl ? TAC_OP_PRINTLN : TAC_OP_PRINT;
+                    if (!val || !emit_instr(gen, op, NULL, val, NULL)) {
+                        free(val);
+                        mark_failed(gen);
+                        return;
+                    }
+                    free(val);
+                }
+                item = item->next;
+            }
             break;
         }
 
@@ -596,6 +712,22 @@ void tac_print(const TacList *list, FILE *out) {
 
             case TAC_OP_PRINT:
                 fprintf(out, "print %s\n", curr->src1);
+                break;
+
+            case TAC_OP_PRINTLN:
+                if (curr->src1) {
+                    fprintf(out, "println %s\n", curr->src1);
+                } else {
+                    fprintf(out, "println\n");
+                }
+                break;
+
+            case TAC_OP_ARG:
+                fprintf(out, "arg %s\n", curr->src1);
+                break;
+
+            case TAC_OP_PRINTF:
+                fprintf(out, "printf %s\n", curr->src1);
                 break;
 
             default:

@@ -1,0 +1,13 @@
+x = 4
+ok = true
+print "x="
+println x
+t1 = 1 + 2
+print t1
+println "sum"
+print "a"
+print 1
+print "b"
+println 2
+print "ok="
+println ok

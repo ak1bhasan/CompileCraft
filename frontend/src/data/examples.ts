@@ -8,7 +8,9 @@ export const EXAMPLE_FILES: ExampleFile[] = [
     name: 'control_flow.c',
     path: 'src/c/control_flow.c',
     language: 'c',
-    content: `int main() {
+    content: `#include <stdio.h>
+
+int main() {
     int a = 10;
     int b = 4;
     int sum = 0;
@@ -22,10 +24,14 @@ export const EXAMPLE_FILES: ExampleFile[] = [
         b = b - 1;
     }
 
-    if (a > sum || sum > 0) {
+    if (sum > a) {
         sum = sum + 2;
+        printf("Large sum = %d", sum);
+    } else if (sum == a) {
+        printf("Exact sum = %d", sum);
     } else {
         sum = sum - 2;
+        printf("Small sum = %d", sum);
     }
 
     return 0;
@@ -37,7 +43,9 @@ export const EXAMPLE_FILES: ExampleFile[] = [
     name: 'loops_logic.cpp',
     path: 'src/cpp/loops_logic.cpp',
     language: 'cpp',
-    content: `int main() {
+    content: `#include <iostream>
+
+int main() {
     int limit = 3;
     int total = 0;
 
@@ -52,8 +60,12 @@ export const EXAMPLE_FILES: ExampleFile[] = [
 
     if (total >= 12 && limit == 0) {
         total = total + 10;
+        std::cout << "Total = " << total << std::endl;
+    } else if (total > 0) {
+        std::cout << "Positive = " << total << std::endl;
     } else {
         total = total - 1;
+        std::cout << "Fallback = " << total << std::endl;
     }
 
     return 0;
@@ -82,8 +94,12 @@ export const EXAMPLE_FILES: ExampleFile[] = [
 
         if (res > 10 && true) {
             res = res + 1;
+            System.out.println("Result = " + res);
+        } else if (res == 10) {
+            System.out.println("Exact 10");
         } else {
             res = res - 1;
+            System.out.println("Low = " + res);
         }
     }
 }

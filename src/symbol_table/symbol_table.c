@@ -20,10 +20,11 @@ static unsigned long hash_string(const char *str) {
 
 const char *datatype_to_string(DataType type) {
     switch (type) {
-        case TYPE_INT:   return "int";
-        case TYPE_FLOAT: return "float";
-        case TYPE_BOOL:  return "bool";
-        default:         return "unknown";
+        case TYPE_INT:    return "int";
+        case TYPE_FLOAT:  return "float";
+        case TYPE_BOOL:   return "bool";
+        case TYPE_STRING: return "string";
+        default:          return "unknown";
     }
 }
 

@@ -1,0 +1,17 @@
+x = 10
+println
+println "Start"
+t1 = x + 1
+println t1
+t2 = x > 5
+if t2 goto L1
+goto L3
+L1:
+println "Nested"
+goto L2
+L3:
+print "Other"
+L2:
+t3 = x + 2
+y = t3
+println y

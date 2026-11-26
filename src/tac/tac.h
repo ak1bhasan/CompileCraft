@@ -33,7 +33,10 @@ typedef enum TacOpcode {
     TAC_OP_GOTO,        /* goto label */
     TAC_OP_IF_GOTO,     /* if cond goto label */
     TAC_OP_LABEL,       /* label: */
-    TAC_OP_PRINT        /* print src1 */
+    TAC_OP_PRINT,       /* print src1 */
+    TAC_OP_PRINTLN,     /* println [src1] */
+    TAC_OP_ARG,         /* arg src1 */
+    TAC_OP_PRINTF       /* printf fmt (src1) */
 } TacOpcode;
 
 typedef struct TacInstr {
