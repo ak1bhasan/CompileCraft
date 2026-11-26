@@ -367,10 +367,10 @@ Harden all four compiler pipelines (`.mc`, C, C++, Java) for cross-language sema
 ### Objective
 Provide one unified command-line executable (`bin/compilecraft.exe`) that detects input language by extension (`.c`, `.cpp`, `.java`), dispatches safely to the matching front-end compiler pipeline, propagates diagnostics and TAC/AST output, and returns OS exit codes.
 
-### Status: **COMPLETED** (on `dev`, pending commit approval)
-- `src/main.c`: Unified CLI (`bin/compilecraft.exe`) supporting `--help`, `-h`, `--ast`, `.c`/`.cpp`/`.java` extension dispatch, missing/unsupported file checks (including `.mc` rejection in the CLI while preserving baseline `.mc` tools), safe native OS process spawning (`CreateProcessA` / `fork`+`execv` without shell), sibling path resolution from outside the repository root, and paths with spaces.
+### Status: **COMPLETED** (committed on `dev` as `a1a5caf`; `--tokens` and `--symtab` added in M13)
+- `src/main.c`: Unified CLI (`bin/compilecraft.exe`) supporting `--help`, `-h`, `--tokens`, `--ast`, `--symtab`, `.c`/`.cpp`/`.java` extension dispatch, missing/unsupported file checks (including `.mc` rejection in the CLI while preserving baseline `.mc` tools), safe native OS process spawning (`CreateProcessA` / `fork`+`execv` without shell), sibling path resolution from outside the repository root, and paths with spaces.
 - `Makefile`: Added `cli` (`$(BIN_DIR)/compilecraft.exe`), `test-cli`, and wired into `all`, `test`, `clean`, and `help`.
-- `tests/cli/`: 27 automated CLI integration tests covering C, C++, Java, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
+- `tests/cli/`: 33 automated CLI integration tests covering C, C++, Java, `--tokens`/`--ast`/`--symtab`, 6 semantic rules, lexical/syntax errors, invalid flags/extensions/paths, spaces in paths, and external working directories.
 
 ### Acceptance Checks
 - [x] CLI dispatches `.c`, `.cpp`, and `.java` inputs by extension (only these three languages).
@@ -386,52 +386,47 @@ Provide one unified command-line executable (`bin/compilecraft.exe`) that detect
 
 ---
 
-## Milestone 9: Automated Regression Test Suite
+## Historical Baseline M9/M10 Milestones *(Archived Baseline Planning)*
 
-### Objective
-Build an automated test suite under `tests/` covering all valid language constructs and every mandatory error case, paired with expected output files.
-
-### Target Deliverables
-- `tests/valid/`: Valid test programs and `.expected` TAC files (including Section 5.5 program).
-- `tests/lexical_errors/`: Tests for invalid characters and malformed tokens.
-- `tests/syntax_errors/`: Tests for missing semicolons, unbalanced braces, malformed statements.
-- `tests/semantic_errors/`: Dedicated tests for each of the 6 mandatory semantic error rules.
-- `mingw32-make test`: Automated test target diffing actual vs expected output.
-
-### Acceptance Checks
-- [ ] `mingw32-make test` runs all tests and reports pass/fail summary.
-- [ ] Valid programs pass through to TAC without errors.
-- [ ] Every error test correctly triggers the intended error message and line number.
-- [ ] Automated regression check ensures no unexpected regressions occur during changes.
-
-### Suggested Commit Messages
-- `test(suite): create test directories and valid program test suite`
-- `test(suite): add test cases for lexical errors and syntax errors`
-- `test(suite): add targeted test cases for all six mandatory semantic rules`
-- `test(automation): add test runner script with automated diff verification`
+> **Note:** Project M9/M10/M11/M12 C, C++, and Java implementations are documented above and tracked in the 421/421 regression suites (`tests/run_tests.py` + `tests/cli/test_cli.py`). See M13 and M14 below for current active status.
 
 ---
 
-## Milestone 10: Technical Documentation & Architecture Report
+## Milestone 13 (project): Frontend–Compiler Integration (Electron IDE)
 
 ### Objective
-Document the complete formal grammar, pipeline architecture, symbol table scoping model, TAC generation strategy, and test matrix.
+Connect the React + Vite + Monaco IDE (`frontend/`) to the real unified CompileCraft CLI (`bin/compilecraft.exe`) through a hardened Electron host (`frontend/electron/main.cjs` + `preload.cjs`) for C, C++, and Java.
 
-### Target Deliverables
-- `docs/grammar.md`: Formal BNF specification.
-- `docs/architecture.md`: Pipeline architecture and data flow diagrams.
-- `docs/test_report.md`: Verification matrix across all valid and invalid test cases.
+### Status: **COMPLETED** (on `dev`, pending final audit & commit)
+- `src/symbol_table/` + `{C,CPP,Java}_Compiler/main_compiler.c` + `src/main.c`: Added `--tokens` and `--symtab` inspection modes alongside `--ast` and TAC generation (`33` automated CLI cases under `tests/cli/`).
+- `frontend/electron/main.cjs` & `frontend/electron/preload.cjs`: Electron main + preload IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, CSP + restricted `file://` navigation, external network blocking in desktop mode, direct `child_process.spawn` without shell, process-tree termination on timeout, isolated temp directory with automatic cleanup, graceful missing-CLI and empty-source handling).
+- `frontend/src/`: Configured Monaco offline bundling (`monaco-editor` + inline Vite worker + `loader.config({ monaco })`), connected Run button (`Ctrl+Enter`), C/C++/Java language selector (without `.mc`), real **Tokens**, **AST**, **Symbol Table**, **TAC**, and clickable line-numbered **Errors** tabs plus Output/Problems/Terminal bottom panel.
 
 ### Acceptance Checks
-- [ ] Formal CFG completely covers Section 5 language features.
-- [ ] Architecture document accurately reflects the implemented AST and TAC structures.
+- [x] Monaco loads cleanly from locally bundled assets with zero external CDN dependency.
+- [x] Run button compiles live editor content (including unsaved edits) through real `bin/compilecraft.exe`.
+- [x] Supports C, C++, and Java exclusively in the IDE selector while keeping baseline `.mc` compiler and tests intact.
+- [x] Each language demo (C, C++, Java) demonstrates declarations, arithmetic, `if/else`, `while`, and `for` compiling to TAC.
+- [x] Suppresses/clears TAC immediately whenever lexical, syntax, or any of the 6 semantic rules fail.
+- [x] Works cleanly with spaces in temp/source paths, missing CLI binary fallback, empty editor input, and repeated runs.
+
+---
+
+## Milestone 14 (project): Final Documentation, Desktop Packaging & Faculty Verification
+
+### Status: **PENDING**
+- Desktop installer / standalone packaging (`electron-builder` or `electron-forge` bundling `resources/bin/*.exe`) remains **Pending**.
+- Final technical report and faculty acceptance sign-off remain **Pending**.
 
 ---
 
 ## Planned Visual Interface Components
 
-### Visual Front-End (`frontend/` [Planned])
-- Interactive web/desktop visual user interface for source code editing, real-time lexical/syntax token stream inspection, AST graph visualization, and TAC output display.
+### Visual Front-End (`frontend/` [Implemented — M13])
+- Interactive desktop IDE (Electron + React + Monaco) for C, C++, and Java source editing, real-time token table, AST tree, scoped symbol table, TAC output, and line-numbered diagnostics.
 
-### Visual Back-End (`backend/` [Planned])
-- Interface API and compilation service connecting the interactive front-end to CompileCraft language compiler engines (`C_Compiler/`, `CPP_Compiler/`, `Java_Compiler/`).
+### Visual Back-End (`frontend/electron/` [Implemented — M13])
+- Hardened Electron main & preload IPC service dispatching temporary source files directly to `bin/compilecraft.exe` (`shell: false`).
+
+### Desktop Packaging (`[Pending]`)
+- Standalone Windows installer / portable bundle packaging `bin/compilecraft*.exe` under `resources/bin/` for external end-user distribution.

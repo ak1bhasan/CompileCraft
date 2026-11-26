@@ -8,6 +8,7 @@ import ResultsPanel from '../../features/results/ResultsPanel'
 import BottomPanel from '../../features/console/BottomPanel'
 import type {
   BottomTabId,
+  CompileResult,
   CursorPosition,
   EditorSettings,
   EditorViewState,
@@ -38,6 +39,9 @@ interface WorkspaceProps {
   onBottomToggle: () => void
   bottomTab: BottomTabId
   onBottomTabChange: (tab: BottomTabId) => void
+  compileResult: CompileResult | null
+  isCompiling: boolean
+  onJumpToLine: (line: number) => void
 }
 
 export default function Workspace({
@@ -62,6 +66,9 @@ export default function Workspace({
   onBottomToggle,
   bottomTab,
   onBottomTabChange,
+  compileResult,
+  isCompiling,
+  onJumpToLine,
 }: WorkspaceProps) {
   const language: LanguageId | null = activeDocument?.language ?? null
   const viewState: EditorViewState | null = activeDocument?.viewState ?? null
@@ -126,11 +133,14 @@ export default function Workspace({
         </section>
 
         {/* Desktop split: editor + results */}
-        <div className="relative z-0 hidden w-[min(320px,32vw)] min-w-[260px] max-w-[360px] shrink-0 overflow-hidden min-[901px]:block">
+        <div className="relative z-0 hidden w-[min(390px,36vw)] min-w-[310px] max-w-[440px] shrink-0 overflow-hidden min-[901px]:block">
           <ResultsPanel
             idPrefix="desktop-results"
             activeTab={resultsTab}
             onTabChange={onResultsTabChange}
+            result={compileResult}
+            isCompiling={isCompiling}
+            onJumpToLine={onJumpToLine}
           />
         </div>
       </div>
@@ -140,6 +150,9 @@ export default function Workspace({
         onToggle={onBottomToggle}
         activeTab={bottomTab}
         onTabChange={onBottomTabChange}
+        result={compileResult}
+        isCompiling={isCompiling}
+        onJumpToLine={onJumpToLine}
       />
 
       {/* Tablet/mobile results drawer */}
@@ -151,11 +164,14 @@ export default function Workspace({
             className="absolute inset-0 bg-black/50"
             onClick={() => onResultsDrawerChange(false)}
           />
-          <div className="absolute inset-y-0 right-0 flex w-[min(100%,22rem)] max-w-full flex-col shadow-xl shadow-black/40">
+          <div className="absolute inset-y-0 right-0 flex w-[min(100%,24rem)] max-w-full flex-col shadow-xl shadow-black/40">
             <ResultsPanel
               idPrefix="drawer-results"
               activeTab={resultsTab}
               onTabChange={onResultsTabChange}
+              result={compileResult}
+              isCompiling={isCompiling}
+              onJumpToLine={onJumpToLine}
               showClose
               onClose={() => onResultsDrawerChange(false)}
             />

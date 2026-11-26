@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import Sidebar from '../components/layout/Sidebar'
 import StatusBar from '../components/layout/StatusBar'
@@ -11,9 +11,11 @@ import {
   useWorkspace,
 } from '../features/editor/useWorkspace'
 import { useIdeKeyboardShortcuts } from '../features/editor/useIdeKeyboardShortcuts'
+import { compileSource } from '../services/compilerService'
 import {
   DEFAULT_EDITOR_SETTINGS,
   type BottomTabId,
+  type CompileResult,
   type CursorPosition,
   type EditorSettings,
   type LanguageId,
@@ -39,6 +41,11 @@ export default function App() {
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(
     DEFAULT_EDITOR_SETTINGS,
   )
+  const [compileResultsByFile, setCompileResultsByFile] = useState<
+    Record<string, CompileResult | null>
+  >({})
+  const [compilingFileId, setCompilingFileId] = useState<string | null>(null)
+  const compileSeqRef = useRef(0)
 
   // Auto-collapse sidebar on narrow viewports; close results drawer on desktop.
   useEffect(() => {
@@ -69,6 +76,11 @@ export default function App() {
   const activeDocument = workspace.activeDocument
   const language: LanguageId | null = activeDocument?.language ?? null
   const activeDirty = activeDocument ? isDocumentDirty(activeDocument) : false
+  const activeCompileResult = activeDocument
+    ? (compileResultsByFile[activeDocument.id] ?? null)
+    : null
+  const isCompilingActive =
+    activeDocument !== null && compilingFileId === activeDocument.id
 
   const dirtyFileIds = useMemo(
     () =>
@@ -156,9 +168,51 @@ export default function App() {
     handleActivateTab(ids[nextIndex])
   }
 
+  const handleRun = useCallback(async () => {
+    if (!activeDocument || compilingFileId !== null) {
+      return
+    }
+
+    const docId = activeDocument.id
+    const seq = ++compileSeqRef.current
+    setCompilingFileId(docId)
+    // Always clear previous result before invoking the compiler so stale TAC never lingers.
+    setCompileResultsByFile((previous) => ({ ...previous, [docId]: null }))
+
+    try {
+      const result = await compileSource({
+        language: activeDocument.language,
+        source: activeDocument.content,
+        fileName: activeDocument.name,
+      })
+
+      if (seq !== compileSeqRef.current) {
+        return
+      }
+
+      setCompileResultsByFile((previous) => ({ ...previous, [docId]: result }))
+      if (result.ok) {
+        setResultsTab('tac')
+        setBottomTab('output')
+      } else {
+        setResultsTab('errors')
+        setBottomTab('problems')
+      }
+    } finally {
+      if (seq === compileSeqRef.current) {
+        setCompilingFileId(null)
+      }
+    }
+  }, [activeDocument, compilingFileId])
+
+  const handleJumpToLine = useCallback((line: number) => {
+    editorRef.current?.revealLine(line)
+  }, [])
+
   useIdeKeyboardShortcuts({
     enabled: pendingAction === null,
     handlers: {
+      onRun: handleRun,
       onSave: handleSave,
       onCloseActiveTab: () => {
         if (!workspace.activeTabId) {
@@ -209,12 +263,37 @@ export default function App() {
           confirmLabel: 'Revert',
         }
 
+  const statusText = useMemo(() => {
+    if (!activeDocument) {
+      return 'No file open — choose an example in Explorer'
+    }
+    if (isCompilingActive) {
+      return `Compiling ${activeDocument.name} via bin/compilecraft.exe…`
+    }
+    if (activeCompileResult) {
+      if (activeCompileResult.ok) {
+        return `Compiled ${activeDocument.name} cleanly (${activeCompileResult.durationMs} ms)`
+      }
+      const firstDiag = activeCompileResult.diagnostics[0]
+      if (firstDiag?.line) {
+        return `${firstDiag.stage} error at line ${firstDiag.line} — TAC withheld`
+      }
+      return `${activeCompileResult.errorSummary || 'Compilation failed'} — TAC withheld`
+    }
+    return activeDirty
+      ? 'Unsaved session changes — press Run (Ctrl+Enter) to compile'
+      : 'Ready — press Run (Ctrl+Enter) to compile'
+  }, [activeCompileResult, activeDirty, activeDocument, isCompilingActive])
+
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[var(--cc-bg)] text-[var(--cc-text)]">
       <TopBar
         projectName={PROJECT_NAME}
         language={language}
         onLanguageChange={handleLanguageChange}
+        onRun={handleRun}
+        canRun={activeDocument !== null}
+        isCompiling={isCompilingActive}
         editorSettings={editorSettings}
         onEditorSettingsChange={setEditorSettings}
       />
@@ -250,19 +329,16 @@ export default function App() {
           onBottomToggle={() => setBottomCollapsed((value) => !value)}
           bottomTab={bottomTab}
           onBottomTabChange={setBottomTab}
+          compileResult={activeCompileResult}
+          isCompiling={isCompilingActive}
+          onJumpToLine={handleJumpToLine}
         />
       </div>
       <StatusBar
         language={language}
         cursor={cursor}
         editorSettings={editorSettings}
-        status={
-          activeDocument
-            ? activeDirty
-              ? 'Unsaved session changes — not written to disk'
-              : 'Ready — compiler execution not connected'
-            : 'No file open — choose an example in Explorer'
-        }
+        status={statusText}
       />
 
       <ConfirmDialog

@@ -1,4 +1,4 @@
-import { FolderGit2, Keyboard, Play, Settings } from 'lucide-react'
+import { FolderGit2, Keyboard, Loader2, Play, Settings } from 'lucide-react'
 import { useState } from 'react'
 import EditorSettingsMenu from '../../features/editor/EditorSettingsMenu'
 import KeyboardShortcutsMenu from '../../features/editor/KeyboardShortcutsMenu'
@@ -12,6 +12,9 @@ interface TopBarProps {
   projectName: string
   language: LanguageId | null
   onLanguageChange: (language: LanguageId) => void
+  onRun: () => void
+  canRun: boolean
+  isCompiling: boolean
   editorSettings: EditorSettings
   onEditorSettingsChange: (settings: EditorSettings) => void
 }
@@ -20,6 +23,9 @@ export default function TopBar({
   projectName,
   language,
   onLanguageChange,
+  onRun,
+  canRun,
+  isCompiling,
   editorSettings,
   onEditorSettingsChange,
 }: TopBarProps) {
@@ -80,14 +86,29 @@ export default function TopBar({
 
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          aria-label="Run — execution is not available yet"
-          title="Execution is not available yet"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-3 text-xs font-medium text-[var(--cc-text-muted)] opacity-60"
+          disabled={!canRun || isCompiling}
+          aria-busy={isCompiling}
+          onClick={onRun}
+          aria-label={isCompiling ? 'Compiling' : 'Run compiler'}
+          title={
+            !canRun
+              ? 'Open a file to compile'
+              : isCompiling
+                ? 'Compiling active editor…'
+                : 'Compile active editor (Ctrl+Enter)'
+          }
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors ${
+            !canRun || isCompiling
+              ? 'border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] text-[var(--cc-text-muted)] opacity-60'
+              : 'border-[var(--cc-primary)] bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)] hover:bg-[var(--cc-primary)]/30 hover:text-[var(--cc-text)]'
+          }`}
         >
-          <Play size={13} strokeWidth={2} />
-          Run
+          {isCompiling ? (
+            <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+          ) : (
+            <Play size={13} strokeWidth={2} />
+          )}
+          {isCompiling ? 'Compiling…' : 'Run'}
         </button>
       </div>
 

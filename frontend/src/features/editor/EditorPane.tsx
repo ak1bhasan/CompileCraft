@@ -1,3 +1,4 @@
+import './monacoSetup'
 import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import {
@@ -23,6 +24,7 @@ import { ensureMonacoSetup } from './monacoTheme'
 export interface EditorPaneHandle {
   captureViewState: () => EditorViewState | null
   resetView: () => void
+  revealLine: (line: number) => void
 }
 
 interface EditorPaneProps {
@@ -93,6 +95,17 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
           editorInstance.setScrollLeft(0)
           lastRestoredFileIdRef.current = activeFileIdRef.current
           onCursorChange({ line: 1, column: 1 })
+        },
+        revealLine: (line: number) => {
+          const editorInstance = editorRef.current
+          if (!editorInstance) {
+            return
+          }
+          const safeLine = Math.max(1, Math.floor(line))
+          editorInstance.revealLineInCenter(safeLine)
+          editorInstance.setPosition({ lineNumber: safeLine, column: 1 })
+          editorInstance.focus()
+          onCursorChange({ line: safeLine, column: 1 })
         },
       }),
       [onCursorChange],

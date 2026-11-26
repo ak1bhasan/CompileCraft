@@ -479,7 +479,7 @@ $(CLI_BIN): $(BUILD_CLI_DIR)/main.o
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
-cli: $(CLI_BIN) $(TAC_BIN) $(PARSER_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN)
+cli: $(CLI_BIN) $(LEXER_C_BIN) $(LEXER_CPP_BIN) $(LEXER_JAVA_BIN) $(C_COMPILER_BIN) $(CPP_COMPILER_BIN) $(JAVA_COMPILER_BIN)
 
 test-cli: cli
 	$(PYTHON) tests/cli/test_cli.py $(CLI_BIN)

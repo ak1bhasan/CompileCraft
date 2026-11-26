@@ -29,16 +29,19 @@ int yylex_destroy(void);
 int syntax_error_count = 0;
 
 static void usage(const char *argv0) {
-    fprintf(stderr, "Usage: %s [--ast] <source-file.java>\n", argv0);
+    fprintf(stderr, "Usage: %s [--ast | --symtab] <source-file.java>\n", argv0);
 }
 
 int main(int argc, char **argv) {
     const char *source_path = NULL;
     int print_ast = 0;
+    int print_symtab = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ast") == 0) {
             print_ast = 1;
+        } else if (strcmp(argv[i], "--symtab") == 0) {
+            print_symtab = 1;
         } else if (argv[i][0] != '-') {
             if (source_path != NULL) {
                 usage(argv[0]);
@@ -51,7 +54,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (source_path == NULL) {
+    if (source_path == NULL || (print_ast && print_symtab)) {
         usage(argv[0]);
         return 1;
     }
@@ -96,13 +99,23 @@ int main(int argc, char **argv) {
     }
 
     int sem_errors = semantic_analyze(sa, compilecraft_java_ast_root);
-    semantic_analyzer_destroy(sa);
 
     if (sem_errors != 0) {
+        semantic_analyzer_destroy(sa);
         ast_free(compilecraft_java_ast_root);
         compilecraft_java_ast_root = NULL;
         return 1;
     }
+
+    if (print_symtab) {
+        symbol_table_print(sa->symtab, stdout);
+        semantic_analyzer_destroy(sa);
+        ast_free(compilecraft_java_ast_root);
+        compilecraft_java_ast_root = NULL;
+        return 0;
+    }
+
+    semantic_analyzer_destroy(sa);
 
     TacList *tac = tac_generate_program(compilecraft_java_ast_root);
     ast_free(compilecraft_java_ast_root);

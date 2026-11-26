@@ -113,7 +113,15 @@ def main():
         ok = (rc == 0) and (err.strip() == "") and all(snip in out for snip in expected_snippets)
         check(f"tac_{label}", ok, f"rc={rc} out={out!r} err={err!r}")
 
-    # 5. --ast dispatch across C, C++, and Java
+    # 5. --tokens, --ast, and --symtab dispatch across C, C++, and Java
+    for label, src, marker in [
+        ("tokens_c", "tests/cli/valid_c.c", "KW_BOOL"),
+        ("tokens_cpp", "tests/cli/valid_cpp.cpp", "KW_BOOL"),
+        ("tokens_java", "tests/cli/ValidJava.java", "KW_BOOLEAN"),
+    ]:
+        rc, out, err = run_cli(cli_bin, ["--tokens", src], cwd=repo_root)
+        check(label, rc == 0 and marker in out and not contains_tac(out), f"rc={rc} out={out!r} err={err!r}")
+
     for label, src, marker in [
         ("ast_c", "tests/cli/valid_c.c", "VarDecl bool"),
         ("ast_cpp", "tests/cli/valid_cpp.cpp", "VarDecl bool"),
@@ -121,6 +129,18 @@ def main():
     ]:
         rc, out, err = run_cli(cli_bin, ["--ast", src], cwd=repo_root)
         check(label, rc == 0 and marker in out and not contains_tac(out), f"rc={rc} out={out!r} err={err!r}")
+
+    for label, src, expected_syms in [
+        ("symtab_c", "tests/cli/valid_c.c", ["active type=bool scope=0", "i type=int scope=1"]),
+        ("symtab_cpp", "tests/cli/valid_cpp.cpp", ["active type=bool scope=0", "i type=int scope=1"]),
+        ("symtab_java", "tests/cli/ValidJava.java", ["active type=bool scope=0", "i type=int scope=1"]),
+    ]:
+        rc, out, err = run_cli(cli_bin, ["--symtab", src], cwd=repo_root)
+        check(
+            label,
+            rc == 0 and err.strip() == "" and all(s in out for s in expected_syms) and not contains_tac(out),
+            f"rc={rc} out={out!r} err={err!r}",
+        )
 
     # 6. Six semantic error categories + lexical + syntax errors across C, C++, Java (zero TAC emitted)
     error_specs = [

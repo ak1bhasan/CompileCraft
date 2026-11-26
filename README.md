@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` (**M0–M7**), **M9 C**, **M10 C++**, **M11 Java**, **M12 Hardening**, and **M8 Unified CLI (`compilecraft.exe`)**. Remaining: **M13** frontend integration, **M14** final docs & verification.
+> **Current focus**: baseline `.mc` (**M0–M7**), **M9 C**, **M10 C++**, **M11 Java**, **M12 Hardening**, **M8 Unified CLI (`compilecraft.exe`)**, and **M13 Frontend–Compiler Integration (`frontend/` Electron IDE)**. Remaining: **M14** final docs & verification.
 
 ---
 
@@ -14,17 +14,18 @@
 
 There is **no backend codegen**; the pipeline terminates at Three-Address Code (TAC).
 
-**Implemented today (through Milestone 12 + Milestone 8 / Unified CLI):**
+**Implemented today (through Milestone 13):**
 
-- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--ast` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
+- **Unified CLI (`src/main.c` → `bin/compilecraft.exe`)**: Extension-based dispatch for C (`.c`), C++ (`.cpp`), and Java (`.java`), `--help` / `--tokens` / `--ast` / `--symtab` flags, safe native process invocation (no shell), and reliable path resolution from outside the repo or paths with spaces. *(Baseline `.mc` remains supported through its dedicated drivers `compilecraft-{lexer,parser,semantic,tac}.exe`.)*
+- **Electron + React Desktop IDE (`frontend/`)**: Monaco-based IDE connected via a hardened Electron IPC host (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `child_process.spawn` without shell) to `bin/compilecraft.exe` for C, C++, and Java, displaying real **Tokens**, **AST**, **Symbol Table**, **TAC**, and line-numbered **Errors**.
 - Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
 - Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
 - **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
 - **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `int`, `float`, `bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
 - **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
-- Production parser and language compiler CLIs with optional `--ast` output.
+- Production parser and language compiler CLIs with optional `--ast` and `--symtab` output.
 
-**Remaining / Not yet implemented:** Frontend–compiler integration (**M13**), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
+**Remaining / Not yet implemented:** Desktop installer packaging (Electron bundler configuration), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
 
 ---
 
@@ -97,8 +98,8 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 8 — Unified CLI Driver (complete on `dev` alongside M9–M12)**
-> *Single unified `bin/compilecraft.exe` dispatching `.c`, `.cpp`, and `.java` end-to-end through semantic analysis and TAC.*
+> **Status**: **Milestone 13 — Frontend–Compiler Integration (complete on `dev`, pending commit)**
+> *Electron + React + Monaco IDE wired cleanly to `bin/compilecraft.exe` for C, C++, and Java.*
 
 ### Status matrix
 
@@ -106,7 +107,7 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 |---|---|:---:|---|
 | **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, Make, Python | **COMPLETED** | Verified via `toolchain-check`. |
 | **Build Foundation** | Modular `Makefile` | **COMPLETED** | All lexers, parsers, AST/symtab/semantic/TAC targets, C/C++/Java front ends; Bison `-Werror=conflicts-*`. |
-| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M12). |
+| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M13). |
 | **Baseline Lexer (`src/lexer/`)** | Flex scanner + driver | **COMPLETED** | 18 tests. |
 | **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 27 + 24 + 20 tests. C/C++/Java parsers done (M9/M10/M11/M12). |
 | **Baseline Parser (`src/parser/`)** | Bison LALR(1) + recovery | **COMPLETED (M3.2–M3.3)** | 34 syntax tests. See `docs/parser.md`. |
@@ -120,8 +121,8 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 | **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9/M12)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
 | **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10/M12)** | `compilecraft-cpp.exe`; `bool`; for-loops; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
 | **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11/M12)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` (`tests/cli/`: 27 cases). |
-| **Frontend–Compiler Integration** | Visual frontend integration | **PENDING (M13)** | Planned next milestone. |
+| **Unified CLI (`src/main.c`)** | Extension-dispatching CLI driver | **COMPLETED (M8/M13)** | `bin/compilecraft.exe` dispatching `.c`, `.cpp`, `.java` with `--tokens`, `--ast`, `--symtab` (`tests/cli/`: 33 cases). |
+| **Frontend–Compiler Integration** | Electron + React + Monaco IDE | **COMPLETED (M13)** | `frontend/electron/main.cjs` + `preload.cjs` invoking `bin/compilecraft.exe` for C, C++, Java (desktop installer packaging pending). |
 | **Final Docs & Faculty Verification** | Final release verification | **PENDING (M14)** | Planned final milestone. |
 
 ### Milestone summary (M4)
@@ -206,7 +207,7 @@ Unknown flags, missing paths, and multiple source files print usage to stderr an
 
 ## 7. Directory Structure
 
-Reflects the repository as of Milestone 12 (planned directories that do not exist yet are omitted).
+Reflects the repository as of Milestone 13 (planned installer packaging / unbuilt targets are omitted).
 
 ```
 CompileCraft/
@@ -233,8 +234,19 @@ CompileCraft/
 ├── C_Compiler/                  # C-subset lexer + Bison parser + driver (M2.1/M9/M12)
 ├── CPP_Compiler/                # C++-subset lexer + Bison parser + driver (M2.2/M10)
 ├── Java_Compiler/               # Java-subset lexer + Bison parser + driver (M2.3/M11)
+├── frontend/                    # [M13] Electron + React + Vite + Monaco IDE
+│   ├── electron/
+│   │   ├── main.cjs             # Hardened IPC process host (shell: false)
+│   │   └── preload.cjs          # Restricted contextBridge API
+│   └── src/
+│       ├── app/                 # Top-level IDE state & compiler orchestration
+│       ├── components/          # TopBar, Sidebar, Workspace, StatusBar, dialogs
+│       ├── data/                # C, C++, and Java IDE demonstration sources
+│       ├── features/            # Monaco editor, Tokens, AST, Symbol Table, TAC, Errors
+│       ├── services/            # Typed IPC compiler service wrapper
+│       └── types/               # Shared IDE & compile result interfaces
 ├── src/
-│   ├── main.c                   # [M8] Unified multi-language CLI dispatcher
+│   ├── main.c                   # [M8/M13] Unified multi-language CLI dispatcher
 │   ├── ast/                     # [M4] Shared AST core
 │   ├── lexer/                   # Baseline .mc lexer
 │   ├── parser/                  # Baseline .mc parser + AST wiring + CLI
@@ -243,7 +255,7 @@ CompileCraft/
 │   └── tac/                     # [M7] Shared Three-Address Code generator
 └── tests/
     ├── run_tests.py
-    ├── cli/                     # 27 unified CLI integration & error tests (M8)
+    ├── cli/                     # 33 unified CLI integration & error tests (M8/M13)
     ├── lexer/                   # 18
     ├── c/                       # 27 lexer + parser/ (22) + semantic/ (10) + tac/ (11)
     ├── cpp/                     # 24 lexer + parser/ (30) + semantic/ (9)  + tac/ (15)
@@ -289,10 +301,10 @@ Builds also produce `bin/compilecraft.exe`, `bin/compilecraft-semantic.exe`, `bi
 
 | Suite | Passed |
 |---|---:|
-| Automated regression (20 suites) | 415/415 |
+| Automated regression (20 suites) | 421/421 |
 | Unit-test executables | 3/3 |
 
-Breakdown of the **415/415** automated regression cases:
+Breakdown of the **421/421** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
@@ -309,8 +321,8 @@ Breakdown of the **415/415** automated regression cases:
 | C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 22 + 10 + 11 |
 | C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 30 + 9 + 15 |
 | Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 33 + 9 + 15 |
-| Unified CLI (`tests/cli`) | 27 |
-| **Total (automated regression)** | **415/415** |
+| Unified CLI (`tests/cli`) | 33 |
+| **Total (automated regression)** | **421/421** |
 
 Standalone unit-test executables (`3/3` passing):
 - `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
@@ -318,7 +330,7 @@ Standalone unit-test executables (`3/3` passing):
 - `bin/test-tac.exe` (`test-tac-unit`)
 
 ```powershell
-# All suites (415 automated tests + 3 unit-test executables):
+# All suites (421 automated tests + 3 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
 # Unified CLI & language compiler suites:
@@ -326,6 +338,10 @@ Standalone unit-test executables (`3/3` passing):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp-compiler
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java-compiler
+
+# Build & launch Electron desktop IDE (development workspace mode):
+npm --prefix frontend run build
+npm --prefix frontend run electron:start
 ```
 
 Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werror=conflicts-sr -Werror=conflicts-rr`).
@@ -336,7 +352,8 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 
 | Item | Focus | Status |
 |---|---|---|
-| **M13** | Frontend–compiler integration | Pending |
+| **M13** | Frontend–compiler integration | Completed (Electron dev IDE) |
+| **Desktop Packaging** | Standalone installer / portable app bundle | Pending |
 | **M14** | Final documentation and faculty verification | Pending |
 | **DEC-07** | Short-circuit vs eager logical evaluation (`&&` / `||`) | Open (interim eager TAC policy) |
 | **Language subsets** | Constructs outside bounded C/C++/Java subsets | Documented in `docs/{c,cpp,java}_frontend.md` |

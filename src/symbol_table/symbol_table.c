@@ -58,6 +58,7 @@ static void scope_frame_free_symbols(ScopeFrame *frame, ExitedSymbolRecord **exi
                 ExitedSymbolRecord *rec = (ExitedSymbolRecord *)malloc(sizeof(ExitedSymbolRecord));
                 if (rec) {
                     rec->name = strdup(sym->name ? sym->name : "");
+                    rec->type = sym->type;
                     rec->scope_level = sym->scope_level;
                     rec->line = sym->line;
                     rec->next = *exited_list;
@@ -225,4 +226,81 @@ bool symbol_table_was_declared_in_exited_scope(const SymbolTable *st, const char
     }
 
     return false;
+}
+
+typedef struct PrintableSymbol {
+    const char *name;
+    DataType type;
+    int scope_level;
+    int line;
+} PrintableSymbol;
+
+static int compare_printable_symbols(const void *a, const void *b) {
+    const PrintableSymbol *pa = (const PrintableSymbol *)a;
+    const PrintableSymbol *pb = (const PrintableSymbol *)b;
+    if (pa->line != pb->line) {
+        return (pa->line < pb->line) ? -1 : 1;
+    }
+    if (pa->scope_level != pb->scope_level) {
+        return (pa->scope_level < pb->scope_level) ? -1 : 1;
+    }
+    return strcmp(pa->name ? pa->name : "", pb->name ? pb->name : "");
+}
+
+void symbol_table_print(const SymbolTable *st, FILE *out) {
+    if (!st || !out) {
+        return;
+    }
+
+    size_t count = 0;
+    for (ScopeFrame *f = st->current_scope; f != NULL; f = f->parent) {
+        for (size_t i = 0; i < f->num_buckets; i++) {
+            for (Symbol *s = f->buckets[i]; s != NULL; s = s->next) {
+                count++;
+            }
+        }
+    }
+    for (ExitedSymbolRecord *r = st->exited_symbols; r != NULL; r = r->next) {
+        count++;
+    }
+
+    if (count == 0) {
+        return;
+    }
+
+    PrintableSymbol *items = (PrintableSymbol *)malloc(count * sizeof(PrintableSymbol));
+    if (!items) {
+        return;
+    }
+
+    size_t idx = 0;
+    for (ScopeFrame *f = st->current_scope; f != NULL; f = f->parent) {
+        for (size_t i = 0; i < f->num_buckets; i++) {
+            for (Symbol *s = f->buckets[i]; s != NULL; s = s->next) {
+                items[idx].name = s->name;
+                items[idx].type = s->type;
+                items[idx].scope_level = s->scope_level;
+                items[idx].line = s->line;
+                idx++;
+            }
+        }
+    }
+    for (ExitedSymbolRecord *r = st->exited_symbols; r != NULL; r = r->next) {
+        items[idx].name = r->name;
+        items[idx].type = r->type;
+        items[idx].scope_level = r->scope_level;
+        items[idx].line = r->line;
+        idx++;
+    }
+
+    qsort(items, idx, sizeof(PrintableSymbol), compare_printable_symbols);
+    for (size_t i = 0; i < idx; i++) {
+        fprintf(out, "Line %d: %s type=%s scope=%d\n",
+                items[i].line,
+                items[i].name ? items[i].name : "",
+                datatype_to_string(items[i].type),
+                items[i].scope_level);
+    }
+
+    free(items);
 }

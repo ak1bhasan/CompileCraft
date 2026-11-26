@@ -5,61 +5,6 @@ let registered = false
 
 export function ensureMonacoSetup(monaco: Monaco): string {
   if (!registered) {
-    monaco.languages.register({ id: 'compilecraft-mc' })
-    monaco.languages.setMonarchTokensProvider('compilecraft-mc', {
-      keywords: [
-        'int',
-        'float',
-        'bool',
-        'true',
-        'false',
-        'if',
-        'else',
-        'while',
-        'print',
-      ],
-      operators: [
-        '=',
-        '+',
-        '-',
-        '*',
-        '/',
-        '%',
-        '==',
-        '!=',
-        '<',
-        '>',
-        '<=',
-        '>=',
-        '&&',
-        '||',
-        '!',
-      ],
-      symbols: /[=><!~?:&|+\-*/%]+/,
-      tokenizer: {
-        root: [
-          [/[a-zA-Z_]\w*/, {
-            cases: {
-              '@keywords': 'keyword',
-              '@default': 'identifier',
-            },
-          }],
-          [/\/\/.*$/, 'comment'],
-          [/\d+\.\d+/, 'number.float'],
-          [/\d+/, 'number'],
-          [/[{}()[\]]/, '@brackets'],
-          [/@symbols/, {
-            cases: {
-              '@operators': 'operator',
-              '@default': '',
-            },
-          }],
-          [/[;,.]/, 'delimiter'],
-          [/\s+/, 'white'],
-        ],
-      },
-    })
-
     monaco.editor.defineTheme(THEME_NAME, {
       base: 'vs-dark',
       inherit: true,

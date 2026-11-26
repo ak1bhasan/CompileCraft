@@ -59,7 +59,7 @@ static void print_usage(FILE *out, const char *argv0) {
     const char *prog = (argv0 && *argv0) ? get_basename_ptr(argv0) : "compilecraft";
     fprintf(out,
             "CompileCraft - Multi-Language Compiler Front-End\n"
-            "Usage: %s [--ast] <source-file>\n"
+            "Usage: %s [--tokens | --ast | --symtab] <source-file>\n"
             "       %s --help\n"
             "\n"
             "Supported Input Languages (bounded subsets ending at TAC):\n"
@@ -68,13 +68,34 @@ static void print_usage(FILE *out, const char *argv0) {
             "  .java  Java class/main subset (boolean, control flow)\n"
             "\n"
             "Options:\n"
+            "  --tokens      Print lexical token stream and exit\n"
             "  --ast         Print AST and skip semantic analysis / TAC\n"
+            "  --symtab      Print scoped symbol table entries and skip TAC\n"
             "  -h, --help    Show this help message\n",
             prog, prog);
 }
 
-static const char *resolve_compiler_name(const char *ext) {
+typedef enum CliMode {
+    MODE_TAC = 0,
+    MODE_TOKENS,
+    MODE_AST,
+    MODE_SYMTAB
+} CliMode;
+
+static const char *resolve_compiler_name(const char *ext, CliMode mode) {
 #ifdef _WIN32
+    if (mode == MODE_TOKENS) {
+        if (eq_nocase(ext, ".c")) {
+            return "compilecraft-lexer-c.exe";
+        }
+        if (eq_nocase(ext, ".cpp")) {
+            return "compilecraft-lexer-cpp.exe";
+        }
+        if (eq_nocase(ext, ".java")) {
+            return "compilecraft-lexer-java.exe";
+        }
+        return NULL;
+    }
     if (eq_nocase(ext, ".c")) {
         return "compilecraft-c.exe";
     }
@@ -85,6 +106,18 @@ static const char *resolve_compiler_name(const char *ext) {
         return "compilecraft-java.exe";
     }
 #else
+    if (mode == MODE_TOKENS) {
+        if (eq_nocase(ext, ".c")) {
+            return "compilecraft-lexer-c";
+        }
+        if (eq_nocase(ext, ".cpp")) {
+            return "compilecraft-lexer-cpp";
+        }
+        if (eq_nocase(ext, ".java")) {
+            return "compilecraft-lexer-java";
+        }
+        return NULL;
+    }
     if (eq_nocase(ext, ".c")) {
         return "compilecraft-c";
     }
@@ -289,15 +322,25 @@ static int append_quoted_win_arg(DynStr *s, const char *arg) {
     return dynstr_append_char(s, '\"');
 }
 
+static const char *mode_child_flag(CliMode mode) {
+    switch (mode) {
+        case MODE_AST:    return "--ast";
+        case MODE_SYMTAB: return "--symtab";
+        case MODE_TOKENS:
+        case MODE_TAC:
+        default:          return NULL;
+    }
+}
+
 static int run_compiler_process(const char *tool_path,
                                 const char *source_path,
-                                int include_ast_flag) {
+                                const char *extra_flag) {
     DynStr cmd = {NULL, 0, 0};
     if (!append_quoted_win_arg(&cmd, tool_path)) {
         free(cmd.data);
         return 1;
     }
-    if (include_ast_flag && !append_quoted_win_arg(&cmd, "--ast")) {
+    if (extra_flag && !append_quoted_win_arg(&cmd, extra_flag)) {
         free(cmd.data);
         return 1;
     }
@@ -345,9 +388,19 @@ static int run_compiler_process(const char *tool_path,
     return (exit_code == 0) ? 0 : 1;
 }
 #else
+static const char *mode_child_flag(CliMode mode) {
+    switch (mode) {
+        case MODE_AST:    return "--ast";
+        case MODE_SYMTAB: return "--symtab";
+        case MODE_TOKENS:
+        case MODE_TAC:
+        default:          return NULL;
+    }
+}
+
 static int run_compiler_process(const char *tool_path,
                                 const char *source_path,
-                                int include_ast_flag) {
+                                const char *extra_flag) {
     fflush(stdout);
     fflush(stderr);
 
@@ -357,14 +410,14 @@ static int run_compiler_process(const char *tool_path,
         return 1;
     }
     if (pid == 0) {
-        char *argv_ast[4];
+        char *argv_flag[4];
         char *argv_tac[3];
-        if (include_ast_flag) {
-            argv_ast[0] = (char *)tool_path;
-            argv_ast[1] = "--ast";
-            argv_ast[2] = (char *)source_path;
-            argv_ast[3] = NULL;
-            execv(tool_path, argv_ast);
+        if (extra_flag) {
+            argv_flag[0] = (char *)tool_path;
+            argv_flag[1] = (char *)extra_flag;
+            argv_flag[2] = (char *)source_path;
+            argv_flag[3] = NULL;
+            execv(tool_path, argv_flag);
         } else {
             argv_tac[0] = (char *)tool_path;
             argv_tac[1] = (char *)source_path;
@@ -387,14 +440,22 @@ static int run_compiler_process(const char *tool_path,
 
 int main(int argc, char **argv) {
     const char *source_path = NULL;
-    int print_ast = 0;
+    CliMode mode = MODE_TAC;
+    int mode_count = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             print_usage(stdout, argv[0]);
             return 0;
+        } else if (strcmp(argv[i], "--tokens") == 0) {
+            mode = MODE_TOKENS;
+            mode_count++;
         } else if (strcmp(argv[i], "--ast") == 0) {
-            print_ast = 1;
+            mode = MODE_AST;
+            mode_count++;
+        } else if (strcmp(argv[i], "--symtab") == 0) {
+            mode = MODE_SYMTAB;
+            mode_count++;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
             print_usage(stderr, argv[0]);
@@ -408,6 +469,12 @@ int main(int argc, char **argv) {
             }
             source_path = argv[i];
         }
+    }
+
+    if (mode_count > 1) {
+        fprintf(stderr, "Error: Specify at most one output mode (--tokens, --ast, or --symtab).\n");
+        print_usage(stderr, argv[0]);
+        return 1;
     }
 
     if (source_path == NULL) {
@@ -424,7 +491,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    const char *tool_name = resolve_compiler_name(ext);
+    const char *tool_name = resolve_compiler_name(ext, mode);
     if (!tool_name) {
         fprintf(stderr,
                 "Error: Unsupported file extension '%s' for '%s'. Supported extensions: .c, .cpp, .java\n",
@@ -444,5 +511,5 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    return run_compiler_process(tool_path, source_path, print_ast);
+    return run_compiler_process(tool_path, source_path, mode_child_flag(mode));
 }

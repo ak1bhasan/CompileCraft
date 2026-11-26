@@ -1,8 +1,8 @@
 import type { editor } from 'monaco-editor'
 
-export type LanguageId = 'c' | 'cpp' | 'java' | 'mc'
+export type LanguageId = 'c' | 'cpp' | 'java'
 
-export type ResultsTabId = 'tokens' | 'parser' | 'ast' | 'diagnostics'
+export type ResultsTabId = 'tokens' | 'ast' | 'symtab' | 'tac' | 'errors'
 
 export type BottomTabId = 'output' | 'problems' | 'terminal'
 
@@ -41,7 +41,6 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { id: 'c', label: 'C', monacoLanguage: 'c' },
   { id: 'cpp', label: 'C++', monacoLanguage: 'cpp' },
   { id: 'java', label: 'Java', monacoLanguage: 'java' },
-  { id: 'mc', label: 'Baseline (.mc)', monacoLanguage: 'compilecraft-mc' },
 ]
 
 export function monacoLanguageFor(language: LanguageId): string {
@@ -53,6 +52,64 @@ export function monacoLanguageFor(language: LanguageId): string {
 
 export function languageLabel(language: LanguageId): string {
   return LANGUAGE_OPTIONS.find((option) => option.id === language)?.label ?? language
+}
+
+export interface CompileToken {
+  line: number
+  tokenType: string
+  lexeme: string
+}
+
+export interface CompileSymbol {
+  line: number
+  name: string
+  dataType: string
+  scope: number
+}
+
+export type DiagnosticStage =
+  | 'Lexical'
+  | 'Syntax'
+  | 'Semantic'
+  | 'Compiler'
+  | 'System'
+  | 'Validation'
+
+export interface CompileDiagnostic {
+  stage: DiagnosticStage | string
+  line: number | null
+  message: string
+  raw: string
+}
+
+export interface CompileRequest {
+  language: LanguageId
+  source: string
+  fileName?: string
+}
+
+export interface CompileResult {
+  ok: boolean
+  exitCode: number
+  language: LanguageId
+  durationMs: number
+  cliPath: string
+  cliMissing: boolean
+  tokens: CompileToken[]
+  tokensRaw: string
+  ast: string
+  symbols: CompileSymbol[]
+  symtabRaw: string
+  tac: string
+  diagnostics: CompileDiagnostic[]
+  rawStderr: string
+  errorSummary: string
+}
+
+export interface CompilerHealth {
+  found: boolean
+  cliPath: string
+  supportedLanguages: LanguageId[]
 }
 
 export type FontSizeOption = 12 | 13 | 14 | 16 | 18
