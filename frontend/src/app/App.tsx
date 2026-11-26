@@ -11,11 +11,18 @@ import {
   useWorkspace,
 } from '../features/editor/useWorkspace'
 import { useIdeKeyboardShortcuts } from '../features/editor/useIdeKeyboardShortcuts'
-import { compileSource } from '../services/compilerService'
+import {
+  sendExecutionEof,
+  sendExecutionInput,
+  startInteractiveRun,
+  stopExecution,
+  subscribeExecutionEvents,
+} from '../services/compilerService'
 import {
   DEFAULT_EDITOR_SETTINGS,
   type BottomTabId,
   type CompileResult,
+  type ConsoleEntry,
   type CursorPosition,
   type EditorSettings,
   type LanguageId,
@@ -70,8 +77,18 @@ export default function App() {
   const [compileResultsByFile, setCompileResultsByFile] = useState<
     Record<string, CompileResult | null>
   >({})
+  const [consoleEntriesByFile, setConsoleEntriesByFile] = useState<
+    Record<string, ConsoleEntry[]>
+  >({})
+  const [stdinClosedByFile, setStdinClosedByFile] = useState<
+    Record<string, boolean>
+  >({})
   const [compilingFileId, setCompilingFileId] = useState<string | null>(null)
+  const [runningFileId, setRunningFileId] = useState<string | null>(null)
   const compileSeqRef = useRef(0)
+  const entrySeqRef = useRef(0)
+  const activeRunIdRef = useRef<string | undefined>(undefined)
+  const runToDocRef = useRef<Map<string, string>>(new Map())
 
   // Auto-collapse sidebar on narrow viewports; close results drawer on desktop.
   useEffect(() => {
@@ -105,14 +122,95 @@ export default function App() {
   const activeCompileResult = activeDocument
     ? (compileResultsByFile[activeDocument.id] ?? null)
     : null
+  const activeConsoleEntries = activeDocument
+    ? (consoleEntriesByFile[activeDocument.id] ?? [])
+    : []
+  const activeStdinClosed = activeDocument
+    ? Boolean(stdinClosedByFile[activeDocument.id])
+    : false
   const isCompilingActive =
     activeDocument !== null && compilingFileId === activeDocument.id
+  const isRunningActive =
+    activeDocument !== null && runningFileId === activeDocument.id
+  const isBusyActive = isCompilingActive || isRunningActive
+
+  useEffect(() => {
+    return subscribeExecutionEvents((event) => {
+      const docId = runToDocRef.current.get(event.runId)
+      if (!docId || event.runId !== activeRunIdRef.current) {
+        return
+      }
+
+      if (event.type === 'stdout' || event.type === 'stderr') {
+        const entryId = `entry-${++entrySeqRef.current}`
+        const kind = event.type
+        setConsoleEntriesByFile((previous) => ({
+          ...previous,
+          [docId]: [...(previous[docId] ?? []), { id: entryId, kind, text: event.data }],
+        }))
+        setCompileResultsByFile((previous) => {
+          const current = previous[docId]
+          if (!current) {
+            return previous
+          }
+          return {
+            ...previous,
+            [docId]: {
+              ...current,
+              programOutput:
+                kind === 'stdout'
+                  ? current.programOutput + event.data
+                  : current.programOutput,
+              executionStderr:
+                kind === 'stderr'
+                  ? current.executionStderr + event.data
+                  : current.executionStderr,
+            },
+          }
+        })
+        return
+      }
+
+      runToDocRef.current.delete(event.runId)
+      activeRunIdRef.current = undefined
+      setRunningFileId(null)
+      setCompileResultsByFile((previous) => {
+        const current = previous[docId]
+        if (!current) {
+          return previous
+        }
+        const mergedDiagnostics = [...current.diagnostics, ...event.diagnostics]
+        const fullStderr = [current.rawStderr, current.executionStderr]
+          .filter(Boolean)
+          .join('\n')
+          .trim()
+        return {
+          ...previous,
+          [docId]: {
+            ...current,
+            executionStatus: event.executionStatus,
+            executionOk: event.executionStatus === 'succeeded',
+            executionExitCode: event.exitCode,
+            executionDurationMs: event.durationMs,
+            diagnostics: mergedDiagnostics,
+            rawStderr: fullStderr,
+            errorSummary: event.errorSummary,
+          },
+        }
+      })
+    })
+  }, [])
 
   const dirtyFileIds = useMemo(
     () =>
       Object.values(workspace.documents)
         .filter(isDocumentDirty)
         .map((document) => document.id),
+    [workspace.documents],
+  )
+
+  const explorerFiles = useMemo(
+    () => EXAMPLE_FILES.map((file) => workspace.documents[file.id] ?? file),
     [workspace.documents],
   )
 
@@ -195,32 +293,52 @@ export default function App() {
   }
 
   const handleRun = useCallback(async () => {
-    if (!activeDocument || compilingFileId !== null) {
+    if (!activeDocument || compilingFileId !== null || runningFileId !== null) {
       return
     }
 
     const docId = activeDocument.id
     const seq = ++compileSeqRef.current
+    const runId = `run-${seq}`
+    activeRunIdRef.current = runId
     setCompilingFileId(docId)
-    // Always clear previous result before invoking the compiler so stale TAC never lingers.
+    // Clear previous console output and compile results only when starting a new execution.
     setCompileResultsByFile((previous) => ({ ...previous, [docId]: null }))
+    setConsoleEntriesByFile((previous) => ({ ...previous, [docId]: [] }))
+    setStdinClosedByFile((previous) => ({ ...previous, [docId]: false }))
+    setBottomTab('output')
+    setBottomCollapsed(false)
 
     try {
-      const result = await compileSource({
+      const response = await startInteractiveRun({
         language: activeDocument.language,
         source: activeDocument.content,
         fileName: activeDocument.name,
+        runId,
       })
 
       if (seq !== compileSeqRef.current) {
+        if (response.started) {
+          void stopExecution(runId)
+        }
         return
       }
 
+      const result = response.compileResult
       setCompileResultsByFile((previous) => ({ ...previous, [docId]: result }))
-      if (result.ok) {
+      if (response.started && result.ok) {
+        runToDocRef.current.set(runId, docId)
+        setRunningFileId(docId)
         setResultsTab('tac')
         setBottomTab('output')
+        setBottomCollapsed(false)
+      } else if (result.ok) {
+        activeRunIdRef.current = undefined
+        setResultsTab('tac')
+        setBottomTab('output')
+        setBottomCollapsed(false)
       } else {
+        activeRunIdRef.current = undefined
         setResultsTab('errors')
         setBottomTab('problems')
       }
@@ -229,7 +347,53 @@ export default function App() {
         setCompilingFileId(null)
       }
     }
-  }, [activeDocument, compilingFileId])
+  }, [activeDocument, compilingFileId, runningFileId])
+
+  const handleStop = useCallback(() => {
+    void stopExecution(activeRunIdRef.current)
+  }, [])
+
+  const handleSendInput = useCallback(
+    async (text: string) => {
+      const runId = activeRunIdRef.current
+      const docId = runningFileId
+      if (!runId || !docId || stdinClosedByFile[docId]) {
+        return
+      }
+      const line = `${text}\n`
+      const ok = await sendExecutionInput(runId, line)
+      if (!ok || runId !== activeRunIdRef.current) {
+        return
+      }
+      const entryId = `entry-${++entrySeqRef.current}`
+      setConsoleEntriesByFile((previous) => ({
+        ...previous,
+        [docId]: [...(previous[docId] ?? []), { id: entryId, kind: 'stdin', text: line }],
+      }))
+    },
+    [runningFileId, stdinClosedByFile],
+  )
+
+  const handleSendEof = useCallback(async () => {
+    const runId = activeRunIdRef.current
+    const docId = runningFileId
+    if (!runId || !docId || stdinClosedByFile[docId]) {
+      return
+    }
+    const ok = await sendExecutionEof(runId)
+    if (!ok || runId !== activeRunIdRef.current) {
+      return
+    }
+    const entryId = `entry-${++entrySeqRef.current}`
+    setStdinClosedByFile((previous) => ({ ...previous, [docId]: true }))
+    setConsoleEntriesByFile((previous) => ({
+      ...previous,
+      [docId]: [
+        ...(previous[docId] ?? []),
+        { id: entryId, kind: 'system', text: '[EOF sent — stdin closed]\n' },
+      ],
+    }))
+  }, [runningFileId, stdinClosedByFile])
 
   const handleJumpToLine = useCallback((line: number) => {
     editorRef.current?.revealLine(line)
@@ -296,20 +460,30 @@ export default function App() {
     if (isCompilingActive) {
       return `Compiling ${activeDocument.name} via bin/compilecraft.exe…`
     }
+    if (isRunningActive) {
+      return `Running ${activeDocument.name} interactively via CompileCraft VM…`
+    }
     if (activeCompileResult) {
+      if (activeCompileResult.ok && activeCompileResult.executionOk) {
+        return `Ran ${activeDocument.name} cleanly (${activeCompileResult.durationMs} ms)`
+      }
       if (activeCompileResult.ok) {
-        return `Compiled ${activeDocument.name} cleanly (${activeCompileResult.durationMs} ms)`
+        const firstDiag = activeCompileResult.diagnostics[0]
+        if (firstDiag?.line) {
+          return `${firstDiag.stage} error at line ${firstDiag.line} — TAC available`
+        }
+        return `${activeCompileResult.errorSummary || 'Runtime error'} — TAC available`
       }
       const firstDiag = activeCompileResult.diagnostics[0]
       if (firstDiag?.line) {
-        return `${firstDiag.stage} error at line ${firstDiag.line} — TAC withheld`
+        return `${firstDiag.stage} error at line ${firstDiag.line} — execution skipped`
       }
-      return `${activeCompileResult.errorSummary || 'Compilation failed'} — TAC withheld`
+      return `${activeCompileResult.errorSummary || 'Compilation failed'} — execution skipped`
     }
     return activeDirty
-      ? 'Unsaved session changes — press Run (Ctrl+Enter) to compile'
-      : 'Ready — press Run (Ctrl+Enter) to compile'
-  }, [activeCompileResult, activeDirty, activeDocument, isCompilingActive])
+      ? 'Unsaved session changes — press Run (Ctrl+Enter) to compile & run'
+      : 'Ready — press Run (Ctrl+Enter) to compile & run'
+  }, [activeCompileResult, activeDirty, activeDocument, isCompilingActive, isRunningActive])
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[var(--cc-bg)] text-[var(--cc-text)]">
@@ -318,8 +492,9 @@ export default function App() {
         language={language}
         onLanguageChange={handleLanguageChange}
         onRun={handleRun}
+        onStop={handleStop}
         canRun={activeDocument !== null}
-        isCompiling={isCompilingActive}
+        isCompiling={isBusyActive}
         editorSettings={editorSettings}
         onEditorSettingsChange={handleEditorSettingsChange}
       />
@@ -327,11 +502,12 @@ export default function App() {
         <Sidebar
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((value) => !value)}
-          files={EXAMPLE_FILES}
+          files={explorerFiles}
           activeFileId={workspace.activeTabId}
           openFileIds={workspace.openTabIds}
           dirtyFileIds={dirtyFileIds}
           onSelectFile={handleOpenFile}
+          onRenameFile={workspace.renameDocument}
         />
         <Workspace
           tabs={workspace.openTabs}
@@ -356,7 +532,13 @@ export default function App() {
           bottomTab={bottomTab}
           onBottomTabChange={setBottomTab}
           compileResult={activeCompileResult}
+          consoleEntries={activeConsoleEntries}
           isCompiling={isCompilingActive}
+          isRunning={isRunningActive}
+          stdinClosed={activeStdinClosed}
+          onSendInput={handleSendInput}
+          onSendEof={handleSendEof}
+          onStop={handleStop}
           onJumpToLine={handleJumpToLine}
         />
       </div>

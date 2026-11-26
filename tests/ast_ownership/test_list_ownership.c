@@ -8,10 +8,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ast.h"
 
 static int failures = 0;
+
+static char *test_strdup(const char *s) {
+    size_t len = strlen(s) + 1;
+    char *copy = (char *)malloc(len);
+    if (copy) {
+        memcpy(copy, s, len);
+    }
+    return copy;
+}
 
 static void expect(int cond, const char *msg) {
     if (!cond) {
@@ -93,6 +103,70 @@ int main(void) {
                "ast_output_set_newline updates newline cleanly");
         ast_free(out_node);
         ast_free(seq);
+    }
+
+    /* M16 Step 1: bounded array decls, AST_INPUT, AST_ADDR_OF, AST_SCANNER_NEW, AST_INPUT_CALL. */
+    {
+        AstNode *buf_decl = ast_var_decl_array(
+            AST_TYPE_STRING, ast_identifier(test_strdup("buf"), 5, 1), 32, NULL, 5, 1);
+        AstNode *bad_decl = ast_var_decl_array(
+            AST_TYPE_STRING, ast_identifier(test_strdup("bad"), 5, 1), -1, NULL, 5, 1);
+        expect(buf_decl != NULL && buf_decl->u.var_decl.array_size == 32 &&
+                   buf_decl->u.var_decl.type_tag == AST_TYPE_STRING,
+               "ast_var_decl_array records array_size and AST_TYPE_STRING");
+        expect(bad_decl == NULL, "ast_var_decl_array rejects negative array_size and frees name");
+
+        AstNode *scan_new = ast_scanner_new(test_strdup("Scanner"), test_strdup("System.in"), 6, 1);
+        AstNode *sc_decl = ast_var_decl(
+            AST_TYPE_SCANNER, ast_identifier(test_strdup("sc"), 6, 1), scan_new, 6, 1);
+        expect(sc_decl != NULL && sc_decl->u.var_decl.type_tag == AST_TYPE_SCANNER,
+               "ast_scanner_new and AST_TYPE_SCANNER var_decl succeed");
+        expect(ast_scanner_new(test_strdup("Scanner"), NULL, 6, 1) == NULL,
+               "ast_scanner_new rejects NULL source_name safely");
+
+        AstNode *call_ok = ast_input_call(
+            ast_identifier(test_strdup("sc"), 7, 1), test_strdup("nextInt"), 7, 1);
+        AstNode *call_bad = ast_input_call(ast_literal_int(1, 7, 1), test_strdup("nextInt"), 7, 1);
+        expect(call_ok != NULL && call_ok->kind == AST_INPUT_CALL,
+               "ast_input_call accepts identifier receiver");
+        expect(call_bad == NULL, "ast_input_call rejects non-identifier receiver safely");
+
+        AstNode *in_node = ast_input(ast_list_empty(), AST_INPUT_SCANF, 8, 1);
+        AstNode *addr = ast_addr_of(ast_identifier(test_strdup("n"), 8, 1), 8, 1);
+        AstList other = ast_list_empty();
+        expect(in_node != NULL && addr != NULL && addr->kind == AST_ADDR_OF,
+               "ast_input and ast_addr_of allocate cleanly");
+        expect(ast_input_append_item(in_node, addr) == 1,
+               "ast_input_append_item transfers ownership cleanly");
+        expect(ast_list_append(&other, addr) == 0,
+               "node owned by AST_INPUT cannot be appended to another AstList");
+
+        FILE *fp = tmpfile();
+        expect(fp != NULL, "tmpfile opens for M16 AST print check");
+        if (fp != NULL) {
+            ast_print(buf_decl, fp);
+            ast_print(sc_decl, fp);
+            ast_print(call_ok, fp);
+            ast_print(in_node, fp);
+            rewind(fp);
+            char printed[512];
+            size_t n = fread(printed, 1, sizeof(printed) - 1, fp);
+            printed[n] = '\0';
+            expect(strstr(printed, "VarDecl string[32]") != NULL &&
+                       strstr(printed, "VarDecl Scanner") != NULL &&
+                       strstr(printed, "ScannerNew Scanner(System.in)") != NULL &&
+                       strstr(printed, "InputCall nextInt") != NULL &&
+                       strstr(printed, "InputScanf") != NULL &&
+                       strstr(printed, "AddrOf") != NULL,
+                   "ast_print formats all new M16 AST nodes");
+            fclose(fp);
+        }
+
+        ast_free(other.head);
+        ast_free(in_node);
+        ast_free(call_ok);
+        ast_free(sc_decl);
+        ast_free(buf_decl);
     }
 
     if (failures != 0) {

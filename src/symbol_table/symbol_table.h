@@ -19,7 +19,8 @@ typedef enum DataType {
     TYPE_INT,
     TYPE_FLOAT,
     TYPE_BOOL,
-    TYPE_STRING
+    TYPE_STRING,
+    TYPE_SCANNER
 } DataType;
 
 const char *datatype_to_string(DataType type);
@@ -29,6 +30,8 @@ typedef struct Symbol {
     DataType type;              /* Variable data type */
     int scope_level;            /* 0 for global scope, 1 for block depth 1, etc. */
     int line;                   /* Declaration source line number */
+    size_t array_size;          /* > 0 for bounded char arrays, 0 otherwise */
+    bool is_initialized;        /* Initialization flag (e.g. Java Scanner handles) */
     struct Symbol *next;        /* Collision chain in bucket */
 } Symbol;
 
@@ -65,6 +68,8 @@ int symbol_table_get_scope_level(const SymbolTable *st);
 
 /* Symbol Operations */
 Symbol *symbol_table_insert(SymbolTable *st, const char *name, DataType type, int line);
+Symbol *symbol_table_insert_ext(SymbolTable *st, const char *name, DataType type, int line,
+                                size_t array_size, bool is_initialized);
 Symbol *symbol_table_lookup_current_scope(const SymbolTable *st, const char *name);
 Symbol *symbol_table_lookup_all_scopes(const SymbolTable *st, const char *name);
 

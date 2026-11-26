@@ -10,6 +10,7 @@ interface SidebarProps {
   openFileIds: string[]
   dirtyFileIds: string[]
   onSelectFile: (fileId: string) => void
+  onRenameFile?: (fileId: string, nextName: string) => void
 }
 
 export default function Sidebar({
@@ -20,6 +21,7 @@ export default function Sidebar({
   openFileIds,
   dirtyFileIds,
   onSelectFile,
+  onRenameFile,
 }: SidebarProps) {
   return (
     <aside
@@ -62,6 +64,7 @@ export default function Sidebar({
             openFileIds={openFileIds}
             dirtyFileIds={dirtyFileIds}
             onSelectFile={onSelectFile}
+            onRenameFile={onRenameFile}
           />
         </div>
       )}

@@ -1,0 +1,16 @@
+n = read_int prefix
+name = read_str
+n = read_int prefix
+f = read_float prefix
+n = read_int prefix
+city = read_str
+flag = read_bool cpp
+print n
+print " "
+print f
+print " "
+print flag
+print " "
+print name
+print " "
+println city

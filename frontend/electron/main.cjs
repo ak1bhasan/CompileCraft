@@ -21,6 +21,10 @@ const MAX_SOURCE_BYTES = 512 * 1024
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 const CLI_TIMEOUT_MS = 8000
 
+const activeJobs = new Map()
+const activeRuns = new Map()
+let nextJobSeq = 1
+
 /**
  * Resolve the unified CompileCraft CLI executable without relying on shell PATH.
  */
@@ -101,8 +105,22 @@ function terminateProcessTree(child) {
 /**
  * Spawn a native binary directly (shell: false) with bounded output and timeout.
  */
-function runBinary(cliPath, args, workingDir) {
+function runBinary(cliPath, args, workingDir, jobCtx) {
   return new Promise((resolve) => {
+    if (jobCtx && jobCtx.aborted) {
+      resolve({
+        exitCode: 1,
+        stdout: '',
+        stderr: '',
+        spawnError: null,
+        timedOut: false,
+        aborted: true,
+        durationMs: 0,
+      })
+      return
+    }
+
+    const startedAt = Date.now()
     let stdout = ''
     let stderr = ''
     let stdoutBytes = 0
@@ -116,6 +134,10 @@ function runBinary(cliPath, args, workingDir) {
       windowsHide: true,
       detached: process.platform !== 'win32',
     })
+
+    if (jobCtx) {
+      jobCtx.children.add(child)
+    }
 
     const timer = setTimeout(() => {
       if (!finished) {
@@ -155,12 +177,17 @@ function runBinary(cliPath, args, workingDir) {
       }
       finished = true
       clearTimeout(timer)
+      if (jobCtx) {
+        jobCtx.children.delete(child)
+      }
       resolve({
         exitCode: 1,
         stdout,
         stderr: stderr || error.message,
         spawnError: error.message,
         timedOut,
+        aborted: Boolean(jobCtx && jobCtx.aborted),
+        durationMs: Date.now() - startedAt,
       })
     })
 
@@ -170,12 +197,17 @@ function runBinary(cliPath, args, workingDir) {
       }
       finished = true
       clearTimeout(timer)
+      if (jobCtx) {
+        jobCtx.children.delete(child)
+      }
       resolve({
         exitCode: typeof code === 'number' ? code : 1,
         stdout,
         stderr,
         spawnError: null,
         timedOut,
+        aborted: Boolean(jobCtx && jobCtx.aborted),
+        durationMs: Date.now() - startedAt,
       })
     })
   })
@@ -261,7 +293,7 @@ function parseDiagnostics(stderrText) {
     }
 
     const typedMatch = trimmed.match(
-      /^(Lexical|Syntax|Semantic)\s+Error(?:\s+at\s+line\s+(\d+))?:\s*(.+)$/i,
+      /^(Lexical|Syntax|Semantic|Runtime)\s+Error(?:\s+at\s+line\s+(\d+))?:\s*(.+)$/i,
     )
     if (typedMatch) {
       const stageRaw = typedMatch[1].toLowerCase()
@@ -298,143 +330,102 @@ function parseDiagnostics(stderrText) {
   return diagnostics
 }
 
-async function handleCompileRequest(_event, payload) {
+function makeEarlyFailureResult({
+  language = 'c',
+  durationMs = 0,
+  cliPath = '',
+  cliMissing = false,
+  stage = 'Validation',
+  line = null,
+  message,
+  raw,
+  errorSummary,
+}) {
+  return {
+    ok: false,
+    exitCode: 1,
+    language,
+    durationMs,
+    cliPath,
+    cliMissing,
+    tokens: [],
+    tokensRaw: '',
+    ast: '',
+    symbols: [],
+    symtabRaw: '',
+    tac: '',
+    executionStatus: 'not_run',
+    executionOk: false,
+    executionExitCode: null,
+    executionDurationMs: null,
+    programOutput: '',
+    executionStderr: '',
+    diagnostics: [
+      {
+        stage,
+        line,
+        message,
+        raw: raw || message,
+      },
+    ],
+    rawStderr: raw || message,
+    errorSummary: errorSummary || message,
+  }
+}
+
+async function prepareAndCompile(event, payload, { preserveTempOnSuccess = false } = {}) {
   const startedAt = Date.now()
 
   if (!payload || typeof payload !== 'object') {
     return {
-      ok: false,
-      exitCode: 1,
-      language: 'c',
-      durationMs: 0,
-      cliPath: '',
-      cliMissing: false,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'Validation',
-          line: null,
-          message: 'Invalid compilation payload.',
-          raw: 'Invalid compilation payload.',
-        },
-      ],
-      rawStderr: 'Invalid compilation payload.',
-      errorSummary: 'Invalid compilation request',
+      earlyFailure: makeEarlyFailureResult({
+        message: 'Invalid compilation payload.',
+        errorSummary: 'Invalid compilation request',
+      }),
     }
   }
 
-  const { language, source, fileName } = payload
+  const { language, source, fileName, runId } = payload
 
   if (typeof language !== 'string' || !ALLOWED_LANGUAGES.has(language)) {
     return {
-      ok: false,
-      exitCode: 1,
-      language: 'c',
-      durationMs: 0,
-      cliPath: '',
-      cliMissing: false,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'Validation',
-          line: null,
-          message: `Unsupported language "${String(language)}". Supported IDE languages: C, C++, Java.`,
-          raw: `Unsupported language "${String(language)}".`,
-        },
-      ],
-      rawStderr: `Unsupported language "${String(language)}".`,
-      errorSummary: 'Unsupported language',
+      earlyFailure: makeEarlyFailureResult({
+        message: `Unsupported language "${String(language)}". Supported IDE languages: C, C++, Java.`,
+        raw: `Unsupported language "${String(language)}".`,
+        errorSummary: 'Unsupported language',
+      }),
     }
   }
 
   if (typeof source !== 'string') {
     return {
-      ok: false,
-      exitCode: 1,
-      language,
-      durationMs: 0,
-      cliPath: '',
-      cliMissing: false,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'Validation',
-          line: null,
-          message: 'Source text must be a string.',
-          raw: 'Source text must be a string.',
-        },
-      ],
-      rawStderr: 'Source text must be a string.',
-      errorSummary: 'Invalid source buffer',
+      earlyFailure: makeEarlyFailureResult({
+        language,
+        message: 'Source text must be a string.',
+        errorSummary: 'Invalid source buffer',
+      }),
     }
   }
 
   if (Buffer.byteLength(source, 'utf8') > MAX_SOURCE_BYTES) {
     return {
-      ok: false,
-      exitCode: 1,
-      language,
-      durationMs: 0,
-      cliPath: '',
-      cliMissing: false,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'Validation',
-          line: null,
-          message: 'Source file exceeds the 512 KB limit.',
-          raw: 'Source file exceeds the 512 KB limit.',
-        },
-      ],
-      rawStderr: 'Source file exceeds the 512 KB limit.',
-      errorSummary: 'Source exceeds size limit',
+      earlyFailure: makeEarlyFailureResult({
+        language,
+        message: 'Source file exceeds the 512 KB limit.',
+        errorSummary: 'Source exceeds size limit',
+      }),
     }
   }
 
   if (source.trim().length === 0) {
     return {
-      ok: false,
-      exitCode: 1,
-      language,
-      durationMs: 0,
-      cliPath: '',
-      cliMissing: false,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'Validation',
-          line: 1,
-          message: 'Source editor is empty. Enter C, C++, or Java code before compiling.',
-          raw: 'Source editor is empty.',
-        },
-      ],
-      rawStderr: 'Source editor is empty. Enter C, C++, or Java code before compiling.',
-      errorSummary: 'Source editor is empty',
+      earlyFailure: makeEarlyFailureResult({
+        language,
+        line: 1,
+        message: 'Source editor is empty. Enter C, C++, or Java code before compiling.',
+        raw: 'Source editor is empty.',
+        errorSummary: 'Source editor is empty',
+      }),
     }
   }
 
@@ -442,42 +433,41 @@ async function handleCompileRequest(_event, payload) {
   if (!cliInfo.found) {
     const missingMsg = `CompileCraft CLI executable not found at "${cliInfo.cliPath}". Run "mingw32-make all" in the repository root.`
     return {
-      ok: false,
-      exitCode: 1,
-      language,
-      durationMs: Date.now() - startedAt,
-      cliPath: cliInfo.cliPath,
-      cliMissing: true,
-      tokens: [],
-      tokensRaw: '',
-      ast: '',
-      symbols: [],
-      symtabRaw: '',
-      tac: '',
-      diagnostics: [
-        {
-          stage: 'System',
-          line: null,
-          message: missingMsg,
-          raw: missingMsg,
-        },
-      ],
-      rawStderr: missingMsg,
-      errorSummary: 'Compiler executable not found',
+      earlyFailure: makeEarlyFailureResult({
+        language,
+        durationMs: Date.now() - startedAt,
+        cliPath: cliInfo.cliPath,
+        cliMissing: true,
+        stage: 'System',
+        message: missingMsg,
+        errorSummary: 'Compiler executable not found',
+      }),
     }
   }
+
+  const jobKey =
+    typeof runId === 'string' && runId.trim().length > 0
+      ? runId.trim()
+      : `job-${nextJobSeq++}`
+  const jobCtx = {
+    senderId: event?.sender?.id ?? 0,
+    aborted: false,
+    children: new Set(),
+  }
+  activeJobs.set(jobKey, jobCtx)
 
   const cliDir = path.dirname(cliInfo.cliPath)
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'compilecraft-ide-'))
   const safeName = sanitizeSourceFileName(fileName, language)
   const tempFilePath = path.join(tempDir, safeName)
+  let keepTempDir = false
 
   try {
     await fs.promises.writeFile(tempFilePath, source, 'utf8')
 
     const [tokensRun, tacRun] = await Promise.all([
-      runBinary(cliInfo.cliPath, ['--tokens', tempFilePath], cliDir),
-      runBinary(cliInfo.cliPath, [tempFilePath], cliDir),
+      runBinary(cliInfo.cliPath, ['--tokens', tempFilePath], cliDir, jobCtx),
+      runBinary(cliInfo.cliPath, [tempFilePath], cliDir, jobCtx),
     ])
 
     const tokensRaw = tokensRun.stdout || ''
@@ -486,7 +476,16 @@ async function handleCompileRequest(_event, payload) {
     const combinedStderr = [tacRun.stderr, tokensRun.stderr].filter(Boolean).join('\n').trim()
     let diagnostics = parseDiagnostics(combinedStderr)
 
-    if (tacRun.timedOut || tokensRun.timedOut) {
+    if (jobCtx.aborted || tacRun.aborted || tokensRun.aborted) {
+      diagnostics = [
+        {
+          stage: 'System',
+          line: null,
+          message: 'Compilation stopped by user.',
+          raw: 'Compilation stopped by user.',
+        },
+      ]
+    } else if (tacRun.timedOut || tokensRun.timedOut) {
       diagnostics = [
         {
           stage: 'System',
@@ -515,12 +514,20 @@ async function handleCompileRequest(_event, payload) {
       (entry) => entry.stage === 'Lexical' || entry.stage === 'Syntax',
     )
 
-    if (tacRun.exitCode === 0 && !tacRun.timedOut) {
+    const compileOk =
+      !jobCtx.aborted &&
+      !tacRun.aborted &&
+      !tacRun.timedOut &&
+      tacRun.exitCode === 0 &&
+      diagnostics.length === 0
+
+    if (compileOk) {
       tac = tacRun.stdout || ''
       const [astRun, symtabRun] = await Promise.all([
-        runBinary(cliInfo.cliPath, ['--ast', tempFilePath], cliDir),
-        runBinary(cliInfo.cliPath, ['--symtab', tempFilePath], cliDir),
+        runBinary(cliInfo.cliPath, ['--ast', tempFilePath], cliDir, jobCtx),
+        runBinary(cliInfo.cliPath, ['--symtab', tempFilePath], cliDir, jobCtx),
       ])
+
       if (astRun.exitCode === 0) {
         ast = astRun.stdout || ''
       }
@@ -528,20 +535,145 @@ async function handleCompileRequest(_event, payload) {
         symtabRaw = symtabRun.stdout || ''
         symbols = parseSymtabOutput(symtabRaw)
       }
-    } else if (!hasLexOrSyntaxError && !tacRun.timedOut) {
-      // Allow AST inspection when parsing succeeded and semantic checks reported errors.
-      const astRun = await runBinary(cliInfo.cliPath, ['--ast', tempFilePath], cliDir)
+
+      if (preserveTempOnSuccess && !jobCtx.aborted) {
+        keepTempDir = true
+      }
+    } else if (!hasLexOrSyntaxError && !tacRun.timedOut && !jobCtx.aborted) {
+      const astRun = await runBinary(cliInfo.cliPath, ['--ast', tempFilePath], cliDir, jobCtx)
       if (astRun.exitCode === 0) {
         ast = astRun.stdout || ''
       }
     }
 
-    const ok = tacRun.exitCode === 0 && !tacRun.timedOut && diagnostics.length === 0
+    return {
+      earlyFailure: null,
+      startedAt,
+      language,
+      cliInfo,
+      cliDir,
+      tempDir,
+      tempFilePath,
+      jobKey,
+      jobCtx,
+      compileOk: compileOk && !jobCtx.aborted,
+      tacExitCode: tacRun.exitCode,
+      tokens,
+      tokensRaw,
+      ast,
+      symbols,
+      symtabRaw,
+      tac: compileOk ? tac : '',
+      diagnostics,
+      combinedStderr,
+    }
+  } finally {
+    activeJobs.delete(jobKey)
+    if (!keepTempDir) {
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+}
+
+async function handleCompileRequest(event, payload) {
+  const prep = await prepareAndCompile(event, payload, { preserveTempOnSuccess: true })
+  if (prep.earlyFailure) {
+    return prep.earlyFailure
+  }
+
+  const {
+    startedAt,
+    language,
+    cliInfo,
+    cliDir,
+    tempDir,
+    tempFilePath,
+    jobKey,
+    jobCtx,
+    compileOk,
+    tacExitCode,
+    tokens,
+    tokensRaw,
+    ast,
+    symbols,
+    symtabRaw,
+    tac,
+    combinedStderr,
+  } = prep
+  let diagnostics = prep.diagnostics
+
+  let executionStatus = 'not_run'
+  let executionOk = false
+  let executionExitCode = null
+  let executionDurationMs = null
+  let programOutput = ''
+  let executionStderr = ''
+
+  try {
+    if (compileOk) {
+      activeJobs.set(jobKey, jobCtx)
+      const execRun = await runBinary(cliInfo.cliPath, ['--run', tempFilePath], cliDir, jobCtx)
+      programOutput = execRun.stdout || ''
+      executionStderr = (execRun.stderr || '').trim()
+      executionDurationMs = execRun.durationMs
+
+      if (jobCtx.aborted || execRun.aborted) {
+        executionStatus = 'aborted'
+        executionOk = false
+        executionExitCode = 130
+        diagnostics = [
+          ...diagnostics,
+          {
+            stage: 'Runtime',
+            line: null,
+            message: 'Program execution stopped by user.',
+            raw: 'Runtime Error: Program execution stopped by user.',
+          },
+        ]
+      } else if (execRun.timedOut) {
+        executionStatus = 'runtime_error'
+        executionOk = false
+        executionExitCode = 1
+        diagnostics = [
+          ...diagnostics,
+          {
+            stage: 'Runtime',
+            line: null,
+            message: `Program execution timed out after ${CLI_TIMEOUT_MS}ms.`,
+            raw: `Runtime Error: Program execution timed out after ${CLI_TIMEOUT_MS}ms.`,
+          },
+        ]
+      } else if (execRun.exitCode !== 0) {
+        executionStatus = 'runtime_error'
+        executionOk = false
+        executionExitCode = execRun.exitCode
+        const execDiags = parseDiagnostics(executionStderr)
+        if (execDiags.length > 0) {
+          diagnostics = [...diagnostics, ...execDiags]
+        } else {
+          diagnostics = [
+            ...diagnostics,
+            {
+              stage: 'Runtime',
+              line: null,
+              message: `Program exited with runtime error (exit code ${execRun.exitCode}).`,
+              raw: `Runtime Error: Program exited with code ${execRun.exitCode}.`,
+            },
+          ]
+        }
+      } else {
+        executionStatus = 'succeeded'
+        executionOk = true
+        executionExitCode = 0
+      }
+    }
+
     const durationMs = Date.now() - startedAt
+    const fullStderr = [combinedStderr, executionStderr].filter(Boolean).join('\n').trim()
 
     return {
-      ok,
-      exitCode: ok ? 0 : tacRun.exitCode || 1,
+      ok: compileOk,
+      exitCode: compileOk ? 0 : tacExitCode || 1,
       language,
       durationMs,
       cliPath: cliInfo.cliPath,
@@ -551,18 +683,376 @@ async function handleCompileRequest(_event, payload) {
       ast,
       symbols,
       symtabRaw,
-      tac: ok ? tac : '',
+      tac: compileOk ? tac : '',
+      executionStatus,
+      executionOk,
+      executionExitCode,
+      executionDurationMs,
+      programOutput: compileOk ? programOutput : '',
+      executionStderr: compileOk ? executionStderr : '',
       diagnostics,
-      rawStderr: combinedStderr,
-      errorSummary: ok
-        ? ''
-        : diagnostics[0]
-          ? diagnostics[0].raw
-          : 'Compilation failed',
+      rawStderr: fullStderr,
+      errorSummary:
+        compileOk && executionOk
+          ? ''
+          : diagnostics[0]
+            ? diagnostics[0].raw
+            : compileOk
+              ? 'Runtime error'
+              : 'Compilation failed',
     }
   } finally {
-    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    activeJobs.delete(jobKey)
+    if (compileOk) {
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    }
   }
+}
+
+function emitExecEvent(sender, payload) {
+  if (sender && typeof sender.isDestroyed === 'function' && !sender.isDestroyed()) {
+    sender.send('compilecraft:exec-event', payload)
+  }
+}
+
+function handleInteractiveOutputChunk(runCtx, sender, kind, chunk) {
+  if (runCtx.finished || runCtx.outputLimitExceeded || !chunk || chunk.length === 0) {
+    return
+  }
+
+  const remaining = MAX_OUTPUT_BYTES - runCtx.totalOutputBytes
+  if (chunk.length <= remaining) {
+    runCtx.totalOutputBytes += chunk.length
+    const text = chunk.toString('utf8')
+    if (kind === 'stderr') {
+      runCtx.stderrBuffer += text
+    }
+    emitExecEvent(sender, { runId: runCtx.runId, type: kind, data: text })
+    return
+  }
+
+  if (remaining > 0) {
+    const partial = chunk.subarray(0, remaining).toString('utf8')
+    runCtx.totalOutputBytes = MAX_OUTPUT_BYTES
+    if (kind === 'stderr') {
+      runCtx.stderrBuffer += partial
+    }
+    emitExecEvent(sender, { runId: runCtx.runId, type: kind, data: partial })
+  }
+
+  runCtx.outputLimitExceeded = true
+  const limitMsg = '\nRuntime Error: Output exceeded 2 MB limit; process terminated.\n'
+  runCtx.stderrBuffer += limitMsg
+  emitExecEvent(sender, { runId: runCtx.runId, type: 'stderr', data: limitMsg })
+  terminateProcessTree(runCtx.child)
+}
+
+async function handleStartRunRequest(event, payload) {
+  const prep = await prepareAndCompile(event, payload, { preserveTempOnSuccess: true })
+  if (prep.earlyFailure) {
+    return {
+      started: false,
+      runId: typeof payload?.runId === 'string' ? payload.runId : '',
+      compileResult: prep.earlyFailure,
+    }
+  }
+
+  const {
+    startedAt,
+    language,
+    cliInfo,
+    cliDir,
+    tempDir,
+    tempFilePath,
+    jobKey,
+    compileOk,
+    tacExitCode,
+    tokens,
+    tokensRaw,
+    ast,
+    symbols,
+    symtabRaw,
+    tac,
+    diagnostics,
+    combinedStderr,
+  } = prep
+
+  if (!compileOk) {
+    return {
+      started: false,
+      runId: jobKey,
+      compileResult: {
+        ok: false,
+        exitCode: tacExitCode || 1,
+        language,
+        durationMs: Date.now() - startedAt,
+        cliPath: cliInfo.cliPath,
+        cliMissing: false,
+        tokens,
+        tokensRaw,
+        ast,
+        symbols,
+        symtabRaw,
+        tac: '',
+        executionStatus: 'not_run',
+        executionOk: false,
+        executionExitCode: null,
+        executionDurationMs: null,
+        programOutput: '',
+        executionStderr: '',
+        diagnostics,
+        rawStderr: combinedStderr,
+        errorSummary: diagnostics[0] ? diagnostics[0].raw : 'Compilation failed',
+      },
+    }
+  }
+
+  const sender = event?.sender
+  const execStartedAt = Date.now()
+  const child = spawn(cliInfo.cliPath, ['--run', tempFilePath], {
+    cwd: cliDir,
+    shell: false,
+    windowsHide: true,
+    detached: process.platform !== 'win32',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+
+  const runCtx = {
+    runId: jobKey,
+    senderId: sender?.id ?? 0,
+    child,
+    tempDir,
+    aborted: false,
+    stdinClosed: false,
+    finished: false,
+    outputLimitExceeded: false,
+    totalOutputBytes: 0,
+    stderrBuffer: '',
+  }
+  activeRuns.set(jobKey, runCtx)
+
+  if (child.stdin) {
+    child.stdin.on('error', () => {
+      // Ignore EPIPE when child exits before/during stdin write
+    })
+  }
+
+  child.stdout.on('data', (chunk) => {
+    handleInteractiveOutputChunk(runCtx, sender, 'stdout', chunk)
+  })
+
+  child.stderr.on('data', (chunk) => {
+    handleInteractiveOutputChunk(runCtx, sender, 'stderr', chunk)
+  })
+
+  const finalizeRun = (code, spawnErr) => {
+    if (runCtx.finished) {
+      return
+    }
+    runCtx.finished = true
+    activeRuns.delete(jobKey)
+    void fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+
+    const durationMs = Date.now() - execStartedAt
+    const rawCode = typeof code === 'number' ? code : 1
+    let executionStatus = 'succeeded'
+    let exitCode = rawCode
+    let exitDiags = []
+
+    if (runCtx.aborted) {
+      executionStatus = 'aborted'
+      exitCode = 130
+      exitDiags = [
+        {
+          stage: 'Runtime',
+          line: null,
+          message: 'Program execution stopped by user.',
+          raw: 'Runtime Error: Program execution stopped by user.',
+        },
+      ]
+    } else if (spawnErr) {
+      executionStatus = 'runtime_error'
+      exitCode = 1
+      exitDiags = [
+        {
+          stage: 'Runtime',
+          line: null,
+          message: spawnErr.message,
+          raw: `Runtime Error: ${spawnErr.message}`,
+        },
+      ]
+    } else if (runCtx.outputLimitExceeded || rawCode !== 0) {
+      executionStatus = 'runtime_error'
+      exitCode = rawCode !== 0 ? rawCode : 1
+      exitDiags = parseDiagnostics(runCtx.stderrBuffer.trim())
+      if (exitDiags.length === 0) {
+        exitDiags = [
+          {
+            stage: 'Runtime',
+            line: null,
+            message: `Program exited with runtime error (exit code ${exitCode}).`,
+            raw: `Runtime Error: Program exited with code ${exitCode}.`,
+          },
+        ]
+      }
+    }
+
+    emitExecEvent(sender, {
+      runId: jobKey,
+      type: 'exit',
+      exitCode,
+      aborted: runCtx.aborted,
+      durationMs,
+      executionStatus,
+      diagnostics: exitDiags,
+      errorSummary:
+        executionStatus === 'succeeded'
+          ? ''
+          : exitDiags[0]?.raw || 'Runtime error',
+    })
+  }
+
+  child.on('error', (error) => {
+    finalizeRun(1, error)
+  })
+
+  child.on('close', (code) => {
+    finalizeRun(code, null)
+  })
+
+  return {
+    started: true,
+    runId: jobKey,
+    compileResult: {
+      ok: true,
+      exitCode: 0,
+      language,
+      durationMs: Date.now() - startedAt,
+      cliPath: cliInfo.cliPath,
+      cliMissing: false,
+      tokens,
+      tokensRaw,
+      ast,
+      symbols,
+      symtabRaw,
+      tac,
+      executionStatus: 'running',
+      executionOk: false,
+      executionExitCode: null,
+      executionDurationMs: null,
+      programOutput: '',
+      executionStderr: '',
+      diagnostics: [],
+      rawStderr: combinedStderr,
+      errorSummary: '',
+    },
+  }
+}
+
+function handleSendInputRequest(event, payload) {
+  const senderId = event?.sender?.id ?? 0
+  const runId = typeof payload?.runId === 'string' ? payload.runId.trim() : ''
+  const input = payload?.input
+  if (!runId || typeof input !== 'string' || Buffer.byteLength(input, 'utf8') > 64 * 1024) {
+    return { ok: false }
+  }
+
+  const runCtx = activeRuns.get(runId)
+  if (
+    !runCtx ||
+    runCtx.senderId !== senderId ||
+    runCtx.aborted ||
+    runCtx.stdinClosed ||
+    runCtx.finished ||
+    !runCtx.child.stdin ||
+    runCtx.child.stdin.destroyed ||
+    !runCtx.child.stdin.writable
+  ) {
+    return { ok: false }
+  }
+
+  try {
+    runCtx.child.stdin.write(input, 'utf8')
+    return { ok: true }
+  } catch {
+    return { ok: false }
+  }
+}
+
+function handleSendEofRequest(event, runIdRaw) {
+  const senderId = event?.sender?.id ?? 0
+  const runId = typeof runIdRaw === 'string' ? runIdRaw.trim() : ''
+  if (!runId) {
+    return { ok: false }
+  }
+
+  const runCtx = activeRuns.get(runId)
+  if (
+    !runCtx ||
+    runCtx.senderId !== senderId ||
+    runCtx.aborted ||
+    runCtx.stdinClosed ||
+    runCtx.finished ||
+    !runCtx.child.stdin ||
+    runCtx.child.stdin.destroyed
+  ) {
+    return { ok: false }
+  }
+
+  runCtx.stdinClosed = true
+  try {
+    runCtx.child.stdin.end()
+    return { ok: true }
+  } catch {
+    return { ok: false }
+  }
+}
+
+function stopJobsMatching(predicate) {
+  let stoppedAny = false
+  for (const job of activeJobs.values()) {
+    if (!predicate(job)) {
+      continue
+    }
+    job.aborted = true
+    for (const child of job.children) {
+      terminateProcessTree(child)
+    }
+    stoppedAny = true
+  }
+  for (const runCtx of activeRuns.values()) {
+    if (!predicate(runCtx)) {
+      continue
+    }
+    runCtx.aborted = true
+    terminateProcessTree(runCtx.child)
+    stoppedAny = true
+  }
+  return stoppedAny
+}
+
+function handleStopRequest(event, runId) {
+  const senderId = event?.sender?.id ?? 0
+  if (typeof runId === 'string' && runId.trim().length > 0) {
+    const key = runId.trim()
+    let stopped = false
+    const job = activeJobs.get(key)
+    if (job && job.senderId === senderId) {
+      job.aborted = true
+      for (const child of job.children) {
+        terminateProcessTree(child)
+      }
+      stopped = true
+    }
+    const runCtx = activeRuns.get(key)
+    if (runCtx && runCtx.senderId === senderId) {
+      runCtx.aborted = true
+      terminateProcessTree(runCtx.child)
+      stopped = true
+    }
+    return { stopped }
+  }
+  return { stopped: stopJobsMatching((entry) => entry.senderId === senderId) }
 }
 
 async function handleHealthCheck() {
@@ -649,6 +1139,10 @@ function createMainWindow() {
     event.preventDefault()
   })
 
+  mainWindow.on('closed', () => {
+    stopJobsMatching((job) => job.senderId === mainWindow.webContents.id)
+  })
+
   if (devUrl) {
     mainWindow.loadURL(devUrl)
   } else {
@@ -665,6 +1159,10 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('compilecraft:compile', handleCompileRequest)
+  ipcMain.handle('compilecraft:start-run', handleStartRunRequest)
+  ipcMain.handle('compilecraft:send-input', handleSendInputRequest)
+  ipcMain.handle('compilecraft:send-eof', handleSendEofRequest)
+  ipcMain.handle('compilecraft:stop', handleStopRequest)
   ipcMain.handle('compilecraft:health', handleHealthCheck)
 
   createMainWindow()
@@ -674,6 +1172,10 @@ app.whenReady().then(() => {
       createMainWindow()
     }
   })
+})
+
+app.on('before-quit', () => {
+  stopJobsMatching(() => true)
 })
 
 app.on('window-all-closed', () => {

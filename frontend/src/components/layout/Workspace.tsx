@@ -9,6 +9,7 @@ import BottomPanel from '../../features/console/BottomPanel'
 import type {
   BottomTabId,
   CompileResult,
+  ConsoleEntry,
   CursorPosition,
   EditorSettings,
   EditorViewState,
@@ -40,7 +41,13 @@ interface WorkspaceProps {
   bottomTab: BottomTabId
   onBottomTabChange: (tab: BottomTabId) => void
   compileResult: CompileResult | null
+  consoleEntries: ConsoleEntry[]
   isCompiling: boolean
+  isRunning: boolean
+  stdinClosed: boolean
+  onSendInput: (input: string) => void
+  onSendEof: () => void
+  onStop: () => void
   onJumpToLine: (line: number) => void
 }
 
@@ -67,7 +74,13 @@ export default function Workspace({
   bottomTab,
   onBottomTabChange,
   compileResult,
+  consoleEntries,
   isCompiling,
+  isRunning,
+  stdinClosed,
+  onSendInput,
+  onSendEof,
+  onStop,
   onJumpToLine,
 }: WorkspaceProps) {
   const language: LanguageId | null = activeDocument?.language ?? null
@@ -151,7 +164,13 @@ export default function Workspace({
         activeTab={bottomTab}
         onTabChange={onBottomTabChange}
         result={compileResult}
+        consoleEntries={consoleEntries}
         isCompiling={isCompiling}
+        isRunning={isRunning}
+        stdinClosed={stdinClosed}
+        onSendInput={onSendInput}
+        onSendEof={onSendEof}
+        onStop={onStop}
         onJumpToLine={onJumpToLine}
       />
 

@@ -1,0 +1,1 @@
+Semantic Error at line 4: Invalid Scanner use: Variable 'sc' is not initialized with 'new Scanner(System.in)'.

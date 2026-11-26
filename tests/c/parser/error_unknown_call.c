@@ -1,6 +1,6 @@
 #include <stdio.h>
 
 int main() {
-    scanf("%d");
+    puts("bad");
     return 0;
 }

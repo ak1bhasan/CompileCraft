@@ -173,6 +173,30 @@ static AstNode *cpp_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 
 /* Append an expression or std::endl cleanly to an AstList of AST_OUTPUT nodes
  * without directly mutating internal list fields outside ast.c. */
+static int cpp_append_cout_newline(AstList *chain, int op_line, int op_column) {
+    AstNode *last;
+    AstNode *out_node;
+
+    if (!chain) {
+        return 0;
+    }
+
+    last = chain->tail;
+    if (last && last->kind == AST_OUTPUT && !last->u.output_stmt.newline) {
+        return ast_output_set_newline(last, 1);
+    }
+
+    out_node = ast_output(ast_list_empty(), 1, op_line, op_column);
+    if (!out_node || !ast_list_append(chain, out_node)) {
+        if (out_node && !out_node->in_stmt_list) {
+            ast_free(out_node);
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
 static int cpp_chain_cout_expr(AstList *chain, AstNode *expr, int line, int column) {
     AstNode *last;
     AstList items;
@@ -181,6 +205,12 @@ static int cpp_chain_cout_expr(AstList *chain, AstNode *expr, int line, int colu
     if (!chain || !expr) {
         ast_free(expr);
         return 0;
+    }
+
+    if (expr->kind == AST_IDENTIFIER && expr->u.identifier.name &&
+        strcmp(expr->u.identifier.name, "endl") == 0) {
+        ast_free(expr);
+        return cpp_append_cout_newline(chain, line, column);
     }
 
     last = chain->tail;
@@ -216,8 +246,6 @@ static int cpp_chain_cout_expr(AstList *chain, AstNode *expr, int line, int colu
 static int cpp_chain_cout_endl(AstList *chain, char *ns, int ns_line,
                                char *member, int op_line, int op_column) {
     int valid_endl = (ns && member && strcmp(ns, "std") == 0 && strcmp(member, "endl") == 0);
-    AstNode *last;
-    AstNode *out_node;
 
     if (!valid_endl) {
         fprintf(stderr,
@@ -231,24 +259,7 @@ static int cpp_chain_cout_endl(AstList *chain, char *ns, int ns_line,
 
     free(ns);
     free(member);
-    if (!chain) {
-        return 0;
-    }
-
-    last = chain->tail;
-    if (last && last->kind == AST_OUTPUT && !last->u.output_stmt.newline) {
-        return ast_output_set_newline(last, 1);
-    }
-
-    out_node = ast_output(ast_list_empty(), 1, op_line, op_column);
-    if (!out_node || !ast_list_append(chain, out_node)) {
-        if (out_node && !out_node->in_stmt_list) {
-            ast_free(out_node);
-        }
-        return 0;
-    }
-
-    return 1;
+    return cpp_append_cout_newline(chain, op_line, op_column);
 }
 
 %}
@@ -350,7 +361,7 @@ static int cpp_chain_cout_endl(AstList *chain, char *ns, int ns_line,
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
 %type <node> return_stmt inc_dec_stmt output_stmt expression
 %type <node> for_init for_cond for_update
-%type <list> statement_list cout_chain
+%type <list> statement_list cout_chain cin_chain
 %type <type_tag> type_spec
 
 %nonassoc LOWER_THAN_ELSE 330
@@ -375,17 +386,36 @@ static int cpp_chain_cout_endl(AstList *chain, char *ns, int ns_line,
 %%
 
 program:
-    main_function
+    using_list main_function
     {
-        compilecraft_cpp_ast_root = $1;
+        compilecraft_cpp_ast_root = $2;
         $$ = NULL;
     }
-  | main_function error
+  | using_list main_function error
     {
-        ast_free($1);
+        ast_free($2);
         compilecraft_cpp_ast_root = NULL;
         yyerrok;
         $$ = NULL;
+    }
+  ;
+
+using_list:
+    %empty
+  | using_list IDENTIFIER IDENTIFIER IDENTIFIER SEMICOLON
+    {
+        if (!$2 || !$3 || !$4 ||
+            strcmp($2, "using") != 0 ||
+            strcmp($3, "namespace") != 0 ||
+            strcmp($4, "std") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported directive '%s %s %s;' (only 'using namespace std;' is supported)\n",
+                    @2.first_line, $2 ? $2 : "", $3 ? $3 : "", $4 ? $4 : "");
+            syntax_error_count++;
+        }
+        free($2);
+        free($3);
+        free($4);
     }
   ;
 
@@ -479,6 +509,76 @@ var_decl_stmt:
         AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
         $$ = ast_var_decl($1, name, $4, @$.first_line, @$.first_column);
     }
+  | IDENTIFIER IDENTIFIER SEMICOLON
+    {
+        if (!$1 || strcmp($1, "string") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported type '%s' (expected int, float, bool, or string)\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            free($1);
+            free($2);
+            $$ = NULL;
+        } else {
+            AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+            free($1);
+            $$ = ast_var_decl(AST_TYPE_STRING, name, NULL, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER IDENTIFIER ASSIGN expression SEMICOLON
+    {
+        if (!$1 || strcmp($1, "string") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported type '%s' (expected int, float, bool, or string)\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            free($1);
+            free($2);
+            ast_free($4);
+            $$ = NULL;
+        } else {
+            AstNode *name = ast_identifier($2, @2.first_line, @2.first_column);
+            free($1);
+            $$ = ast_var_decl(AST_TYPE_STRING, name, $4, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER SCOPE IDENTIFIER IDENTIFIER SEMICOLON
+    {
+        if (!$1 || !$3 || strcmp($1, "std") != 0 || strcmp($3, "string") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported qualified type '%s::%s'\n",
+                    @1.first_line, $1 ? $1 : "", $3 ? $3 : "");
+            syntax_error_count++;
+            free($1);
+            free($3);
+            free($4);
+            $$ = NULL;
+        } else {
+            AstNode *name = ast_identifier($4, @4.first_line, @4.first_column);
+            free($1);
+            free($3);
+            $$ = ast_var_decl(AST_TYPE_STRING, name, NULL, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER SCOPE IDENTIFIER IDENTIFIER ASSIGN expression SEMICOLON
+    {
+        if (!$1 || !$3 || strcmp($1, "std") != 0 || strcmp($3, "string") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported qualified type '%s::%s'\n",
+                    @1.first_line, $1 ? $1 : "", $3 ? $3 : "");
+            syntax_error_count++;
+            free($1);
+            free($3);
+            free($4);
+            ast_free($6);
+            $$ = NULL;
+        } else {
+            AstNode *name = ast_identifier($4, @4.first_line, @4.first_column);
+            free($1);
+            free($3);
+            $$ = ast_var_decl(AST_TYPE_STRING, name, $6, @$.first_line, @$.first_column);
+        }
+    }
   ;
 
 assign_stmt:
@@ -539,6 +639,27 @@ cout_chain:
     }
   ;
 
+cin_chain:
+    RSHIFT expression
+    {
+        $$ = ast_list_empty();
+        if ($2 != NULL && !ast_list_append(&$$, $2)) {
+            if (!$2->in_stmt_list) {
+                ast_free($2);
+            }
+        }
+    }
+  | cin_chain RSHIFT expression
+    {
+        $$ = $1;
+        if ($3 != NULL && !ast_list_append(&$$, $3)) {
+            if (!$3->in_stmt_list) {
+                ast_free($3);
+            }
+        }
+    }
+  ;
+
 output_stmt:
     IDENTIFIER SCOPE IDENTIFIER cout_chain SEMICOLON
     {
@@ -562,6 +683,60 @@ output_stmt:
             } else {
                 $$ = ast_seq($4, @$.first_line, @$.first_column);
             }
+        }
+    }
+  | IDENTIFIER cout_chain SEMICOLON
+    {
+        if (!$1 || strcmp($1, "cout") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported output stream '%s' (expected 'cout' or 'std::cout')\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            free($1);
+            ast_free($2.head);
+            $$ = NULL;
+        } else {
+            AstNode *single;
+            free($1);
+            if ($2.head == NULL) {
+                $$ = NULL;
+            } else if ((single = ast_list_take_single(&$2)) != NULL) {
+                $$ = single;
+            } else {
+                $$ = ast_seq($2, @$.first_line, @$.first_column);
+            }
+        }
+    }
+  | IDENTIFIER SCOPE IDENTIFIER cin_chain SEMICOLON
+    {
+        if (!$1 || !$3 || strcmp($1, "std") != 0 || strcmp($3, "cin") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported qualified input stream '%s::%s' (expected 'std::cin')\n",
+                    @1.first_line, $1 ? $1 : "", $3 ? $3 : "");
+            syntax_error_count++;
+            free($1);
+            free($3);
+            ast_free($4.head);
+            $$ = NULL;
+        } else {
+            free($1);
+            free($3);
+            $$ = ast_input($4, AST_INPUT_CIN, @$.first_line, @$.first_column);
+        }
+    }
+  | IDENTIFIER cin_chain SEMICOLON
+    {
+        if (!$1 || strcmp($1, "cin") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported input stream '%s' (expected 'cin' or 'std::cin')\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            free($1);
+            ast_free($2.head);
+            $$ = NULL;
+        } else {
+            free($1);
+            $$ = ast_input($2, AST_INPUT_CIN, @$.first_line, @$.first_column);
         }
     }
   | IDENTIFIER SCOPE IDENTIFIER error SEMICOLON

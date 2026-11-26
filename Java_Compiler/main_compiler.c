@@ -15,6 +15,7 @@
 #include "ast.h"
 #include "semantic.h"
 #include "tac.h"
+#include "vm.h"
 
 #define TOKEN_DEF(id, val, name) \
     _Static_assert((int)(id) == (val), \
@@ -29,19 +30,22 @@ int yylex_destroy(void);
 int syntax_error_count = 0;
 
 static void usage(const char *argv0) {
-    fprintf(stderr, "Usage: %s [--ast | --symtab] <source-file.java>\n", argv0);
+    fprintf(stderr, "Usage: %s [--ast | --symtab | --run] <source-file.java>\n", argv0);
 }
 
 int main(int argc, char **argv) {
     const char *source_path = NULL;
     int print_ast = 0;
     int print_symtab = 0;
+    int run_vm = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ast") == 0) {
             print_ast = 1;
         } else if (strcmp(argv[i], "--symtab") == 0) {
             print_symtab = 1;
+        } else if (strcmp(argv[i], "--run") == 0) {
+            run_vm = 1;
         } else if (argv[i][0] != '-') {
             if (source_path != NULL) {
                 usage(argv[0]);
@@ -54,7 +58,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (source_path == NULL || (print_ast && print_symtab)) {
+    if (source_path == NULL || (print_ast + print_symtab + run_vm) > 1) {
         usage(argv[0]);
         return 1;
     }
@@ -124,6 +128,13 @@ int main(int argc, char **argv) {
     if (!tac) {
         fprintf(stderr, "Error: TAC generation failed.\n");
         return 1;
+    }
+
+    if (run_vm) {
+        VmResult vm_res;
+        VmStatus vm_st = vm_execute(tac, NULL, &vm_res);
+        tac_list_free(tac);
+        return (vm_st == VM_OK) ? 0 : 1;
     }
 
     tac_print(tac, stdout);

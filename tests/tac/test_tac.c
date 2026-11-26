@@ -354,6 +354,184 @@ static void test_printf_seq_and_concat_tac(void) {
     printf("  [PASS] test_printf_seq_and_concat_tac\n");
 }
 
+static void test_input_opcodes_and_string_concat_tac(void) {
+    printf("Running test_input_opcodes_and_string_concat_tac...\n");
+
+    AstList stmts = ast_list_empty();
+
+    /* C declarations + scanf("%% %d,%15s ", &num, buf) */
+    assert(ast_list_append(
+        &stmts, ast_var_decl(AST_TYPE_INT, ast_identifier(strdup("num"), 1, 1), NULL, 1, 1)));
+    assert(ast_list_append(
+        &stmts, ast_var_decl_array(AST_TYPE_STRING, ast_identifier(strdup("buf"), 2, 1), 32, NULL, 2, 1)));
+
+    AstList scanf_items = ast_list_empty();
+    assert(ast_list_append(&scanf_items, ast_literal_string(strdup("\"%% %d,%15s \""), 3, 1)));
+    assert(ast_list_append(&scanf_items, ast_addr_of(ast_identifier(strdup("num"), 3, 1), 3, 1)));
+    assert(ast_list_append(&scanf_items, ast_identifier(strdup("buf"), 3, 1)));
+    assert(ast_list_append(&stmts, ast_input(scanf_items, AST_INPUT_SCANF, 3, 1)));
+
+    /* C++ chained cin >> num >> ratio >> ok >> line_tok */
+    assert(ast_list_append(
+        &stmts, ast_var_decl(AST_TYPE_FLOAT, ast_identifier(strdup("ratio"), 4, 1), NULL, 4, 1)));
+    assert(ast_list_append(
+        &stmts, ast_var_decl(AST_TYPE_BOOL, ast_identifier(strdup("ok"), 5, 1), NULL, 5, 1)));
+    assert(ast_list_append(
+        &stmts, ast_var_decl(AST_TYPE_STRING, ast_identifier(strdup("word"), 6, 1), NULL, 6, 1)));
+
+    AstList cin_items = ast_list_empty();
+    assert(ast_list_append(&cin_items, ast_identifier(strdup("num"), 7, 1)));
+    assert(ast_list_append(&cin_items, ast_identifier(strdup("ratio"), 7, 1)));
+    assert(ast_list_append(&cin_items, ast_identifier(strdup("ok"), 7, 1)));
+    assert(ast_list_append(&cin_items, ast_identifier(strdup("word"), 7, 1)));
+    assert(ast_list_append(&stmts, ast_input(cin_items, AST_INPUT_CIN, 7, 1)));
+
+    /* Java Scanner handle + nextLine() + String var concat (word + 42) */
+    assert(ast_list_append(
+        &stmts,
+        ast_var_decl(AST_TYPE_SCANNER,
+                     ast_identifier(strdup("sc"), 8, 1),
+                     ast_scanner_new(strdup("Scanner"), strdup("System.in"), 8, 1),
+                     8, 1)));
+    assert(ast_list_append(
+        &stmts,
+        ast_var_decl(AST_TYPE_STRING,
+                     ast_identifier(strdup("line"), 9, 1),
+                     ast_input_call(ast_identifier(strdup("sc"), 9, 1), strdup("nextLine"), 9, 1),
+                     9, 1)));
+
+    AstList concat_items = ast_list_empty();
+    assert(ast_list_append(
+        &concat_items,
+        ast_binary(AST_OP_ADD,
+                   ast_identifier(strdup("word"), 10, 1),
+                   ast_literal_int(42, 10, 1),
+                   10, 1)));
+    assert(ast_list_append(&stmts, ast_output_with_mode(concat_items, AST_OUTPUT_CONCAT, 1, 10, 1)));
+
+    AstNode *prog = ast_program(stmts, 1, 1);
+    TacList *tac = tac_generate_program(prog);
+    assert(tac != NULL);
+
+    FILE *fp = tmpfile();
+    assert(fp != NULL);
+    tac_print(tac, fp);
+    rewind(fp);
+    char printed[1024];
+    size_t n = fread(printed, 1, sizeof(printed) - 1, fp);
+    printed[n] = '\0';
+    fclose(fp);
+
+    const char *expected =
+        "scan_lit \"%\"\n"
+        "scan_ws\n"
+        "num = read_int prefix\n"
+        "scan_lit \",\"\n"
+        "buf = read_str 15\n"
+        "num = read_int prefix\n"
+        "ratio = read_float prefix\n"
+        "ok = read_bool cpp\n"
+        "word = read_str\n"
+        "t1 = read_line\n"
+        "line = t1\n"
+        "print word\n"
+        "println 42\n";
+    assert(strcmp(printed, expected) == 0);
+
+    tac_list_free(tac);
+    ast_free(prog);
+    printf("  [PASS] test_input_opcodes_and_string_concat_tac\n");
+}
+
+static AstNode *build_scanf_prog(const char *var_name, AstTypeTag var_type, int array_size,
+                                 const char *fmt, int n_args, const char **arg_names, int *use_addr) {
+    AstList stmts = ast_list_empty();
+    if (var_name) {
+        assert(ast_list_append(
+            &stmts, ast_var_decl_array(var_type, ast_identifier(strdup(var_name), 1, 1), array_size, NULL, 1, 1)));
+    }
+    AstList items = ast_list_empty();
+    assert(ast_list_append(&items, ast_literal_string(strdup(fmt), 2, 1)));
+    for (int i = 0; i < n_args; i++) {
+        AstNode *id = ast_identifier(strdup(arg_names[i]), 2, 1);
+        AstNode *arg = use_addr[i] ? ast_addr_of(id, 2, 1) : id;
+        assert(ast_list_append(&items, arg));
+    }
+    assert(ast_list_append(&stmts, ast_input(items, AST_INPUT_SCANF, 2, 1)));
+    return ast_program(stmts, 1, 1);
+}
+
+static void test_scanf_bounds_and_validation_tac(void) {
+    printf("Running test_scanf_bounds_and_validation_tac...\n");
+
+    const char *one_s[1] = { "s" };
+    int no_addr[1] = { 0 };
+    int with_addr[1] = { 1 };
+    const char *two_d[2] = { "n", "m" };
+    int two_addr[2] = { 1, 1 };
+
+    /* 1. char s[1] with %s must fail (0 writable capacity). */
+    AstNode *p1 = build_scanf_prog("s", AST_TYPE_STRING, 1, "\"%s\"", 1, one_s, no_addr);
+    assert(tac_generate_program(p1) == NULL);
+    ast_free(p1);
+
+    /* 2. char s[1] with %1s must fail cleanly. */
+    AstNode *p2 = build_scanf_prog("s", AST_TYPE_STRING, 1, "\"%1s\"", 1, one_s, no_addr);
+    assert(tac_generate_program(p2) == NULL);
+    ast_free(p2);
+
+    /* 3. char s[10] with %s limits read_str to 9 chars. */
+    AstNode *p3 = build_scanf_prog("s", AST_TYPE_STRING, 10, "\"%s\"", 1, one_s, no_addr);
+    TacList *t3 = tac_generate_program(p3);
+    assert(t3 != NULL && t3->count == 1 && t3->head->opcode == TAC_OP_READ_STR);
+    assert(t3->head->src1 && strcmp(t3->head->src1, "9") == 0);
+    tac_list_free(t3);
+    ast_free(p3);
+
+    /* 4. char s[10] with %5s chooses smaller limit 5. */
+    AstNode *p4 = build_scanf_prog("s", AST_TYPE_STRING, 10, "\"%5s\"", 1, one_s, no_addr);
+    TacList *t4 = tac_generate_program(p4);
+    assert(t4 != NULL && t4->count == 1 && t4->head->opcode == TAC_OP_READ_STR);
+    assert(t4->head->src1 && strcmp(t4->head->src1, "5") == 0);
+    tac_list_free(t4);
+    ast_free(p4);
+
+    /* 5. Invalid %0s must fail cleanly. */
+    AstNode *p5 = build_scanf_prog("s", AST_TYPE_STRING, 10, "\"%0s\"", 1, one_s, no_addr);
+    assert(tac_generate_program(p5) == NULL);
+    ast_free(p5);
+
+    /* 6. Missing scanf argument must fail cleanly without partial TAC. */
+    AstNode *p6 = build_scanf_prog("n", AST_TYPE_INT, 0, "\"%d %d\"", 1, one_s, with_addr);
+    assert(tac_generate_program(p6) == NULL);
+    ast_free(p6);
+
+    /* 7. Extra unused AST argument must fail cleanly without partial TAC. */
+    AstNode *p7 = build_scanf_prog("n", AST_TYPE_INT, 0, "\"%d\"", 2, two_d, two_addr);
+    assert(tac_generate_program(p7) == NULL);
+    ast_free(p7);
+
+    /* 8. Multi-specifier valid scanf with explicit %5s + %d + literal separator preserves exact order. */
+    AstList stmts = ast_list_empty();
+    assert(ast_list_append(&stmts, ast_var_decl(AST_TYPE_INT, ast_identifier(strdup("a"), 1, 1), NULL, 1, 1)));
+    assert(ast_list_append(&stmts, ast_var_decl_array(AST_TYPE_STRING, ast_identifier(strdup("s"), 2, 1), 10, NULL, 2, 1)));
+    AstList items = ast_list_empty();
+    assert(ast_list_append(&items, ast_literal_string(strdup("\"%d:%5s\""), 3, 1)));
+    assert(ast_list_append(&items, ast_addr_of(ast_identifier(strdup("a"), 3, 1), 3, 1)));
+    assert(ast_list_append(&items, ast_identifier(strdup("s"), 3, 1)));
+    assert(ast_list_append(&stmts, ast_input(items, AST_INPUT_SCANF, 3, 1)));
+    AstNode *p8 = ast_program(stmts, 1, 1);
+    TacList *t8 = tac_generate_program(p8);
+    assert(t8 != NULL && t8->count == 3);
+    assert(t8->head->opcode == TAC_OP_READ_INT && strcmp(t8->head->dest, "a") == 0);
+    assert(t8->head->next->opcode == TAC_OP_SCAN_LIT && strcmp(t8->head->next->src1, "\":\"") == 0);
+    assert(t8->head->next->next->opcode == TAC_OP_READ_STR && strcmp(t8->head->next->next->src1, "5") == 0);
+    tac_list_free(t8);
+    ast_free(p8);
+
+    printf("  [PASS] test_scanf_bounds_and_validation_tac\n");
+}
+
 int main(void) {
     printf("==============================================================================\n");
     printf(" CompileCraft - Three-Address Code (TAC) Unit Tests\n");
@@ -367,6 +545,8 @@ int main(void) {
     test_nested_blocks_order();
     test_output_and_println_tac();
     test_printf_seq_and_concat_tac();
+    test_input_opcodes_and_string_concat_tac();
+    test_scanf_bounds_and_validation_tac();
 
     printf("==============================================================================\n");
     printf(" All TAC unit tests passed successfully!\n");

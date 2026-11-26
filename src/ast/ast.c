@@ -37,10 +37,12 @@ static int ast_is_identifier(const AstNode *node) {
 
 static const char *ast_type_tag_name(AstTypeTag tag) {
     switch (tag) {
-        case AST_TYPE_INT:   return "int";
-        case AST_TYPE_FLOAT: return "float";
-        case AST_TYPE_BOOL:  return "bool";
-        default:             return "?";
+        case AST_TYPE_INT:     return "int";
+        case AST_TYPE_FLOAT:   return "float";
+        case AST_TYPE_BOOL:    return "bool";
+        case AST_TYPE_STRING:  return "string";
+        case AST_TYPE_SCANNER: return "Scanner";
+        default:               return "?";
     }
 }
 
@@ -177,11 +179,11 @@ AstNode *ast_seq(AstList stmts, int line, int column) {
     return node;
 }
 
-AstNode *ast_var_decl(AstTypeTag type_tag, AstNode *name, AstNode *init,
-                      int line, int column) {
+AstNode *ast_var_decl_array(AstTypeTag type_tag, AstNode *name, int array_size,
+                            AstNode *init, int line, int column) {
     AstNode *node;
 
-    if (!ast_is_identifier(name) || name->next != NULL) {
+    if (!ast_is_identifier(name) || name->next != NULL || array_size < 0) {
         ast_fail_free_children(name, init, NULL);
         return NULL;
     }
@@ -197,9 +199,15 @@ AstNode *ast_var_decl(AstTypeTag type_tag, AstNode *name, AstNode *init,
     }
 
     node->u.var_decl.type_tag = type_tag;
+    node->u.var_decl.array_size = array_size;
     node->u.var_decl.name = name;
     node->u.var_decl.init = init;
     return node;
+}
+
+AstNode *ast_var_decl(AstTypeTag type_tag, AstNode *name, AstNode *init,
+                      int line, int column) {
+    return ast_var_decl_array(type_tag, name, 0, init, line, column);
 }
 
 AstNode *ast_assign(AstNode *target, AstNode *value, int line, int column) {
@@ -323,22 +331,31 @@ AstNode *ast_output(AstList items, int newline, int line, int column) {
     return ast_output_with_mode(items, AST_OUTPUT_RAW, newline, line, column);
 }
 
-int ast_output_append_item(AstNode *output_node, AstNode *item) {
+static int ast_chain_append_item(AstNode **head, AstNode **tail, AstNode *item) {
     AstList list;
 
-    if (output_node == NULL || output_node->kind != AST_OUTPUT || item == NULL) {
+    if (head == NULL || tail == NULL || item == NULL) {
         return 0;
     }
 
-    list.head = output_node->u.output_stmt.items;
-    list.tail = output_node->u.output_stmt.items_tail;
+    list.head = *head;
+    list.tail = *tail;
     if (!ast_list_append(&list, item)) {
         return 0;
     }
 
-    output_node->u.output_stmt.items = list.head;
-    output_node->u.output_stmt.items_tail = list.tail;
+    *head = list.head;
+    *tail = list.tail;
     return 1;
+}
+
+int ast_output_append_item(AstNode *output_node, AstNode *item) {
+    if (output_node == NULL || output_node->kind != AST_OUTPUT) {
+        return 0;
+    }
+    return ast_chain_append_item(&output_node->u.output_stmt.items,
+                                 &output_node->u.output_stmt.items_tail,
+                                 item);
 }
 
 int ast_output_set_newline(AstNode *output_node, int newline) {
@@ -347,6 +364,27 @@ int ast_output_set_newline(AstNode *output_node, int newline) {
     }
     output_node->u.output_stmt.newline = newline ? 1 : 0;
     return 1;
+}
+
+AstNode *ast_input(AstList items, AstInputMode mode, int line, int column) {
+    AstNode *node = ast_node_new(AST_INPUT, line, column);
+    if (node == NULL) {
+        ast_free(items.head);
+        return NULL;
+    }
+    node->u.input_stmt.items = items.head;
+    node->u.input_stmt.items_tail = items.tail;
+    node->u.input_stmt.mode = mode;
+    return node;
+}
+
+int ast_input_append_item(AstNode *input_node, AstNode *item) {
+    if (input_node == NULL || input_node->kind != AST_INPUT) {
+        return 0;
+    }
+    return ast_chain_append_item(&input_node->u.input_stmt.items,
+                                 &input_node->u.input_stmt.items_tail,
+                                 item);
 }
 
 AstNode *ast_binary(AstBinOp op, AstNode *left, AstNode *right,
@@ -387,6 +425,66 @@ AstNode *ast_unary(AstUnOp op, AstNode *operand, int line, int column) {
 
     node->u.unary.op = op;
     node->u.unary.operand = operand;
+    return node;
+}
+
+AstNode *ast_addr_of(AstNode *operand, int line, int column) {
+    AstNode *node;
+
+    if (operand == NULL || operand->next != NULL) {
+        ast_free(operand);
+        return NULL;
+    }
+
+    node = ast_node_new(AST_ADDR_OF, line, column);
+    if (node == NULL) {
+        ast_free(operand);
+        return NULL;
+    }
+
+    node->u.addr_of.operand = operand;
+    return node;
+}
+
+AstNode *ast_scanner_new(char *class_name, char *source_name, int line, int column) {
+    AstNode *node;
+
+    if (class_name == NULL || source_name == NULL) {
+        free(class_name);
+        free(source_name);
+        return NULL;
+    }
+
+    node = ast_node_new(AST_SCANNER_NEW, line, column);
+    if (node == NULL) {
+        free(class_name);
+        free(source_name);
+        return NULL;
+    }
+
+    node->u.scanner_new.class_name = class_name;
+    node->u.scanner_new.source_name = source_name;
+    return node;
+}
+
+AstNode *ast_input_call(AstNode *receiver, char *method_name, int line, int column) {
+    AstNode *node;
+
+    if (!ast_is_identifier(receiver) || receiver->next != NULL || method_name == NULL) {
+        ast_free(receiver);
+        free(method_name);
+        return NULL;
+    }
+
+    node = ast_node_new(AST_INPUT_CALL, line, column);
+    if (node == NULL) {
+        ast_free(receiver);
+        free(method_name);
+        return NULL;
+    }
+
+    node->u.input_call.receiver = receiver;
+    node->u.input_call.method_name = method_name;
     return node;
 }
 
@@ -500,12 +598,29 @@ void ast_free(AstNode *node) {
             case AST_OUTPUT:
                 ast_free(node->u.output_stmt.items);
                 break;
+            case AST_INPUT:
+                ast_free(node->u.input_stmt.items);
+                break;
             case AST_BINARY_OP:
                 ast_free(node->u.binary.left);
                 ast_free(node->u.binary.right);
                 break;
             case AST_UNARY_OP:
                 ast_free(node->u.unary.operand);
+                break;
+            case AST_ADDR_OF:
+                ast_free(node->u.addr_of.operand);
+                break;
+            case AST_SCANNER_NEW:
+                free(node->u.scanner_new.class_name);
+                free(node->u.scanner_new.source_name);
+                node->u.scanner_new.class_name = NULL;
+                node->u.scanner_new.source_name = NULL;
+                break;
+            case AST_INPUT_CALL:
+                ast_free(node->u.input_call.receiver);
+                free(node->u.input_call.method_name);
+                node->u.input_call.method_name = NULL;
                 break;
             case AST_IDENTIFIER:
                 free(node->u.identifier.name);
@@ -571,7 +686,14 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
 
         case AST_VAR_DECL:
             ast_print_spaces(out, depth);
-            fprintf(out, "VarDecl %s\n", ast_type_tag_name(node->u.var_decl.type_tag));
+            if (node->u.var_decl.array_size > 0) {
+                fprintf(out, "VarDecl %s[%d]\n",
+                        ast_type_tag_name(node->u.var_decl.type_tag),
+                        node->u.var_decl.array_size);
+            } else {
+                fprintf(out, "VarDecl %s\n",
+                        ast_type_tag_name(node->u.var_decl.type_tag));
+            }
             ast_print_indent(node->u.var_decl.name, out, depth + 1);
             if (node->u.var_decl.init != NULL) {
                 ast_print_indent(node->u.var_decl.init, out, depth + 1);
@@ -634,6 +756,17 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
             break;
         }
 
+        case AST_INPUT: {
+            const char *tag =
+                (node->u.input_stmt.mode == AST_INPUT_CIN) ? "InputCin" : "InputScanf";
+            ast_print_spaces(out, depth);
+            fprintf(out, "%s\n", tag);
+            for (stmt = node->u.input_stmt.items; stmt != NULL; stmt = stmt->next) {
+                ast_print_indent(stmt, out, depth + 1);
+            }
+            break;
+        }
+
         case AST_BINARY_OP:
             ast_print_spaces(out, depth);
             fprintf(out, "Binary %s\n", ast_binop_name(node->u.binary.op));
@@ -645,6 +778,26 @@ void ast_print_indent(const AstNode *node, FILE *out, int depth) {
             ast_print_spaces(out, depth);
             fprintf(out, "Unary %s\n", ast_unop_name(node->u.unary.op));
             ast_print_indent(node->u.unary.operand, out, depth + 1);
+            break;
+
+        case AST_ADDR_OF:
+            ast_print_spaces(out, depth);
+            fputs("AddrOf\n", out);
+            ast_print_indent(node->u.addr_of.operand, out, depth + 1);
+            break;
+
+        case AST_SCANNER_NEW:
+            ast_print_spaces(out, depth);
+            fprintf(out, "ScannerNew %s(%s)\n",
+                    node->u.scanner_new.class_name ? node->u.scanner_new.class_name : "",
+                    node->u.scanner_new.source_name ? node->u.scanner_new.source_name : "");
+            break;
+
+        case AST_INPUT_CALL:
+            ast_print_spaces(out, depth);
+            fprintf(out, "InputCall %s\n",
+                    node->u.input_call.method_name ? node->u.input_call.method_name : "");
+            ast_print_indent(node->u.input_call.receiver, out, depth + 1);
             break;
 
         case AST_IDENTIFIER:

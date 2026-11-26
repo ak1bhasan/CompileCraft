@@ -35,6 +35,20 @@ static void test_global_declarations(void) {
     Symbol *s3 = symbol_table_insert(st, "flag", TYPE_BOOL, 7);
     assert(s3 != NULL);
     assert(s3->type == TYPE_BOOL);
+    assert(s1->array_size == 0 && s1->is_initialized == false);
+
+    Symbol *s4 = symbol_table_insert_ext(st, "buf", TYPE_STRING, 8, 64, false);
+    assert(s4 != NULL);
+    assert(s4->type == TYPE_STRING);
+    assert(s4->array_size == 64);
+    assert(s4->is_initialized == false);
+
+    Symbol *s5 = symbol_table_insert_ext(st, "in", TYPE_SCANNER, 9, 0, true);
+    assert(s5 != NULL);
+    assert(s5->type == TYPE_SCANNER);
+    assert(s5->array_size == 0);
+    assert(s5->is_initialized == true);
+    assert(strcmp(datatype_to_string(TYPE_SCANNER), "Scanner") == 0);
 
     /* Lookup tests */
     Symbol *f1 = symbol_table_lookup_current_scope(st, "x");
@@ -159,6 +173,30 @@ static void test_multiple_sibling_scopes(void) {
     printf("  [PASS] test_multiple_sibling_scopes\n");
 }
 
+static void test_metadata_across_shadowing(void) {
+    printf("Running test_metadata_across_shadowing...\n");
+    SymbolTable *st = symbol_table_create();
+
+    Symbol *outer = symbol_table_insert_ext(st, "name", TYPE_STRING, 2, 16, false);
+    assert(outer != NULL && outer->array_size == 16 && !outer->is_initialized);
+
+    symbol_table_enter_scope(st);
+    Symbol *inner = symbol_table_insert_ext(st, "name", TYPE_STRING, 5, 32, true);
+    assert(inner != NULL && inner->array_size == 32 && inner->is_initialized);
+    assert(symbol_table_lookup_all_scopes(st, "name") == inner);
+
+    /* Duplicate insert must fail without overwriting inner metadata */
+    assert(symbol_table_insert_ext(st, "name", TYPE_SCANNER, 6, 0, false) == NULL);
+    assert(inner->type == TYPE_STRING && inner->array_size == 32 && inner->is_initialized);
+
+    symbol_table_exit_scope(st);
+    Symbol *restored = symbol_table_lookup_all_scopes(st, "name");
+    assert(restored == outer && restored->array_size == 16 && !restored->is_initialized);
+
+    symbol_table_destroy(st);
+    printf("  [PASS] test_metadata_across_shadowing\n");
+}
+
 int main(void) {
     printf("==============================================================================\n");
     printf(" CompileCraft - Scoped Symbol Table Unit Tests\n");
@@ -169,6 +207,7 @@ int main(void) {
     test_duplicate_detection();
     test_nested_scopes_and_shadowing();
     test_multiple_sibling_scopes();
+    test_metadata_across_shadowing();
 
     printf("==============================================================================\n");
     printf(" All Symbol Table unit tests passed successfully!\n");

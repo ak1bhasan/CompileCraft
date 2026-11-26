@@ -1,0 +1,19 @@
+t1 = read_int token
+count = t1
+t2 = read_float token
+ratio = t2
+t3 = read_bool java
+ok = t3
+t4 = read_str
+word = t4
+t5 = read_line
+rest = t5
+print count
+print ":"
+print ratio
+print ":"
+print ok
+print ":"
+print word
+print ":"
+println rest

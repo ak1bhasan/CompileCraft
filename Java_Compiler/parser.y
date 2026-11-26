@@ -250,7 +250,7 @@ static AstNode *java_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 %token SEMICOLON       309
 %token COMMA           310
 
-%type <node> program class_decl main_method statement var_decl_stmt assign_stmt
+%type <node> program import_list import_stmt class_decl main_method statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
 %type <node> return_stmt inc_dec_stmt output_stmt expression
 %type <node> for_init for_cond for_update
@@ -280,16 +280,62 @@ static AstNode *java_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 %%
 
 program:
-    class_decl
+    import_list class_decl
     {
-        compilecraft_java_ast_root = $1;
+        compilecraft_java_ast_root = $2;
         $$ = NULL;
     }
-  | class_decl error
+  | import_list class_decl error
     {
-        ast_free($1);
+        ast_free($2);
         compilecraft_java_ast_root = NULL;
         yyerrok;
+        $$ = NULL;
+    }
+  ;
+
+import_list:
+    %empty
+    {
+        $$ = NULL;
+    }
+  | import_list import_stmt
+    {
+        $$ = NULL;
+    }
+  ;
+
+import_stmt:
+    IDENTIFIER IDENTIFIER DOT IDENTIFIER DOT IDENTIFIER SEMICOLON
+    {
+        if (!$1 || strcmp($1, "import") != 0 ||
+            !$2 || strcmp($2, "java") != 0 ||
+            !$4 || strcmp($4, "util") != 0 ||
+            !$6 || strcmp($6, "Scanner") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported import '%s %s.%s.%s;' (only 'import java.util.Scanner;' or 'import java.util.*;' is supported)\n",
+                    @1.first_line, $1 ? $1 : "", $2 ? $2 : "", $4 ? $4 : "", $6 ? $6 : "");
+            syntax_error_count++;
+        }
+        free($1);
+        free($2);
+        free($4);
+        free($6);
+        $$ = NULL;
+    }
+  | IDENTIFIER IDENTIFIER DOT IDENTIFIER DOT STAR SEMICOLON
+    {
+        if (!$1 || strcmp($1, "import") != 0 ||
+            !$2 || strcmp($2, "java") != 0 ||
+            !$4 || strcmp($4, "util") != 0) {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported import '%s %s.%s.*;' (only 'import java.util.*;' is supported)\n",
+                    @1.first_line, $1 ? $1 : "", $2 ? $2 : "", $4 ? $4 : "");
+            syntax_error_count++;
+        }
+        free($1);
+        free($2);
+        free($4);
         $$ = NULL;
     }
   ;
@@ -412,6 +458,21 @@ type_spec:
     KW_INT      { $$ = AST_TYPE_INT; }
   | KW_FLOAT    { $$ = AST_TYPE_FLOAT; }
   | KW_BOOLEAN  { $$ = AST_TYPE_BOOL; }
+  | IDENTIFIER
+    {
+        if ($1 && strcmp($1, "String") == 0) {
+            $$ = AST_TYPE_STRING;
+        } else if ($1 && strcmp($1, "Scanner") == 0) {
+            $$ = AST_TYPE_SCANNER;
+        } else {
+            fprintf(stderr,
+                    "Syntax Error at line %d: Unsupported type '%s' (expected int, float, boolean, String, or Scanner)\n",
+                    @1.first_line, $1 ? $1 : "");
+            syntax_error_count++;
+            $$ = AST_TYPE_INT;
+        }
+        free($1);
+    }
   ;
 
 var_decl_stmt:
@@ -737,6 +798,26 @@ expression:
   | LPAREN expression RPAREN
     {
         $$ = $2;
+    }
+  | KW_NEW IDENTIFIER LPAREN IDENTIFIER DOT IDENTIFIER RPAREN
+    {
+        size_t slen = strlen($4) + 1 + strlen($6) + 1;
+        char *src = (char *)malloc(slen);
+        if (src) {
+            snprintf(src, slen, "%s.%s", $4, $6);
+        }
+        free($4);
+        free($6);
+        $$ = ast_scanner_new($2, src, @1.first_line, @1.first_column);
+    }
+  | KW_NEW IDENTIFIER LPAREN IDENTIFIER RPAREN
+    {
+        $$ = ast_scanner_new($2, $4, @1.first_line, @1.first_column);
+    }
+  | IDENTIFIER DOT IDENTIFIER LPAREN RPAREN
+    {
+        AstNode *recv = ast_identifier($1, @1.first_line, @1.first_column);
+        $$ = ast_input_call(recv, $3, @$.first_line, @$.first_column);
     }
   | IDENTIFIER
     {

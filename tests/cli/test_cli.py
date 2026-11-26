@@ -58,7 +58,7 @@ def main():
         rc, out, err = run_cli(cli_bin, [flag])
         check(
             f"cli_{flag}",
-            rc == 0 and ".c" in out and ".cpp" in out and ".java" in out and ".mc" not in out and err == "",
+            rc == 0 and ".c" in out and ".cpp" in out and ".java" in out and "--run" in out and ".mc" not in out and err == "",
             f"rc={rc} out={out!r} err={err!r}",
         )
 
@@ -71,6 +71,9 @@ def main():
 
     rc, out, err = run_cli(cli_bin, ["tests/cli/valid_c.c", "tests/cli/valid_cpp.cpp"])
     check("cli_multiple_files", rc == 1 and "Multiple source files" in err, f"rc={rc} err={err!r}")
+
+    rc, out, err = run_cli(cli_bin, ["--run", "--ast", "tests/cli/valid_c.c"], cwd=repo_root)
+    check("cli_conflicting_modes", rc == 1 and "Specify at most one" in err, f"rc={rc} err={err!r}")
 
     # 3. Missing file and unsupported extensions (including .mc)
     rc, out, err = run_cli(cli_bin, ["tests/cli/nonexistent_program.cpp"])
@@ -162,6 +165,15 @@ def main():
             rc == 0 and err.strip() == "" and all(s in out for s in expected_syms) and not contains_tac(out),
             f"rc={rc} out={out!r} err={err!r}",
         )
+
+    # 5b. --run dispatch across C, C++, and Java
+    for label, src, expected_out in [
+        ("run_io_c", "tests/cli/valid_io_c.c", "Sum = 6"),
+        ("run_io_cpp", "tests/cli/valid_io_cpp.cpp", "Sum: 6\n"),
+        ("run_io_java", "tests/cli/valid_io_java.java", "Sum: 6\n"),
+    ]:
+        rc, out, err = run_cli(cli_bin, ["--run", src], cwd=repo_root)
+        check(label, rc == 0 and out == expected_out and err == "", f"rc={rc} out={out!r} err={err!r}")
 
     # 6. Six semantic error categories + lexical + syntax errors across C, C++, Java (zero TAC emitted)
     error_specs = [

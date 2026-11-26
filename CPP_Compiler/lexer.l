@@ -166,8 +166,8 @@ static int string_has_invalid_escape(const char *text) {
      * Mid-line '#' falls through to the unrecognized-character rule.
      * -------------------------------------------------------------------------- */
 
-^[ \t]*#[ \t]*include[ \t]*<iostream>[ \t\r]*("//"[^\n]*)? {
-                            /* Accepted standard C++ stream header directive (no external preprocessor) */
+^[ \t]*#[ \t]*include[ \t]*<(iostream|string)>[ \t\r]*("//"[^\n]*)? {
+                            /* Accepted standard C++ stream/string header directive (no external preprocessor) */
                         }
 
 ^[ \t]*#[^\n]*          {
