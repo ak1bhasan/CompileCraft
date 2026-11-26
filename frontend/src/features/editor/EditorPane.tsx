@@ -1,5 +1,5 @@
 import './monacoSetup'
-import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react'
+import Editor, { type BeforeMount, type Monaco, type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import {
   forwardRef,
@@ -19,7 +19,7 @@ import {
   toMonacoEditorOptions,
   toMonacoModelOptions,
 } from './editorSettings'
-import { ensureMonacoSetup } from './monacoTheme'
+import { ensureMonacoSetup, getMonacoThemeName } from './monacoTheme'
 
 export interface EditorPaneHandle {
   captureViewState: () => EditorViewState | null
@@ -64,6 +64,7 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
     ref,
   ) {
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+    const monacoRef = useRef<Monaco | null>(null)
     const viewStateRef = useRef(viewState)
     const activeFileIdRef = useRef(fileId)
     const settingsRef = useRef(settings)
@@ -117,7 +118,8 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
 
     const handleMount: OnMount = (editorInstance, monaco) => {
       editorRef.current = editorInstance
-      monaco.editor.setTheme('compilecraft-dark')
+      monacoRef.current = monaco
+      monaco.editor.setTheme(getMonacoThemeName(settingsRef.current.theme))
       applyEditorSettings(editorInstance, settingsRef.current)
 
       const updateCursor = () => {
@@ -149,6 +151,12 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
       }
       applyEditorSettings(editorInstance, settings)
     }, [settings])
+
+    useEffect(() => {
+      if (monacoRef.current) {
+        monacoRef.current.editor.setTheme(getMonacoThemeName(settings.theme))
+      }
+    }, [settings.theme])
 
     useEffect(() => {
       const editorInstance = editorRef.current
@@ -201,7 +209,7 @@ const EditorPane = forwardRef<EditorPaneHandle, EditorPaneProps>(
           path={fileId}
           value={value}
           language={monacoLanguageFor(language)}
-          theme="compilecraft-dark"
+          theme={getMonacoThemeName(settings.theme)}
           beforeMount={handleBeforeMount}
           onMount={handleMount}
           onChange={(next) => onChange(next ?? '')}

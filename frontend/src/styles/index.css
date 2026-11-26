@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme="dark"] {
   --cc-bg: #0b0b12;
   --cc-surface: #12121c;
   --cc-surface-elevated: #1a1a28;
@@ -10,6 +11,20 @@
   --cc-text: #f4f4f8;
   --cc-text-muted: #9b9bb0;
   --cc-border: #2a2a3c;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --cc-bg: #f8fafc;
+  --cc-surface: #ffffff;
+  --cc-surface-elevated: #f1f5f9;
+  --cc-editor-bg: #ffffff;
+  --cc-primary: #7c3aed;
+  --cc-primary-hover: #6d28d9;
+  --cc-text: #0f172a;
+  --cc-text-muted: #64748b;
+  --cc-border: #e2e8f0;
+  color-scheme: light;
 }
 
 *,

@@ -38,9 +38,35 @@ export default function App() {
   const [bottomTab, setBottomTab] = useState<BottomTabId>('output')
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, column: 1 })
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
-  const [editorSettings, setEditorSettings] = useState<EditorSettings>(
-    DEFAULT_EDITOR_SETTINGS,
-  )
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => {
+    try {
+      const saved = localStorage.getItem('compilecraft_editor_settings')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        return {
+          ...DEFAULT_EDITOR_SETTINGS,
+          ...parsed,
+          theme: parsed.theme === 'light' ? 'light' : 'dark',
+        }
+      }
+    } catch {
+      // Ignore localStorage read errors
+    }
+    return DEFAULT_EDITOR_SETTINGS
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', editorSettings.theme)
+  }, [editorSettings.theme])
+
+  const handleEditorSettingsChange = useCallback((next: EditorSettings) => {
+    setEditorSettings(next)
+    try {
+      localStorage.setItem('compilecraft_editor_settings', JSON.stringify(next))
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [])
   const [compileResultsByFile, setCompileResultsByFile] = useState<
     Record<string, CompileResult | null>
   >({})
@@ -295,7 +321,7 @@ export default function App() {
         canRun={activeDocument !== null}
         isCompiling={isCompilingActive}
         editorSettings={editorSettings}
-        onEditorSettingsChange={setEditorSettings}
+        onEditorSettingsChange={handleEditorSettingsChange}
       />
       <div className="flex min-h-0 flex-1">
         <Sidebar
