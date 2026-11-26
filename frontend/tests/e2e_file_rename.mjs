@@ -189,7 +189,7 @@ async function runTests() {
       await cdp.sendKey('Escape', 'Escape', 27)
       await cdp.waitFor(`!document.querySelector('[data-testid="rename-file-input"]')`, 5000, 'rename closed')
       const name = await cdp.evalJs(`document.querySelector('[data-testid="explorer-file-demo-c"]')?.textContent?.trim()`)
-      if (name !== 'control_flow.c') throw new Error(`Expected control_flow.c, got ${name}`)
+      if (name !== 'Main.c') throw new Error(`Expected Main.c, got ${name}`)
     })
 
     await runCase('reject_empty_filename', async () => {

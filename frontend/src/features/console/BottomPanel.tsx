@@ -7,16 +7,34 @@ import {
   Loader2,
   Square,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
 import EmptyState from '../../components/common/EmptyState'
-import type { BottomTabId, CompileResult, ConsoleEntry } from '../../types/ide'
+import ResizeHandle from '../../components/layout/ResizeHandle'
+import { BOTTOM_HEIGHT_BOUNDS } from '../../features/layout/panelLayout'
+import type {
+  BottomTabId,
+  CompileResult,
+  ConsoleEntry,
+  WorkspaceProblem,
+} from '../../types/ide'
 
 interface BottomPanelProps {
   collapsed: boolean
   onToggle: () => void
+  height: number
+  onHeightChange: (height: number) => void
   activeTab: BottomTabId
   onTabChange: (tab: BottomTabId) => void
+  activeFileId?: string | null
   result: CompileResult | null
+  workspaceProblems?: import('../../types/ide').WorkspaceProblem[]
   consoleEntries: ConsoleEntry[]
   isCompiling: boolean
   isRunning: boolean
@@ -24,7 +42,8 @@ interface BottomPanelProps {
   onSendInput?: (input: string) => void
   onSendEof?: () => void
   onStop?: () => void
-  onJumpToLine?: (line: number) => void
+  onJumpToLine?: (line: number, column?: number) => void
+  onJumpToProblem?: (fileId: string, line: number, column?: number) => void
 }
 
 const TABS: { id: BottomTabId; label: string }[] = [
@@ -36,9 +55,13 @@ const TABS: { id: BottomTabId; label: string }[] = [
 export default function BottomPanel({
   collapsed,
   onToggle,
+  height,
+  onHeightChange,
   activeTab,
   onTabChange,
+  activeFileId = null,
   result,
+  workspaceProblems,
   consoleEntries,
   isCompiling,
   isRunning,
@@ -47,10 +70,16 @@ export default function BottomPanel({
   onSendEof,
   onStop,
   onJumpToLine,
+  onJumpToProblem,
 }: BottomPanelProps) {
   const [stdinDraft, setStdinDraft] = useState('')
+  const [dragging, setDragging] = useState(false)
   const streamEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleDragStateChange = useCallback((nextDragging: boolean) => {
+    setDragging(nextDragging)
+  }, [])
 
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ block: 'end' })
@@ -93,7 +122,17 @@ export default function BottomPanel({
     }
   }
 
-  const problemCount = result?.diagnostics.length ?? 0
+  const fallbackProblems: WorkspaceProblem[] =
+    result?.diagnostics.map((diagnostic) => ({
+      fileId: activeFileId ?? '',
+      fileName: '',
+      diagnostic,
+    })) ?? []
+  const problemItems =
+    workspaceProblems && workspaceProblems.length > 0
+      ? workspaceProblems
+      : fallbackProblems
+  const problemCount = problemItems.length
 
   const renderOutput = () => {
     if (isCompiling) {
@@ -122,12 +161,12 @@ export default function BottomPanel({
       const isSuccess = result.executionStatus === 'succeeded'
       const isAborted = result.executionStatus === 'aborted'
       const statusColor = isRunningStatus
-        ? 'text-sky-300'
+        ? 'text-[var(--cc-info)]'
         : isSuccess
-          ? 'text-emerald-400'
+          ? 'text-[var(--cc-success)]'
           : isAborted
-            ? 'text-amber-400'
-            : 'text-rose-400'
+            ? 'text-[var(--cc-warning)]'
+            : 'text-[var(--cc-danger)]'
       const statusLabel = isRunningStatus
         ? `Running (${result.language.toUpperCase()})…`
         : isSuccess
@@ -158,13 +197,13 @@ export default function BottomPanel({
                   type="button"
                   data-testid="console-stop-btn"
                   onClick={onStop}
-                  className="inline-flex h-6 items-center gap-1 rounded border border-rose-500/50 bg-rose-500/20 px-2 text-[11px] font-medium text-rose-200 transition-colors hover:bg-rose-500/30"
+                  className="inline-flex h-6 items-center gap-1 rounded border border-[var(--cc-danger-border)] bg-[var(--cc-danger-bg-strong)] px-2 text-[11px] font-medium text-[var(--cc-danger-text)] transition-colors hover:bg-[var(--cc-danger-bg-strong)]"
                 >
                   <Square size={10} strokeWidth={2.2} />
                   Stop
                 </button>
               ) : null}
-              <span className="text-[11px] text-[var(--cc-text-muted)]">
+              <span className="text-[11px] text-[var(--cc-text-secondary)]">
                 Compile: {result.durationMs} ms | Tokens: {result.tokens.length} | Symbols: {result.symbols.length} | TAC: {tacLines}
               </span>
             </div>
@@ -173,7 +212,7 @@ export default function BottomPanel({
           {hasEntries || hasStdoutFallback ? (
             <pre
               data-testid="program-output-stdout"
-              className="max-h-36 overflow-y-auto rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/80 p-2.5 whitespace-pre-wrap break-words text-[var(--cc-text)] leading-relaxed"
+              className="max-h-36 overflow-y-auto rounded-md border border-[var(--cc-border)] bg-[var(--cc-editor-bg)] p-2.5 whitespace-pre-wrap break-words text-[var(--cc-text)] leading-relaxed"
             >
               {hasEntries
                 ? consoleEntries.map((entry) => {
@@ -182,7 +221,7 @@ export default function BottomPanel({
                         <span
                           key={entry.id}
                           data-testid="console-input-echo"
-                          className="text-sky-300 font-semibold"
+                          className="text-[var(--cc-info)] font-semibold"
                         >
                           {`> ${entry.text}`}
                         </span>
@@ -190,14 +229,14 @@ export default function BottomPanel({
                     }
                     if (entry.kind === 'stderr') {
                       return (
-                        <span key={entry.id} className="text-rose-300">
+                        <span key={entry.id} className="text-[var(--cc-danger)]">
                           {entry.text}
                         </span>
                       )
                     }
                     if (entry.kind === 'system') {
                       return (
-                        <span key={entry.id} className="text-amber-300/90 italic">
+                        <span key={entry.id} className="text-[var(--cc-warning)] italic">
                           {entry.text}
                         </span>
                       )
@@ -215,15 +254,15 @@ export default function BottomPanel({
 
           {isRunningStatus ? (
             stdinClosed ? (
-              <div className="flex items-center justify-between rounded-md border border-[var(--cc-border)] bg-[var(--cc-bg)]/60 px-2.5 py-1.5 text-[11px] text-[var(--cc-text-muted)]">
+              <div className="flex items-center justify-between rounded-md border border-[var(--cc-border)] bg-[var(--cc-editor-bg)] px-2.5 py-1.5 text-[11px] text-[var(--cc-text-secondary)]">
                 <span>Standard input closed (EOF sent) — waiting for program completion…</span>
               </div>
             ) : (
               <form
                 onSubmit={submitStdin}
-                className="flex items-center gap-2 rounded-md border border-[var(--cc-primary)]/40 bg-[var(--cc-bg)] px-2 py-1"
+                className="flex items-center gap-2 rounded-md border border-[var(--cc-primary)]/50 bg-[var(--cc-editor-bg)] px-2 py-1"
               >
-                <span className="select-none text-sky-300 font-semibold">&gt;</span>
+                <span className="select-none text-[var(--cc-info)] font-semibold">&gt;</span>
                 <input
                   ref={inputRef}
                   type="text"
@@ -232,12 +271,12 @@ export default function BottomPanel({
                   onChange={(event) => setStdinDraft(event.target.value)}
                   placeholder="Enter input and press Enter…"
                   aria-label="Program standard input"
-                  className="min-w-0 flex-1 bg-transparent font-mono text-xs text-[var(--cc-text)] outline-none placeholder:text-[var(--cc-text-muted)]/70"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-xs text-[var(--cc-text)] outline-none placeholder:text-[var(--cc-text-muted)]"
                 />
                 <button
                   type="submit"
                   data-testid="console-send-btn"
-                  className="inline-flex h-6 items-center gap-1 rounded border border-[var(--cc-primary)]/50 bg-[var(--cc-primary)]/20 px-2 text-[11px] text-[var(--cc-primary-hover)] transition-colors hover:bg-[var(--cc-primary)]/30"
+                  className="inline-flex h-6 items-center gap-1 rounded border border-[var(--cc-primary)]/45 bg-[var(--cc-selection)] px-2 text-[11px] font-medium text-[var(--cc-primary-hover)] transition-colors hover:bg-[var(--cc-primary)]/25"
                 >
                   <CornerDownLeft size={11} />
                   Send
@@ -248,7 +287,7 @@ export default function BottomPanel({
                     data-testid="console-eof-btn"
                     onClick={onSendEof}
                     title="Send EOF and close standard input"
-                    className="inline-flex h-6 items-center rounded border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-[11px] text-[var(--cc-text-muted)] transition-colors hover:text-[var(--cc-text)]"
+                    className="inline-flex h-6 items-center rounded border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2 text-[11px] text-[var(--cc-text-secondary)] transition-colors hover:bg-[var(--cc-hover)] hover:text-[var(--cc-text)]"
                   >
                     Send EOF
                   </button>
@@ -260,7 +299,7 @@ export default function BottomPanel({
           {!isRunningStatus && !isSuccess && (result.executionStderr || result.errorSummary) ? (
             <pre
               data-testid="program-output-stderr"
-              className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 whitespace-pre-wrap break-words text-rose-200"
+              className="rounded-md border border-[var(--cc-danger-border)] bg-[var(--cc-danger-bg)] p-2 whitespace-pre-wrap break-words text-[var(--cc-danger-text)]"
             >
               {result.executionStderr || result.errorSummary}
             </pre>
@@ -271,14 +310,14 @@ export default function BottomPanel({
 
     return (
       <div className="p-3 font-mono text-xs space-y-1.5">
-        <div className="flex items-center gap-2 text-rose-400">
+        <div className="flex items-center gap-2 text-[var(--cc-danger)]">
           <AlertCircle size={14} />
           <span>
             Compilation failed ({result.language.toUpperCase()}) — exit code{' '}
             {result.exitCode} ({result.durationMs} ms) — execution skipped
           </span>
         </div>
-        <pre className="whitespace-pre-wrap break-words text-rose-200">
+        <pre className="whitespace-pre-wrap break-words text-[var(--cc-danger-text)]">
           {result.rawStderr || result.errorSummary}
         </pre>
       </div>
@@ -294,7 +333,7 @@ export default function BottomPanel({
       )
     }
 
-    if (!result) {
+    if (!result && problemItems.length === 0) {
       return (
         <EmptyState
           title="No problems reported"
@@ -303,9 +342,9 @@ export default function BottomPanel({
       )
     }
 
-    if (result.diagnostics.length === 0) {
+    if (problemItems.length === 0) {
       return (
-        <div className="p-3 font-mono text-xs text-emerald-400">
+        <div className="p-3 font-mono text-xs font-medium text-[var(--cc-success)]">
           0 problems in active file.
         </div>
       )
@@ -313,30 +352,49 @@ export default function BottomPanel({
 
     return (
       <div className="divide-y divide-[var(--cc-border)]/50 font-mono text-xs">
-        {result.diagnostics.map((diag, index) => (
-          <button
-            key={`${diag.stage}-${diag.line ?? 'x'}-${index}`}
-            type="button"
-            disabled={diag.line === null || !onJumpToLine}
-            onClick={() => {
-              if (diag.line !== null && onJumpToLine) {
-                onJumpToLine(diag.line)
-              }
-            }}
-            className="flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-[var(--cc-surface-elevated)]/60 disabled:cursor-default"
-          >
-            <AlertCircle size={13} className="shrink-0 text-rose-400" />
-            <span className="shrink-0 text-rose-300">{diag.stage}</span>
-            <span className="min-w-0 flex-1 truncate text-[var(--cc-text)]">
-              {diag.message}
-            </span>
-            {diag.line !== null ? (
-              <span className="shrink-0 text-[var(--cc-text-muted)]">
-                Ln {diag.line}
+        {problemItems.map((item, index) => {
+          const { diagnostic: diag } = item
+          const canJump =
+            diag.line !== null &&
+            (Boolean(onJumpToProblem && item.fileId) || Boolean(onJumpToLine))
+          return (
+            <button
+              key={`${item.fileId}-${diag.stage}-${diag.line ?? 'x'}-${index}`}
+              type="button"
+              data-testid={`problems-error-item-${index}`}
+              disabled={!canJump}
+              onClick={() => {
+                if (diag.line === null) {
+                  return
+                }
+                if (onJumpToProblem && item.fileId) {
+                  onJumpToProblem(item.fileId, diag.line, diag.column ?? undefined)
+                  return
+                }
+                if (onJumpToLine) {
+                  onJumpToLine(diag.line, diag.column ?? undefined)
+                }
+              }}
+              className="flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-[var(--cc-hover)] disabled:cursor-default"
+            >
+              <AlertCircle size={13} className="shrink-0 text-[var(--cc-danger)]" />
+              <span className="shrink-0 font-medium text-[var(--cc-danger-text)]">{diag.stage}</span>
+              {item.fileName ? (
+                <span className="shrink-0 rounded bg-[var(--cc-surface-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--cc-text-secondary)]">
+                  {item.fileName}
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate text-[var(--cc-text)]">
+                {diag.message}
               </span>
-            ) : null}
-          </button>
-        ))}
+              {diag.line !== null ? (
+                <span className="shrink-0 text-[var(--cc-text-secondary)] underline decoration-[var(--cc-border)] underline-offset-2">
+                  Ln {diag.line}
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -380,11 +438,27 @@ export default function BottomPanel({
   }
 
   return (
-    <section
-      className={`flex shrink-0 flex-col border-t border-[var(--cc-border)] bg-[var(--cc-surface)] transition-[height] duration-200 ${
-        collapsed ? 'h-9' : 'h-56'
-      }`}
-    >
+    <div className="flex shrink-0 flex-col">
+      {!collapsed ? (
+        <ResizeHandle
+          orientation="horizontal"
+          direction={-1}
+          value={height}
+          min={BOTTOM_HEIGHT_BOUNDS.min}
+          max={BOTTOM_HEIGHT_BOUNDS.max}
+          label="Resize Bottom panel"
+          testId="resize-bottom"
+          onChange={onHeightChange}
+          onDragStateChange={handleDragStateChange}
+        />
+      ) : null}
+      <section
+        data-testid="bottom-panel"
+        style={collapsed ? undefined : { height: `${height}px`, maxHeight: '60vh' }}
+        className={`flex shrink-0 flex-col border-t border-[var(--cc-border)] bg-[var(--cc-surface)] ${
+          collapsed ? 'h-9 transition-[height] duration-200' : dragging ? 'select-none' : ''
+        }`}
+      >
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[var(--cc-border)] px-2">
         <div
           role="tablist"
@@ -413,13 +487,13 @@ export default function BottomPanel({
                 }}
                 className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors ${
                   active
-                    ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
-                    : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
+                    ? 'bg-[var(--cc-selection)] font-medium text-[var(--cc-primary-hover)]'
+                    : 'text-[var(--cc-text-secondary)] hover:bg-[var(--cc-hover)] hover:text-[var(--cc-text)]'
                 }`}
               >
                 <span>{tab.label}</span>
                 {tab.id === 'problems' && problemCount > 0 ? (
-                  <span className="rounded-full bg-rose-500/25 px-1.5 py-0 text-[10px] font-medium text-rose-300 tabular-nums">
+                  <span className="rounded-full bg-[var(--cc-danger-bg-strong)] px-1.5 py-0 text-[10px] font-medium text-[var(--cc-danger-text)] tabular-nums">
                     {problemCount}
                   </span>
                 ) : null}
@@ -455,6 +529,7 @@ export default function BottomPanel({
             )
           })
         : null}
-    </section>
+      </section>
+    </div>
   )
 }

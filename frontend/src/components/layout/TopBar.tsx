@@ -1,4 +1,4 @@
-import { FolderGit2, Keyboard, Loader2, Play, Settings, Square } from 'lucide-react'
+import { FolderDown, FolderGit2, Keyboard, Loader2, Play, Settings, Square } from 'lucide-react'
 import { useState } from 'react'
 import EditorSettingsMenu from '../../features/editor/EditorSettingsMenu'
 import KeyboardShortcutsMenu from '../../features/editor/KeyboardShortcutsMenu'
@@ -10,10 +10,12 @@ import {
 
 interface TopBarProps {
   projectName: string
+  diskRoot?: string | null
   language: LanguageId | null
   onLanguageChange: (language: LanguageId) => void
   onRun: () => void
   onStop: () => void
+  onSaveWorkspaceAs: () => void
   canRun: boolean
   isCompiling: boolean
   editorSettings: EditorSettings
@@ -22,10 +24,12 @@ interface TopBarProps {
 
 export default function TopBar({
   projectName,
+  diskRoot = null,
   language,
   onLanguageChange,
   onRun,
   onStop,
+  onSaveWorkspaceAs,
   canRun,
   isCompiling,
   editorSettings,
@@ -54,10 +58,29 @@ export default function TopBar({
           <p className="truncate text-sm font-semibold tracking-wide text-[var(--cc-text)]">
             CompileCraft
           </p>
-          <p className="truncate text-[11px] text-[var(--cc-text-muted)]">
-            {projectName}
+          <p
+            title={diskRoot || projectName}
+            data-testid="topbar-workspace-label"
+            className="truncate text-[11px] text-[var(--cc-text-muted)]"
+          >
+            {diskRoot ? `${projectName} • Saved` : projectName}
           </p>
         </div>
+        <button
+          type="button"
+          data-testid="save-workspace-as-btn"
+          onClick={onSaveWorkspaceAs}
+          title={
+            diskRoot
+              ? `Save workspace copy to another location (${diskRoot})`
+              : 'Save entire workspace directly to Desktop or another folder'
+          }
+          className="ml-2 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-2.5 text-xs font-medium text-[var(--cc-text-secondary)] transition-colors hover:border-[var(--cc-primary)]/50 hover:bg-[var(--cc-hover)] hover:text-[var(--cc-text)]"
+        >
+          <FolderDown size={13} strokeWidth={2} />
+          <span className="hidden sm:inline">Save Workspace As...</span>
+          <span className="sm:hidden">Save As...</span>
+        </button>
       </div>
 
       <div className="mx-auto flex items-center gap-2">
@@ -102,7 +125,7 @@ export default function TopBar({
           className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors ${
             !canRun || isCompiling
               ? 'border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] text-[var(--cc-text-muted)] opacity-60'
-              : 'border-[var(--cc-primary)] bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)] hover:bg-[var(--cc-primary)]/30 hover:text-[var(--cc-text)]'
+              : 'border-[var(--cc-primary)] bg-[var(--cc-selection)] text-[var(--cc-primary-hover)] hover:bg-[var(--cc-primary)]/25 hover:text-[var(--cc-text)] active:scale-[0.99]'
           }`}
         >
           {isCompiling ? (
@@ -119,7 +142,7 @@ export default function TopBar({
             onClick={onStop}
             aria-label="Stop execution"
             title="Stop active compilation or execution"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-500/50 bg-rose-500/20 px-2.5 text-xs font-medium text-rose-200 transition-colors hover:bg-rose-500/30"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--cc-danger-border)] bg-[var(--cc-danger-bg-strong)] px-2.5 text-xs font-medium text-[var(--cc-danger-text)] transition-colors hover:bg-[var(--cc-danger-bg-strong)]"
           >
             <Square size={12} strokeWidth={2} />
             Stop

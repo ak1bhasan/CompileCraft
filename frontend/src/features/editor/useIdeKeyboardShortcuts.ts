@@ -51,9 +51,10 @@ export function useIdeKeyboardShortcuts({
 
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
 
-      // Ctrl/Cmd + Enter → compile active editor buffer
+      // Ctrl/Cmd + Enter → compile active editor buffer (intercept before Monaco's insertLineAfter)
       if (isModKey(event) && !event.altKey && !event.shiftKey && key === 'Enter') {
         event.preventDefault()
+        event.stopPropagation()
         onRun()
         return
       }
@@ -61,6 +62,7 @@ export function useIdeKeyboardShortcuts({
       // Ctrl/Cmd + S → session save
       if (isModKey(event) && !event.altKey && !event.shiftKey && key === 's') {
         event.preventDefault()
+        event.stopPropagation()
         onSave()
         return
       }
@@ -68,6 +70,7 @@ export function useIdeKeyboardShortcuts({
       // Ctrl/Cmd + Alt + W → close active tab (avoid Ctrl+W browser close)
       if (isModKey(event) && event.altKey && !event.shiftKey && key === 'w') {
         event.preventDefault()
+        event.stopPropagation()
         onCloseActiveTab()
         return
       }
@@ -76,17 +79,19 @@ export function useIdeKeyboardShortcuts({
       if (isModKey(event) && event.altKey && !event.shiftKey) {
         if (key === 'ArrowRight') {
           event.preventDefault()
+          event.stopPropagation()
           onNextTab()
           return
         }
         if (key === 'ArrowLeft') {
           event.preventDefault()
+          event.stopPropagation()
           onPreviousTab()
         }
       }
     }
 
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [enabled])
 }

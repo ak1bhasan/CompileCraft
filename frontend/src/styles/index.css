@@ -3,27 +3,59 @@
 :root,
 [data-theme="dark"] {
   --cc-bg: #0b0b12;
+  --cc-sidebar: #12121c;
   --cc-surface: #12121c;
   --cc-surface-elevated: #1a1a28;
   --cc-editor-bg: #0f0f18;
+  --cc-hover: #1a1a28;
+  --cc-selection: rgba(139, 92, 246, 0.18);
   --cc-primary: #8b5cf6;
   --cc-primary-hover: #a78bfa;
   --cc-text: #f4f4f8;
+  --cc-text-secondary: #c4c4d4;
   --cc-text-muted: #9b9bb0;
   --cc-border: #2a2a3c;
+  --cc-success: #34d399;
+  --cc-warning: #fbbf24;
+  --cc-info: #7dd3fc;
+  --cc-danger: #f87171;
+  --cc-danger-text: #fecdd3;
+  --cc-danger-bg: rgba(244, 63, 94, 0.1);
+  --cc-danger-bg-strong: rgba(244, 63, 94, 0.22);
+  --cc-danger-border: rgba(244, 63, 94, 0.35);
+  --cc-icon-c: #38bdf8;
+  --cc-icon-cpp: #60a5fa;
+  --cc-icon-java: #fbbf24;
+  --cc-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --cc-bg: #f8fafc;
-  --cc-surface: #ffffff;
-  --cc-surface-elevated: #f1f5f9;
-  --cc-editor-bg: #ffffff;
-  --cc-primary: #7c3aed;
-  --cc-primary-hover: #6d28d9;
-  --cc-text: #0f172a;
-  --cc-text-muted: #64748b;
-  --cc-border: #e2e8f0;
+  --cc-bg: #f3f5f9;
+  --cc-sidebar: #eef1f6;
+  --cc-surface: #f7f8fc;
+  --cc-surface-elevated: #fcfcfe;
+  --cc-editor-bg: #fcfcfe;
+  --cc-hover: #e8ecf4;
+  --cc-selection: #eae3fc;
+  --cc-primary: #7049d8;
+  --cc-primary-hover: #5e38c4;
+  --cc-text: #202638;
+  --cc-text-secondary: #687387;
+  --cc-text-muted: #8791a3;
+  --cc-border: #d9dfe9;
+  --cc-success: #0f8a5f;
+  --cc-warning: #b4690e;
+  --cc-info: #0369a1;
+  --cc-danger: #c92a42;
+  --cc-danger-text: #9f1239;
+  --cc-danger-bg: rgba(225, 29, 72, 0.08);
+  --cc-danger-bg-strong: rgba(225, 29, 72, 0.14);
+  --cc-danger-border: rgba(225, 29, 72, 0.28);
+  --cc-icon-c: #0284c7;
+  --cc-icon-cpp: #2563eb;
+  --cc-icon-java: #d97706;
+  --cc-shadow: 0 12px 28px -6px rgba(32, 38, 56, 0.14), 0 4px 10px -4px rgba(32, 38, 56, 0.08);
   color-scheme: light;
 }
 
@@ -73,4 +105,18 @@ select {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.cc-editor-error-line {
+  background: color-mix(in srgb, var(--cc-danger) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--cc-danger);
+}
+
+.cc-editor-error-glyph {
+  background: var(--cc-danger);
+  border-radius: 999px;
+  width: 6px !important;
+  height: 6px !important;
+  margin-left: 6px;
+  margin-top: 6px;
 }

@@ -1,11 +1,14 @@
 import { PanelRight } from 'lucide-react'
-import { useEffect, type Ref } from 'react'
+import { useEffect, useState, type Ref } from 'react'
 import EditorPane, {
+  type EditorJumpTarget,
   type EditorPaneHandle,
 } from '../../features/editor/EditorPane'
 import EditorTabs from '../../features/editor/EditorTabs'
+import { RESULTS_WIDTH_BOUNDS } from '../../features/layout/panelLayout'
 import ResultsPanel from '../../features/results/ResultsPanel'
 import BottomPanel from '../../features/console/BottomPanel'
+import ResizeHandle from './ResizeHandle'
 import type {
   BottomTabId,
   CompileResult,
@@ -16,6 +19,7 @@ import type {
   LanguageId,
   ResultsTabId,
   WorkspaceDocument,
+  WorkspaceProblem,
 } from '../../types/ide'
 
 interface WorkspaceProps {
@@ -24,6 +28,7 @@ interface WorkspaceProps {
   activeDocument: WorkspaceDocument | null
   editorRef: Ref<EditorPaneHandle>
   editorSettings: EditorSettings
+  jumpTarget: EditorJumpTarget | null
   onActivateTab: (fileId: string) => void
   onCloseTab: (fileId: string) => void
   onSave: () => void
@@ -32,15 +37,20 @@ interface WorkspaceProps {
   canRevert: boolean
   onEditorChange: (value: string) => void
   onCursorChange: (position: CursorPosition) => void
+  resultsWidth: number
+  onResultsWidthChange: (width: number) => void
   resultsTab: ResultsTabId
   onResultsTabChange: (tab: ResultsTabId) => void
   resultsDrawerOpen: boolean
   onResultsDrawerChange: (open: boolean) => void
   bottomCollapsed: boolean
   onBottomToggle: () => void
+  bottomHeight: number
+  onBottomHeightChange: (height: number) => void
   bottomTab: BottomTabId
   onBottomTabChange: (tab: BottomTabId) => void
   compileResult: CompileResult | null
+  workspaceProblems: WorkspaceProblem[]
   consoleEntries: ConsoleEntry[]
   isCompiling: boolean
   isRunning: boolean
@@ -48,7 +58,8 @@ interface WorkspaceProps {
   onSendInput: (input: string) => void
   onSendEof: () => void
   onStop: () => void
-  onJumpToLine: (line: number) => void
+  onJumpToLine: (line: number, column?: number) => void
+  onJumpToProblem: (fileId: string, line: number, column?: number) => void
 }
 
 export default function Workspace({
@@ -57,6 +68,7 @@ export default function Workspace({
   activeDocument,
   editorRef,
   editorSettings,
+  jumpTarget,
   onActivateTab,
   onCloseTab,
   onSave,
@@ -65,15 +77,20 @@ export default function Workspace({
   canRevert,
   onEditorChange,
   onCursorChange,
+  resultsWidth,
+  onResultsWidthChange,
   resultsTab,
   onResultsTabChange,
   resultsDrawerOpen,
   onResultsDrawerChange,
   bottomCollapsed,
   onBottomToggle,
+  bottomHeight,
+  onBottomHeightChange,
   bottomTab,
   onBottomTabChange,
   compileResult,
+  workspaceProblems,
   consoleEntries,
   isCompiling,
   isRunning,
@@ -82,7 +99,9 @@ export default function Workspace({
   onSendEof,
   onStop,
   onJumpToLine,
+  onJumpToProblem,
 }: WorkspaceProps) {
+  const [resizingResults, setResizingResults] = useState(false)
   const language: LanguageId | null = activeDocument?.language ?? null
   const viewState: EditorViewState | null = activeDocument?.viewState ?? null
 
@@ -140,13 +159,33 @@ export default function Workspace({
             language={language}
             viewState={viewState}
             settings={editorSettings}
+            jumpTarget={jumpTarget}
             onChange={onEditorChange}
             onCursorChange={onCursorChange}
           />
         </section>
 
+        <ResizeHandle
+          orientation="vertical"
+          direction={-1}
+          value={resultsWidth}
+          min={RESULTS_WIDTH_BOUNDS.min}
+          max={RESULTS_WIDTH_BOUNDS.max}
+          label="Resize Analysis panel"
+          testId="resize-results"
+          className="hidden min-[901px]:flex"
+          onChange={onResultsWidthChange}
+          onDragStateChange={setResizingResults}
+        />
+
         {/* Desktop split: editor + results */}
-        <div className="relative z-0 hidden w-[min(390px,36vw)] min-w-[310px] max-w-[440px] shrink-0 overflow-hidden min-[901px]:block">
+        <div
+          data-testid="desktop-results-pane"
+          style={{ width: `${resultsWidth}px`, maxWidth: '52vw' }}
+          className={`relative z-0 hidden shrink-0 overflow-hidden min-[901px]:block ${
+            resizingResults ? 'select-none' : ''
+          }`}
+        >
           <ResultsPanel
             idPrefix="desktop-results"
             activeTab={resultsTab}
@@ -161,9 +200,13 @@ export default function Workspace({
       <BottomPanel
         collapsed={bottomCollapsed}
         onToggle={onBottomToggle}
+        height={bottomHeight}
+        onHeightChange={onBottomHeightChange}
         activeTab={bottomTab}
         onTabChange={onBottomTabChange}
+        activeFileId={activeDocument?.id ?? null}
         result={compileResult}
+        workspaceProblems={workspaceProblems}
         consoleEntries={consoleEntries}
         isCompiling={isCompiling}
         isRunning={isRunning}
@@ -172,6 +215,7 @@ export default function Workspace({
         onSendEof={onSendEof}
         onStop={onStop}
         onJumpToLine={onJumpToLine}
+        onJumpToProblem={onJumpToProblem}
       />
 
       {/* Tablet/mobile results drawer */}
@@ -183,7 +227,10 @@ export default function Workspace({
             className="absolute inset-0 bg-black/50"
             onClick={() => onResultsDrawerChange(false)}
           />
-          <div className="absolute inset-y-0 right-0 flex w-[min(100%,24rem)] max-w-full flex-col shadow-xl shadow-black/40">
+          <div
+            style={{ boxShadow: 'var(--cc-shadow)' }}
+            className="absolute inset-y-0 right-0 flex w-[min(100%,24rem)] max-w-full flex-col"
+          >
             <ResultsPanel
               idPrefix="drawer-results"
               activeTab={resultsTab}

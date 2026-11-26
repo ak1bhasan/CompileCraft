@@ -24,7 +24,7 @@ export default function EditorTabs({
   canRevert,
 }: EditorTabsProps) {
   return (
-    <div className="flex h-9 min-w-0 shrink-0 items-stretch border-b border-[var(--cc-border)] bg-[var(--cc-bg)]">
+    <div className="flex h-9 min-w-0 shrink-0 items-stretch border-b border-[var(--cc-border)] bg-[var(--cc-surface)]">
       <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto overflow-y-hidden px-1">
         {tabs.length === 0 ? (
           <div className="flex h-8 items-center px-3 text-[11px] text-[var(--cc-text-muted)]">
@@ -39,8 +39,8 @@ export default function EditorTabs({
                 key={tab.id}
                 className={`group flex h-8 max-w-[160px] shrink-0 items-center gap-1 rounded-t-md border border-b-0 px-2 text-xs transition-colors ${
                   active
-                    ? 'border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] text-[var(--cc-text)]'
-                    : 'border-transparent text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface)] hover:text-[var(--cc-text)]'
+                    ? 'border-[var(--cc-border)] border-t-2 border-t-[var(--cc-primary)] bg-[var(--cc-editor-bg)] font-medium text-[var(--cc-text)]'
+                    : 'border-transparent text-[var(--cc-text-secondary)] hover:bg-[var(--cc-hover)] hover:text-[var(--cc-text)]'
                 }`}
                 title={tab.path}
               >
@@ -93,7 +93,7 @@ export default function EditorTabs({
           type="button"
           onClick={onSave}
           disabled={!canSave}
-          title="Save session baseline (not written to disk)"
+          title="Save active file (Ctrl+S)"
           aria-label="Save session baseline"
           className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-[var(--cc-text-muted)] transition-colors enabled:hover:bg-[var(--cc-surface-elevated)] enabled:hover:text-[var(--cc-text)] disabled:opacity-40"
         >

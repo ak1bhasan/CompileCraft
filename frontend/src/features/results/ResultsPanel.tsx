@@ -13,7 +13,7 @@ interface ResultsPanelProps {
   onTabChange: (tab: ResultsTabId) => void
   result: CompileResult | null
   isCompiling: boolean
-  onJumpToLine?: (line: number) => void
+  onJumpToLine?: (line: number, column?: number) => void
   showClose?: boolean
   onClose?: () => void
 }
@@ -111,13 +111,13 @@ export default function ResultsPanel({
                 onClick={() => onTabChange(tab.id)}
                 className={`flex h-7 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] tracking-tight transition-colors ${
                   active
-                    ? 'bg-[var(--cc-primary)]/20 text-[var(--cc-primary-hover)]'
-                    : 'text-[var(--cc-text-muted)] hover:bg-[var(--cc-surface-elevated)] hover:text-[var(--cc-text)]'
+                    ? 'bg-[var(--cc-selection)] font-medium text-[var(--cc-primary-hover)]'
+                    : 'text-[var(--cc-text-secondary)] hover:bg-[var(--cc-hover)] hover:text-[var(--cc-text)]'
                 }`}
               >
                 <span>{tab.label}</span>
                 {showErrorsBadge ? (
-                  <span className="rounded-full bg-rose-500/25 px-1.5 py-0 text-[10px] font-medium text-rose-300 tabular-nums">
+                  <span className="rounded-full bg-[var(--cc-danger-bg-strong)] px-1.5 py-0 text-[10px] font-medium text-[var(--cc-danger-text)] tabular-nums">
                     {errorCount}
                   </span>
                 ) : null}

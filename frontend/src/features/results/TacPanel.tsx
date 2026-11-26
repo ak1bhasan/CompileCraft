@@ -47,9 +47,9 @@ export default function TacPanel({ result, isCompiling }: TacPanelProps) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--cc-border)] bg-[var(--cc-surface-elevated)]/50 px-3 py-1.5 text-[11px] text-[var(--cc-text-muted)]">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--cc-border)] bg-[var(--cc-surface-elevated)]/50 px-3 py-1.5 text-[11px] text-[var(--cc-text-secondary)]">
         <span>{lines.length} instructions</span>
-        <span className="text-emerald-400">Three-Address Code</span>
+        <span className="font-medium text-[var(--cc-success)]">Three-Address Code</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs leading-relaxed">
         {lines.map((line, index) => {

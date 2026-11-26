@@ -65,8 +65,9 @@ tests/run_tests.log
 # Visualization generated outputs (Graphviz rendered images)
 *.png
 *.svg
-# Keep frontend public assets trackable (overrides global *.svg / *.png above)
+# Keep frontend public assets and README screenshots trackable (overrides global *.svg / *.png above)
 !/frontend/public/**
+!/assets/screenshots/**
 *.pdf.tmp
 
 # Course manual and proprietary instructional materials (keep local)
