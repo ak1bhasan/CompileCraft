@@ -31,6 +31,7 @@ export default function StatusBar({
         </span>
         <span>Spaces: {editorSettings.tabSize}</span>
         <span>Wrap: {editorSettings.wordWrap === 'on' ? 'On' : 'Off'}</span>
+        <span className="capitalize">{editorSettings.theme}</span>
         <span>UTF-8</span>
         <span>{language ? languageLabel(language) : '—'}</span>
       </div>

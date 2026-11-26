@@ -740,6 +740,51 @@ int main() {
       }
     })
 
+    await runCase('light_dark_theme_toggle_and_persistence', async () => {
+      await cdp.evalJs(`document.querySelector('[data-settings-trigger="true"]')?.click()`)
+      await cdp.waitFor(
+        `Boolean(document.querySelector('select[id$="-theme"]'))`,
+        5000,
+        'theme selector in EditorSettingsMenu',
+      )
+      await cdp.evalJs(`(() => {
+        const s = document.querySelector('select[id$="-theme"]');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'light');
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await cdp.waitFor(
+        `document.documentElement.getAttribute('data-theme') === 'light'`,
+        5000,
+        'light theme applied to documentElement',
+      )
+
+      // Reload page to verify theme persistence
+      await cdp.send('Page.reload')
+      await cdp.waitFor(
+        `Boolean(document.querySelector('.monaco-editor [role="textbox"], .monaco-editor textarea') && document.documentElement.getAttribute('data-theme') === 'light')`,
+        12000,
+        'light theme persisted after reload',
+      )
+
+      // Switch back to dark theme
+      await cdp.evalJs(`document.querySelector('[data-settings-trigger="true"]')?.click()`)
+      await cdp.waitFor(
+        `Boolean(document.querySelector('select[id$="-theme"]'))`,
+        5000,
+        'theme selector after reload',
+      )
+      await cdp.evalJs(`(() => {
+        const s = document.querySelector('select[id$="-theme"]');
+        Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'dark');
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await cdp.waitFor(
+        `document.documentElement.getAttribute('data-theme') === 'dark'`,
+        5000,
+        'dark theme restored',
+      )
+    })
+
     await runCase('zero_external_network_requests', async () => {
       if (cdp.externalRequests.length > 0) {
         throw new Error(`External requests detected: ${cdp.externalRequests.join(', ')}`)

@@ -163,7 +163,10 @@ export type WordWrapOption = 'on' | 'off'
 
 export type LineNumbersOption = 'on' | 'off'
 
+export type ThemeOption = 'dark' | 'light'
+
 export interface EditorSettings {
+  theme: ThemeOption
   fontSize: FontSizeOption
   wordWrap: WordWrapOption
   minimap: boolean
@@ -176,6 +179,7 @@ export const FONT_SIZE_OPTIONS: FontSizeOption[] = [12, 13, 14, 16, 18]
 export const TAB_SIZE_OPTIONS: TabSizeOption[] = [2, 4, 8]
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  theme: 'dark',
   fontSize: 13,
   wordWrap: 'on',
   minimap: false,
