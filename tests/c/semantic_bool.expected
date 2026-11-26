@@ -1,0 +1,10 @@
+Line 1: KW_BOOL '_Bool'
+Line 1: IDENTIFIER 'a' sval=a
+Line 1: ASSIGN '='
+Line 1: KW_TRUE 'true' bval=1
+Line 1: SEMICOLON ';'
+Line 2: KW_BOOL 'bool'
+Line 2: IDENTIFIER 'b' sval=b
+Line 2: ASSIGN '='
+Line 2: KW_FALSE 'false' bval=0
+Line 2: SEMICOLON ';'

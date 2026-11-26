@@ -12,7 +12,8 @@ Optional: `--ast` prints the shared AST and skips semantic/TAC.
 
 ## Supported subset
 
-- Types: `int`, `float` (no `bool`/`char`/`double` mapping)
+- Types: `int`, `float`, `_Bool` / `bool` (no `char`/`double` mapping)
+- Literals: decimal integers, decimal floats, `true`, `false`
 - `void` only in `int main(void)` / `int main()`
 - Declarations / initialization / assignment
 - Arithmetic, relational, equality, logical `&&` `||` `!`, unary `-`
@@ -33,22 +34,18 @@ for (init; cond; update) body
 
 Missing `cond` becomes boolean true in the AST. Init declarations live in the outer block scope and are not visible after the loop.
 
-## Faculty Rules 4 and 5 under the C subset
+## Faculty Rules 4 and 5 under the C subset (Hardened in M12)
 
 Faculty definitions (unchanged):
 
-- **Rule 4 — Type mismatch**: e.g. initializing / treating `bool` with a numeric expression (`bool b = 5 + 3.2;`), or comparing `bool` with a numeric type via `==` / `!=`.
-- **Rule 5 — Invalid assignment**: incompatible assignment such as bool→int, or narrowing float→int without a cast.
+- **Rule 4 — Type mismatch**: e.g. initializing / treating `bool` / `_Bool` with a numeric expression (`bool flag = 5 + 3;`), or comparing `bool` with a numeric type via `==` / `!=`.
+- **Rule 5 — Invalid assignment**: incompatible assignment such as bool->int, or narrowing float->int without a cast.
 
-The shared analyzer emits distinct diagnostics for these paths (`Type mismatch: …` vs `Invalid assignment: …`). On the **baseline `.mc`** language (which has `bool`), both are covered independently.
-
-The **C subset** currently admits only `int` and `float` (no `bool` / `true` / `false` in the C lexer or grammar). Every shared-analyzer path that prints `Type mismatch:` requires a boolean operand. Therefore **Rule 4 cannot be independently demonstrated in CompileCraft-C without extending the type system**. Rule 5 **can** be shown via float→int assignment (`tests/c/semantic/error_invalid_assignment.*`).
-
-**Smallest justified extension (not implemented here):** add C99 `_Bool` / `bool` plus `true`/`false` (or a documented C-subset `bool`) to the C lexer and `type_spec`, then add a Rule 4 golden such as equality of a bool-typed value with an `int`, without changing faculty rule wording.
+The shared analyzer emits distinct diagnostics for these paths (`Type mismatch: ...` vs `Invalid assignment: ...`). With the M12 C99 `_Bool` / `bool` + `true` / `false` extension (matching `C_Compiler/tokens.def` and `type_spec`), **all six faculty rules are now independently verified in CompileCraft-C** (`tests/c/semantic/`).
 
 ## Unsupported (non-exhaustive)
 
-- `char` / `double` / `_Bool` / `bool` / pointer / array / struct types
+- `char` / `double` / pointer / array / struct types
 - Function definitions other than `main`
 - `break` / `continue` / `switch` / `goto`
 - Compound assignment (`+=` …)

@@ -67,3 +67,8 @@ TOKEN_DEF(RBRACKET,        302, "RBRACKET")
 TOKEN_DEF(SEMICOLON,       303, "SEMICOLON")
 TOKEN_DEF(COMMA,           304, "COMMA")
 
+/* Boolean Extension (M12 — C99 _Bool / bool + true / false) */
+TOKEN_DEF(KW_BOOL,         305, "KW_BOOL")
+TOKEN_DEF(KW_TRUE,         306, "KW_TRUE")
+TOKEN_DEF(KW_FALSE,        307, "KW_FALSE")
+

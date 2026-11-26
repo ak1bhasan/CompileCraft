@@ -31,6 +31,9 @@ Keywords are reserved, case-sensitive, and lowercase:
 | `double` | `KW_DOUBLE` | Type Specifier | Double-precision floating point |
 | `char` | `KW_CHAR` | Type Specifier | 8-bit character |
 | `void` | `KW_VOID` | Type Specifier | Empty type / function return |
+| `_Bool` / `bool` | `KW_BOOL` | Type Specifier | C99/C11 boolean type (`bool` supported directly under the directive-free subset) |
+| `true` | `KW_TRUE` | Boolean Literal | Boolean true constant (`bval = 1`) |
+| `false` | `KW_FALSE` | Boolean Literal | Boolean false constant (`bval = 0`) |
 | `if` | `KW_IF` | Control Flow | Conditional branch |
 | `else` | `KW_ELSE` | Control Flow | Alternative branch |
 | `while` | `KW_WHILE` | Iteration | While loop |

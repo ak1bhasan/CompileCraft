@@ -23,7 +23,7 @@
 M8: Driver Integration ──► M9: Test Suite ──► M10: Documentation
 ```
 
-**Current project status (baseline `.mc`):** M0–M7 complete on `dev` (semantic-gated TAC + goldens). C / C++ / Java remain lexer-only. Next development milestone: **M8 Driver Integration**. DEC-07 (short-circuit vs eager `&&`/`||`) remains OPEN with an M7 interim eager policy.
+**Current project status:** Baseline `.mc` (**M0–M7**) and the bounded **C (M9)**, **C++ (M10)**, and **Java (M11)** compiler front ends—plus **M12 multi-language semantic & TAC hardening** (including C `_Bool`/`bool` + Rule 4 verification)—are complete on `dev`, sharing the AST, scoped symbol table, semantic analyzer, and TAC generator. **Remaining work:** **M8** Unified CLI Driver, **M13** Frontend–Compiler Integration, **M14** Final Documentation & Faculty Verification, and finalizing **DEC-07** (short-circuit vs eager `&&`/`||`, currently using the M7 interim eager policy).
 
 ---
 
@@ -326,7 +326,7 @@ Add a dedicated C++ Bison grammar for the procedural subset (`int`/`float`/`bool
 ### Objective
 Add a dedicated Java Bison grammar for the class/main-wrapped subset (`int`/`float`/`boolean`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
 
-### Status: **COMPLETED** (on `dev`, pending commit approval)
+### Status: **COMPLETED**
 - `Java_Compiler/parser.y`: Java subset grammar supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `boolean`/`true`/`false`, control flow, and for-loop lowering.
 - `Java_Compiler/main_compiler.c`: `bin/compilecraft-java.exe` — Java Flex → Bison → AST → semantic → TAC.
 - Independent Rule 4 vs Rule 5 semantic goldens (`boolean` vs numeric mismatch, narrowing `float`→`int` assignment).
@@ -341,6 +341,24 @@ Add a dedicated Java Bison grammar for the class/main-wrapped subset (`int`/`flo
 - [x] Six faculty semantic rules independently tested under Java.
 - [x] Demo control-flow program generates correct TAC.
 - [x] Prior suites remain green via `mingw32-make test`.
+
+---
+
+## Milestone 12 (project): Multi-Language Semantic & TAC Hardening
+
+### Objective
+Harden all four compiler pipelines (`.mc`, C, C++, Java) for cross-language semantic consistency, loop/precedence TAC correctness, error gating, and C Rule 4 support before frontend integration.
+
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- Added C99 `_Bool` / `bool` + `true` / `false` support to `C_Compiler/` (`tokens.def`, `tokens.h`, `lexer.l`, `main_c.c`, `parser.y`), unlocking independent Faculty Rule 4 testing in C.
+- Expanded cross-language TAC and semantic hardening suites across `tests/tac/golden/`, `tests/c/`, `tests/cpp/tac/`, and `tests/java/tac/`.
+- Preserved DEC-07 interim eager logical evaluation policy and verified line-numbered diagnostics and semantic error gating across all four pipelines.
+
+### Acceptance Checks
+- [x] All six faculty semantic rules verified independently across `.mc`, C, C++, and Java.
+- [x] Arithmetic precedence, relational, logical, unary, nested `if-else`, nested `while`, nested `for`, and prefix/postfix `++`/`--` TAC verified across languages.
+- [x] Lexical, syntax, and semantic errors emit line numbers, return nonzero exit code, and produce zero TAC.
+- [x] Clean build and full regression (`mingw32-make clean && all && test`) green with zero compiler warnings or Bison conflicts.
 
 ---
 

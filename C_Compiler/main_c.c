@@ -27,6 +27,10 @@ static void print_semantic_payload(int token) {
         case CHAR_LITERAL:
             printf(" cval=%d", (unsigned char)yylval.cval);
             break;
+        case KW_TRUE:
+        case KW_FALSE:
+            printf(" bval=%d", yylval.bval);
+            break;
         case IDENTIFIER:
         case STRING_LITERAL:
             if (yylval.sval != NULL) {

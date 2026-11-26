@@ -82,6 +82,9 @@ typedef enum yytokentype yytoken_kind_t;
 #define RBRACKET        RBRACKET
 #define SEMICOLON       SEMICOLON
 #define COMMA           COMMA
+#define KW_BOOL         KW_BOOL
+#define KW_TRUE         KW_TRUE
+#define KW_FALSE        KW_FALSE
 
 /* Semantic Value Union: standalone lexer only. Parser builds use Bison YYSTYPE. */
 #if !defined(YYSTYPE_DEFINED) && !defined(YYSTYPE_IS_DECLARED) && !defined(YYSTYPE)
@@ -91,6 +94,7 @@ typedef enum yytokentype yytoken_kind_t;
 typedef union YYSTYPE {
     int ival;
     double fval;
+    int bval;
     char cval;
     char *sval;
 } YYSTYPE;

@@ -180,6 +180,7 @@ static AstNode *cc_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 %union {
     int ival;
     double fval;
+    int bval;
     char cval;
     char *sval;
     AstNode *node;
@@ -247,6 +248,9 @@ static AstNode *cc_lower_for(AstNode *init, AstNode *cond, AstNode *update,
 %token RBRACKET        302
 %token SEMICOLON       303
 %token COMMA           304
+%token KW_BOOL         305
+%token <bval> KW_TRUE  306
+%token <bval> KW_FALSE 307
 
 %type <node> program main_function statement var_decl_stmt assign_stmt
 %type <node> if_stmt while_stmt for_stmt block_stmt expr_stmt error_stmt
@@ -366,6 +370,7 @@ statement:
 type_spec:
     KW_INT    { $$ = AST_TYPE_INT; }
   | KW_FLOAT  { $$ = AST_TYPE_FLOAT; }
+  | KW_BOOL   { $$ = AST_TYPE_BOOL; }
   ;
 
 var_decl_stmt:
@@ -644,6 +649,14 @@ expression:
   | FLOAT_LITERAL
     {
         $$ = ast_literal_float($1, @1.first_line, @1.first_column);
+    }
+  | KW_TRUE
+    {
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
+    }
+  | KW_FALSE
+    {
+        $$ = ast_literal_bool($1, @1.first_line, @1.first_column);
     }
   ;
 

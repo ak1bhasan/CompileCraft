@@ -184,6 +184,9 @@ static int string_has_invalid_escape(const char *text) {
 "double"                { return KW_DOUBLE; }
 "char"                  { return KW_CHAR; }
 "void"                  { return KW_VOID; }
+"_Bool"|"bool"          { return KW_BOOL; }
+"true"                  { yylval.bval = 1; return KW_TRUE; }
+"false"                 { yylval.bval = 0; return KW_FALSE; }
 "if"                    { return KW_IF; }
 "else"                  { return KW_ELSE; }
 "while"                 { return KW_WHILE; }

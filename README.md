@@ -1,7 +1,7 @@
 # CompileCraft
 
 > **A Multi-Language Compiler Front-End for C, C++, and Java Subsets**
-> **Current focus**: baseline `.mc` through **M7 TAC**, plus **M9 C**, **M10 C++**, and **M11 Java** front ends. Next: **M8** unified CLI.
+> **Current focus**: baseline `.mc` through **M7 TAC**, plus **M9 C**, **M10 C++**, **M11 Java**, and **M12 Multi-Language Semantic & TAC Hardening**. Remaining: **M8** unified CLI, **M13** frontend integration, **M14** final docs & verification.
 
 ---
 
@@ -9,37 +9,41 @@
 
 **CompileCraft** is a modular compiler **front-end** developed in **C**, **Flex**, and **Bison**. It targets:
 
-- A **baseline mini-language** (`.mc`) with a full lexer → parser → AST path.
-- Distinct **C**, **C++**, and **Java** language subsets through separate front ends that currently provide **lexers only**.
+- A **baseline mini-language** (`.mc`) through the complete `Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC` pipeline.
+- Bounded procedural/entry-wrapper subsets of **C** (`C_Compiler/`), **C++** (`CPP_Compiler/`), and **Java** (`Java_Compiler/`), each compiled through its own Flex lexer and Bison parser into the shared AST, symbol table, semantic analyzer, and TAC generator. *(These front ends support documented language subsets, not full ISO C, C++, or Java specifications.)*
 
-The long-term design shares AST, symbol-table, and Three-Address Code (TAC) infrastructure across languages. There is **no backend codegen**; the intended pipeline ends at TAC.
+There is **no backend codegen**; the pipeline terminates at Three-Address Code (TAC).
 
-**Implemented today (through Milestone 11 / Java front-end):**
+**Implemented today (through Milestone 12 / Multi-Language Semantic & TAC Hardening):**
 
-- Four standalone Flex lexers (baseline, C, C++, Java).
-- Hardened baseline Bison parser (detailed diagnostics, recovery, zero-conflict build gate).
-- Baseline AST core under `src/ast/`, wired into the parser with source locations, ownership rules, and structural regression suites.
-- Scoped symbol table (`src/symbol_table/`) and semantic analyzer (`src/semantic/`) with faculty-rule goldens.
-- TAC generator (`src/tac/`) with unit tests, semantic-gated integration driver (`compilecraft-tac.exe`), and golden suite including the Section 5.5 sample.
-- **C front-end** (`C_Compiler/`): Bison parser + `bin/compilecraft-c.exe` pipeline to shared AST → semantic → TAC, including `for` (lowered to while) and `++`/`--`.
-- **C++ front-end** (`CPP_Compiler/`): Bison parser + `bin/compilecraft-cpp.exe` with `bool`/`true`/`false`, control flow including `for`, and six-rule semantic goldens.
-- **Java front-end** (`Java_Compiler/`): Bison parser + `bin/compilecraft-java.exe` for `class` / `public static void main(String[] args)` wrapper, `int`/`float`/`boolean`, control flow including `for`, six-rule semantic goldens, and TAC.
-- Production parser CLI with optional `--ast` output.
+- Four standalone Flex lexers (baseline `.mc`, C, C++, Java).
+- Hardened baseline `.mc` Bison parser (`src/parser/`), AST core (`src/ast/`), scoped symbol table (`src/symbol_table/`), six-rule semantic analyzer (`src/semantic/`), and TAC generator (`src/tac/`).
+- **C front-end** (`C_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-c.exe`), supporting `int`, `float`, `_Bool`/`bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
+- **C++ front-end** (`CPP_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-cpp.exe`), supporting `int`, `float`, `bool`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
+- **Java front-end** (`Java_Compiler/`): `Flex → Bison → Shared AST → Semantic Analysis → TAC` (`bin/compilecraft-java.exe`), supporting `[public] class <Name> { public static void main(String[] args) { ... } }`, `int`, `float`, `boolean`, `true`/`false`, `if`/`if-else`, `while`, `for`, `++`/`--`, and all six faculty semantic rules.
+- Production parser and language compiler CLIs with optional `--ast` output.
 
-**Not yet implemented:** Unified `compilecraft` CLI (M8) and final DEC-07 short-circuit policy for `&&` / `||`.
+**Remaining / Not yet implemented:** Unified `compilecraft` CLI (**M8**), frontend–compiler integration (**M13**), final documentation & faculty verification (**M14**), final **DEC-07** short-circuit policy for `&&` / `||`, and unsupported constructs documented per language.
 
 ---
 
 ## 2. Compiler Pipeline
 
-### Baseline mini-language (`.mc`) — current path
+### Baseline mini-language (`.mc`)
 
 ```
 Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
  DONE    DONE    DONE       DONE             DONE          DONE
 ```
 
-### Multi-language target architecture
+### Multi-language front-end pipelines (bounded subsets)
+
+```
+- Baseline .mc : Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
+- C            : Flex → Bison → Shared AST → Semantic Analysis → TAC
+- C++          : Flex → Bison → Shared AST → Semantic Analysis → TAC
+- Java         : Flex → Bison → Shared AST → Semantic Analysis → TAC
+```
 
 ```
   ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
@@ -49,17 +53,17 @@ Lexer → Parser → AST → Symbol Table → Semantic Analysis → TAC
            ▼                        ▼                          ▼
   ┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐
   │  C Front-End     │    │   C++ Front-End    │    │   Java Front-End    │
-  │  - Lexer (DONE)  │    │   - Lexer (DONE)   │    │   - Lexer (DONE)    │
-  │  - Parser (DONE) │    │   - Parser (DONE)  │    │   - Parser (DONE)   │
+  │  - Flex (DONE)   │    │   - Flex (DONE)    │    │   - Flex (DONE)     │
+  │  - Bison (DONE)  │    │   - Bison (DONE)   │    │   - Bison (DONE)    │
   │  - Shared AST    │    │   - Shared AST     │    │   - Shared AST      │
   └────────┬─────────┘    └─────────┬──────────┘    └──────────┬──────────┘
            │                        │                          │
            └───────────────────┐    │    ┌─────────────────────┘
                                ▼    ▼    ▼
-                    ┌──────────────────────────────┐
-                    │ Shared Core (AST/sym/TAC)    │
-                    │ DONE for .mc + C + C++ + Java│
-                    └──────────────────────────────┘
+                    ┌───────────────────────────────────┐
+                    │ Shared Core (AST / Symtab / Sem / │
+                    │ TAC) — DONE (.mc, C, C++, Java)   │
+                    └───────────────────────────────────┘
 ```
 
 **Baseline AST today** lives under `src/ast/` (not yet a multi-language `src/common/ast/`). TAC docs: `docs/tac.md`.
@@ -92,31 +96,32 @@ CompileCraft uses the 64-bit MSYS2 toolchain at `E:\msys64`:
 
 ## 4. Implementation Status
 
-> **Status**: **Milestone 4.5 — Documentation Synchronization (complete on `dev`)**
-> *Baseline lexer + hardened parser + AST construction + root ownership + `--ast` + production goldens + docs sync.*
+> **Status**: **Milestone 12 — Multi-Language Semantic & TAC Hardening (complete on `dev`)**
+> *Baseline `.mc`, C, C++, and Java pipelines verified end-to-end through semantic analysis and TAC.*
 
 ### Status matrix
 
 | Module / Component | Description | Status | Notes |
 |---|---|:---:|---|
 | **Environment & Toolchain** | MSYS2 GCC, Flex, Bison, Make, Python | **COMPLETED** | Verified via `toolchain-check`. |
-| **Build Foundation** | Modular `Makefile` | **COMPLETED** | Lexers, parser, AST harnesses, ownership test, `test-ast`; Bison `-Werror=conflicts-*`. |
-| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M4.5). |
+| **Build Foundation** | Modular `Makefile` | **COMPLETED** | All lexers, parsers, AST/symtab/semantic/TAC targets, C/C++/Java front ends; Bison `-Werror=conflicts-*`. |
+| **Requirements / Decisions / Roadmap** | Spec docs | **COMPLETED** | See `docs/` (synced through M12). |
 | **Baseline Lexer (`src/lexer/`)** | Flex scanner + driver | **COMPLETED** | 18 tests. |
-| **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 25 + 24 + 20 tests. C/C++/Java parsers done (M9/M10/M11). |
+| **C / C++ / Java Lexers** | Subset scanners | **COMPLETED** | 27 + 24 + 20 tests. C/C++/Java parsers done (M9/M10/M11/M12). |
 | **Baseline Parser (`src/parser/`)** | Bison LALR(1) + recovery | **COMPLETED (M3.2–M3.3)** | 34 syntax tests. See `docs/parser.md`. |
 | **AST Core (`src/ast/`)** | Nodes, constructors, lists, `ast_free`, `ast_print` | **COMPLETED (M4.0–M4.1)** | Design: `docs/ast.md`. |
 | **AST ↔ Parser Integration** | Locations, `%union`, destructors, construction | **COMPLETED (M4.2–M4.2.7)** | Expr / program suites + ownership unit test. |
 | **AST Root + `--ast` CLI** | Production handoff and dump | **COMPLETED (M4.3.1–M4.3.2)** | See CLI section below. |
 | **Production `tests/ast/` goldens** | Parser `--ast` golden suite | **COMPLETED (M4.4)** | 14 cases; `mingw32-make test-ast`. |
-| **Docs sync** | README + AST/parser/roadmap notes | **COMPLETED (M4.5)** | |
-| **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit tests. |
+| **Symbol Table (`src/symbol_table/`)** | Scoped symbols & hierarchy | **COMPLETED (M5)** | Scoped frames, shadowing, isolation, unit-test executable. |
 | **Semantic Analysis (`src/semantic/`)** | Type & semantic rule checks | **COMPLETED (M6)** | 6 faculty rules, 26 regression tests (`bin/compilecraft-semantic.exe`). |
-| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Semantic-gated driver, unit + golden suites (incl. Sec 5.5); DEC-07 interim eager `&&`/`\|\|`. |
-| **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9)** | `compilecraft-c.exe`; for-loops; tests under `tests/c/{parser,semantic,tac}/`. |
-| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10)** | `compilecraft-cpp.exe`; `bool`; for-loops; tests under `tests/cpp/{parser,semantic,tac}/`. |
-| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; tests under `tests/java/{parser,semantic,tac}/`. |
-| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Still pending. |
+| **TAC (`src/tac/`)** | Three-Address Code generation | **COMPLETED (M7)** | Semantic-gated driver, unit-test executable + 16 golden cases; DEC-07 interim eager `&&`/`\|\|`. |
+| **C front-end (`C_Compiler/`)** | C subset parse → TAC | **COMPLETED (M9/M12)** | `compilecraft-c.exe`; `_Bool`/`bool`; for-loops; all 6 faculty rules + TAC under `tests/c/{parser,semantic,tac}/`. |
+| **C++ front-end (`CPP_Compiler/`)** | C++ subset parse → TAC | **COMPLETED (M10/M12)** | `compilecraft-cpp.exe`; `bool`; for-loops; all 6 faculty rules + TAC under `tests/cpp/{parser,semantic,tac}/`. |
+| **Java front-end (`Java_Compiler/`)** | Java subset parse → TAC | **COMPLETED (M11/M12)** | `compilecraft-java.exe`; `class`/`main` wrapper; `boolean`; for-loops; all 6 faculty rules + TAC under `tests/java/{parser,semantic,tac}/`. |
+| **Unified CLI (`compilecraft`)** | Multi-phase driver | **PENDING (M8)** | Language-specific compiler drivers implemented; unified `compilecraft` CLI pending. |
+| **Frontend–Compiler Integration** | Visual frontend integration | **PENDING (M13)** | Planned next milestone. |
+| **Final Docs & Faculty Verification** | Final release verification | **PENDING (M14)** | Planned final milestone. |
 
 ### Milestone summary (M4)
 
@@ -188,7 +193,7 @@ Unknown flags, missing paths, and multiple source files print usage to stderr an
 
 ## 7. Directory Structure
 
-Reflects the repository as of M4.5 (planned paths that do not exist yet are omitted).
+Reflects the repository as of Milestone 12 (planned directories that do not exist yet are omitted).
 
 ```
 CompileCraft/
@@ -197,42 +202,45 @@ CompileCraft/
 ├── Makefile
 ├── docs/
 │   ├── ast.md                   # AST design + implemented status (M4)
+│   ├── c_frontend.md            # C front-end subset & Rule 4/5 notes (M9/M12)
+│   ├── cpp_frontend.md          # C++ front-end subset notes (M10)
+│   ├── java_frontend.md         # Java front-end subset notes (M11)
 │   ├── requirements.md
 │   ├── roadmap.md
 │   ├── decisions.md
 │   ├── grammar.md
 │   ├── parser.md                # Baseline parser + AST wiring notes
+│   ├── symbol_table.md          # Scoped symbol table specification
+│   ├── semantic_analysis.md     # Six faculty semantic rules specification
+│   ├── tac.md                   # TAC IR & DEC-07 interim policy
 │   ├── tokens.md
 │   ├── tokens_c.md
 │   ├── tokens_cpp.md
 │   └── tokens_java.md
-├── C_Compiler/                  # C-subset lexer (parser not started)
-├── CPP_Compiler/                # C++-subset lexer (parser not started)
-├── Java_Compiler/               # Java-subset lexer (parser not started)
+├── C_Compiler/                  # C-subset lexer + Bison parser + driver (M2.1/M9/M12)
+├── CPP_Compiler/                # C++-subset lexer + Bison parser + driver (M2.2/M10)
+├── Java_Compiler/               # Java-subset lexer + Bison parser + driver (M2.3/M11)
 ├── src/
-│   ├── ast/                     # [M4] AST core
-│   │   ├── ast.h
-│   │   └── ast.c
-│   ├── lexer/                   # Baseline lexer
-│   │   ├── tokens.def
-│   │   ├── tokens.h / tokens.c
-│   │   ├── lexer.l
-│   │   └── main.c
-│   └── parser/                  # Baseline parser + AST wiring + CLI
-│       ├── parser.y
-│       ├── parser.h
-│       └── main.c
+│   ├── ast/                     # [M4] Shared AST core
+│   ├── lexer/                   # Baseline .mc lexer
+│   ├── parser/                  # Baseline .mc parser + AST wiring + CLI
+│   ├── symbol_table/            # [M5] Shared scoped symbol table
+│   ├── semantic/                # [M6] Shared semantic analyzer
+│   └── tac/                     # [M7] Shared Three-Address Code generator
 └── tests/
     ├── run_tests.py
     ├── lexer/                   # 18
-    ├── c/                       # 25
-    ├── cpp/                     # 24
-    ├── java/                    # 20
+    ├── c/                       # 27 lexer + parser/ (22) + semantic/ (10) + tac/ (11)
+    ├── cpp/                     # 24 lexer + parser/ (30) + semantic/ (9)  + tac/ (15)
+    ├── java/                    # 20 lexer + parser/ (33) + semantic/ (9)  + tac/ (15)
     ├── parser/                  # 34
     ├── expr_ast/                # 30 (structural; harness binary)
     ├── program_ast/             # 25 (structural; harness binary)
     ├── ast/                     # 14 (production --ast goldens)
-    └── ast_ownership/           # list-ownership unit test
+    ├── ast_ownership/           # AST list-ownership unit-test executable
+    ├── symbol_table/            # Symbol table unit-test executable
+    ├── semantic/                # 26
+    └── tac/                     # TAC unit-test executable + golden/ (16)
 ```
 
 Generated outputs (`bin/`, `build/`, Flex/Bison intermediates) are gitignored.
@@ -252,51 +260,54 @@ Generated outputs (`bin/`, `build/`, Flex/Bison intermediates) are gitignored.
 ```powershell
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" all
 
-# Individual targets:
+# Individual compiler/lexer targets:
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-c
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-cpp
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-java
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" lexer-c lexer-cpp lexer-java
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" parser
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" c-compiler cpp-compiler java-compiler
 ```
 
-Builds also produce AST harnesses and the ownership unit test:
-
-- `bin/compilecraft-expr-ast.exe`
-- `bin/compilecraft-program-ast.exe`
-- `bin/test-ast-list-ownership.exe`
+Builds also produce `bin/compilecraft-semantic.exe`, `bin/compilecraft-tac.exe`, AST harnesses, and three standalone C unit-test executables (`bin/test-ast-list-ownership.exe`, `bin/test-symbol-table.exe`, `bin/test-tac.exe`).
 
 ### 8.3 Regression tests
 
-Verified coverage:
+| Suite | Passed |
+|---|---:|
+| Automated regression (19 suites) | 388/388 |
+| Unit-test executables | 3/3 |
+
+Breakdown of the **388/388** automated regression cases:
 
 | Suite | Cases |
 |---|---:|
-| Baseline lexer | 18 |
-| C lexer | 25 |
-| C++ lexer | 24 |
-| Java lexer | 20 |
-| Parser | 34 |
-| Expression AST | 30 |
-| Program AST | 25 |
-| Production AST (`--ast`) | 14 |
-| **Total (golden suites)** | **190** |
-| AST list ownership unit test | PASS (separate binary) |
+| Baseline lexer (`tests/lexer`) | 18 |
+| C lexer (`tests/c`) | 27 |
+| C++ lexer (`tests/cpp`) | 24 |
+| Java lexer (`tests/java`) | 20 |
+| Baseline parser (`tests/parser`) | 34 |
+| Expression AST (`tests/expr_ast`) | 30 |
+| Program AST (`tests/program_ast`) | 25 |
+| Production AST (`tests/ast`) | 14 |
+| Semantic analyzer (`tests/semantic`) | 26 |
+| TAC golden (`tests/tac/golden`) | 16 |
+| C parser / semantic / TAC (`tests/c/{parser,semantic,tac}`) | 22 + 10 + 11 |
+| C++ parser / semantic / TAC (`tests/cpp/{parser,semantic,tac}`) | 30 + 9 + 15 |
+| Java parser / semantic / TAC (`tests/java/{parser,semantic,tac}`) | 33 + 9 + 15 |
+| **Total (automated regression)** | **388/388** |
+
+Standalone unit-test executables (`3/3` passing):
+- `bin/test-ast-list-ownership.exe` (`test-ast-ownership`)
+- `bin/test-symbol-table.exe` (`test-symtab`)
+- `bin/test-tac.exe` (`test-tac-unit`)
 
 ```powershell
-# All suites (190 goldens + ownership unit test):
+# All suites (388 automated tests + 3 unit-test executables):
 & "E:\msys64\ucrt64\bin\mingw32-make.exe" test
 
-# Individual suites:
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-lexer
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-parser
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-expr-ast
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-program-ast
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-ast
-& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-ast-ownership
+# Language compiler suites:
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-c-compiler
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-cpp-compiler
+& "E:\msys64\ucrt64\bin\mingw32-make.exe" test-java-compiler
 ```
 
 Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werror=conflicts-sr -Werror=conflicts-rr`).
@@ -305,11 +316,12 @@ Bison builds fail on unresolved shift/reduce or reduce/reduce conflicts (`-Werro
 
 ## 9. Remaining Work
 
-| Milestone | Focus |
-|---|---|
-| **M5** | Scoped symbol table |
-| **M6** | Semantic analysis |
-| **M7** | Three-Address Code |
-| **M8** | Unified multi-language CLI driver |
+| Item | Focus | Status |
+|---|---|---|
+| **M8** | Unified CLI driver (`compilecraft`) | Pending |
+| **M13** | Frontend–compiler integration | Pending |
+| **M14** | Final documentation and faculty verification | Pending |
+| **DEC-07** | Short-circuit vs eager logical evaluation (`&&` / `||`) | Open (interim eager TAC policy) |
+| **Language subsets** | Constructs outside bounded C/C++/Java subsets | Documented in `docs/{c,cpp,java}_frontend.md` |
 
-C, C++, and Java front ends all share the AST / semantic / TAC core.
+C, C++, and Java front ends implement documented subsets (not full language specifications) and share the AST / symbol table / semantic / TAC core.

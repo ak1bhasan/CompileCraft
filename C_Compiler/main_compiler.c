@@ -29,7 +29,7 @@ int yylex_destroy(void);
 int syntax_error_count = 0;
 
 static void usage(const char *argv0) {
-    fprintf(stderr, "Usage: %s <source-file.c>\n", argv0);
+    fprintf(stderr, "Usage: %s [--ast] <source-file.c>\n", argv0);
 }
 
 int main(int argc, char **argv) {
