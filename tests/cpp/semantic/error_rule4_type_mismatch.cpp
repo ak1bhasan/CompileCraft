@@ -1,0 +1,3 @@
+int main() {
+    bool flag = 5 + 3;
+}

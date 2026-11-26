@@ -299,6 +299,28 @@ Add a dedicated C Bison grammar that reuses the shared AST, symbol table, semant
 
 ---
 
+## Milestone 10 (project): C++ Front-End Parser + Control Flow
+
+### Objective
+Add a dedicated C++ Bison grammar for the procedural subset (`int`/`float`/`bool`, control flow including `for`) reusing shared AST, symbol table, semantic analyzer, and TAC.
+
+### Status: **COMPLETED** (on `dev`, pending commit approval)
+- `CPP_Compiler/parser.y`: C++ procedural grammar with `bool`/`true`/`false` and for-loop lowering.
+- `CPP_Compiler/main_compiler.c`: `bin/compilecraft-cpp.exe` — C++ Flex → Bison → AST → semantic → TAC.
+- Independent Rule 4 vs Rule 5 semantic goldens (bool/numeric vs float→int).
+- Tests: `tests/cpp/parser/`, `tests/cpp/semantic/`, `tests/cpp/tac/` (incl. demo with bool + for + while).
+
+### Acceptance Checks
+- [x] Parses `int main()` / `int main(void)` into shared AST.
+- [x] Supports `bool`, `true`, `false` through lexer → TAC.
+- [x] Supports `if` / `if-else` / `while` / `for` with `++`/`--`.
+- [x] For-init declarations scoped to the loop only.
+- [x] Six faculty semantic rules independently tested under C++.
+- [x] Demo control-flow program generates correct TAC.
+- [x] Prior suites remain green via `mingw32-make test`.
+
+---
+
 ## Milestone 8: Compiler Driver & Pipeline Integration
 
 ### Objective
