@@ -19,9 +19,9 @@ export default function StatusBar({
   editorSettings,
 }: StatusBarProps) {
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-between gap-3 border-t border-[var(--cc-border)] bg-[var(--cc-surface)] px-3 text-[11px] text-[var(--cc-text-muted)]">
+    <footer className="flex h-6 shrink-0 items-center justify-between gap-3 border-t border-[var(--cc-border)] bg-[var(--cc-surface)] px-3 text-[11px] text-[var(--cc-text-secondary)]">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="truncate text-[var(--cc-primary)]" aria-live="polite">
+        <span className="truncate font-medium text-[var(--cc-primary)]" aria-live="polite">
           {status}
         </span>
       </div>
@@ -33,7 +33,7 @@ export default function StatusBar({
         <span>Wrap: {editorSettings.wordWrap === 'on' ? 'On' : 'Off'}</span>
         <span className="capitalize">{editorSettings.theme}</span>
         <span>UTF-8</span>
-        <span>{language ? languageLabel(language) : '—'}</span>
+        <span className="font-medium text-[var(--cc-text)]">{language ? languageLabel(language) : '—'}</span>
       </div>
     </footer>
   )

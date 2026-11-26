@@ -102,7 +102,8 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="w-full max-w-md rounded-lg border border-[var(--cc-border)] bg-[var(--cc-surface)] p-5 shadow-xl shadow-black/40"
+        className="w-full max-w-md rounded-lg border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] p-5"
+        style={{ boxShadow: 'var(--cc-shadow)' }}
         onClick={(event) => event.stopPropagation()}
       >
         <h2
@@ -121,6 +122,7 @@ export default function ConfirmDialog({
           <button
             ref={cancelRef}
             type="button"
+            data-testid="confirm-dialog-cancel-btn"
             onClick={onCancel}
             className="h-8 rounded-md border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] px-3 text-xs text-[var(--cc-text)] transition-colors hover:border-[var(--cc-primary)]/40"
           >
@@ -128,6 +130,7 @@ export default function ConfirmDialog({
           </button>
           <button
             type="button"
+            data-testid="confirm-dialog-confirm-btn"
             onClick={onConfirm}
             className="h-8 rounded-md bg-[var(--cc-primary)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--cc-primary-hover)]"
           >

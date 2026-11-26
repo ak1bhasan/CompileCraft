@@ -83,3 +83,113 @@ export function validateRenameStem(
 
   return { valid: true, nextName, error: '' }
 }
+
+export interface FolderValidationResult {
+  valid: boolean
+  folderName: string
+  folderPath: string
+  error: string
+}
+
+export function normalizeRelativePath(value: string): string {
+  return value
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .join('/')
+}
+
+export function parentFolderOf(filePath: string): string {
+  const normalized = normalizeRelativePath(filePath)
+  const idx = normalized.lastIndexOf('/')
+  return idx >= 0 ? normalized.slice(0, idx) : ''
+}
+
+export function validateFolderName(
+  parentPath: string,
+  rawName: string,
+  existingFolders: ReadonlyArray<string>,
+  existingFiles: ReadonlyArray<{ path: string; name: string }>,
+): FolderValidationResult {
+  const normalizedParent = normalizeRelativePath(parentPath)
+
+  if (rawName.trim().length === 0) {
+    return { valid: false, folderName: '', folderPath: '', error: 'Folder name cannot be empty.' }
+  }
+
+  if (rawName === '.' || rawName === '..' || rawName.includes('..')) {
+    return {
+      valid: false,
+      folderName: '',
+      folderPath: '',
+      error: 'Path traversal or relative segments (. or ..) are not allowed.',
+    }
+  }
+
+  if (/^\s|\s$/.test(rawName) || rawName.endsWith('.')) {
+    return {
+      valid: false,
+      folderName: '',
+      folderPath: '',
+      error: 'Folder name cannot have leading/trailing spaces or end with a period.',
+    }
+  }
+
+  if (INVALID_WINDOWS_CHARS_RE.test(rawName) || hasControlChar(rawName)) {
+    return {
+      valid: false,
+      folderName: '',
+      folderPath: '',
+      error: 'Folder name cannot contain < > : " / \\ | ? * or control characters.',
+    }
+  }
+
+  const baseSegment = rawName.split('.')[0]
+  if (RESERVED_WINDOWS_NAME_RE.test(rawName) || RESERVED_WINDOWS_NAME_RE.test(baseSegment)) {
+    return {
+      valid: false,
+      folderName: '',
+      folderPath: '',
+      error: 'Reserved Windows folder names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) are not allowed.',
+    }
+  }
+
+  const parentSegments = normalizedParent ? normalizedParent.split('/') : []
+  if (parentSegments.some((seg) => seg === '.' || seg === '..')) {
+    return {
+      valid: false,
+      folderName: '',
+      folderPath: '',
+      error: 'Invalid parent directory path.',
+    }
+  }
+
+  const folderPath = normalizedParent ? `${normalizedParent}/${rawName}` : rawName
+  const targetLower = folderPath.toLowerCase()
+
+  const duplicateFolder = existingFolders.some(
+    (existing) => normalizeRelativePath(existing).toLowerCase() === targetLower,
+  )
+  if (duplicateFolder) {
+    return {
+      valid: false,
+      folderName: rawName,
+      folderPath: '',
+      error: `A folder named "${rawName}" already exists in this directory.`,
+    }
+  }
+
+  const collidingFile = existingFiles.some(
+    (file) => normalizeRelativePath(file.path).toLowerCase() === targetLower,
+  )
+  if (collidingFile) {
+    return {
+      valid: false,
+      folderName: rawName,
+      folderPath: '',
+      error: `A file named "${rawName}" already exists in this directory.`,
+    }
+  }
+
+  return { valid: true, folderName: rawName, folderPath, error: '' }
+}

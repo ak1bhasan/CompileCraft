@@ -1,9 +1,17 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron')
 const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { fileURLToPath } = require('node:url')
+const { createWorkspaceHandlers } = require('./workspaceManager.cjs')
+
+if (
+  typeof process.env.COMPILECRAFT_USER_DATA_DIR === 'string' &&
+  process.env.COMPILECRAFT_USER_DATA_DIR.trim().length > 0
+) {
+  app.setPath('userData', path.resolve(process.env.COMPILECRAFT_USER_DATA_DIR.trim()))
+}
 
 const ALLOWED_LANGUAGES = new Set(['c', 'cpp', 'java'])
 const EXTENSION_BY_LANGUAGE = {
@@ -1107,6 +1115,14 @@ function isPermittedNetworkRequest(requestUrl, devUrl) {
   }
 }
 
+let activeMainWindow = null
+const workspaceHandlers = createWorkspaceHandlers({
+  app,
+  dialog,
+  ipcMain,
+  getMainWindow: () => activeMainWindow,
+})
+
 function createMainWindow() {
   const devUrl = process.env.COMPILECRAFT_DEV_URL
 
@@ -1128,6 +1144,8 @@ function createMainWindow() {
     },
   })
 
+  activeMainWindow = mainWindow
+
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-attach-webview', (event) => {
     event.preventDefault()
@@ -1139,8 +1157,13 @@ function createMainWindow() {
     event.preventDefault()
   })
 
+  const webContentsId = mainWindow.webContents.id
   mainWindow.on('closed', () => {
-    stopJobsMatching((job) => job.senderId === mainWindow.webContents.id)
+    if (activeMainWindow === mainWindow) {
+      activeMainWindow = null
+    }
+    workspaceHandlers.clearSender(webContentsId)
+    stopJobsMatching((job) => job.senderId === webContentsId)
   })
 
   if (devUrl) {
@@ -1164,6 +1187,7 @@ app.whenReady().then(() => {
   ipcMain.handle('compilecraft:send-eof', handleSendEofRequest)
   ipcMain.handle('compilecraft:stop', handleStopRequest)
   ipcMain.handle('compilecraft:health', handleHealthCheck)
+  workspaceHandlers.register()
 
   createMainWindow()
 

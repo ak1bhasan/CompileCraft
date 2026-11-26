@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -757,6 +758,12 @@ int main() {
         5000,
         'light theme applied to documentElement',
       )
+      await delay(150)
+      const ssDir = process.env.COMPILECRAFT_SCREENSHOT_DIR
+      if (ssDir) {
+        const res = await cdp.send('Page.captureScreenshot', { format: 'png' })
+        fs.writeFileSync(path.join(ssDir, 'm17_theme_01_light.png'), Buffer.from(res.data, 'base64'))
+      }
 
       // Reload page to verify theme persistence
       await cdp.send('Page.reload')
@@ -783,6 +790,48 @@ int main() {
         5000,
         'dark theme restored',
       )
+      await delay(150)
+      if (ssDir) {
+        const res = await cdp.send('Page.captureScreenshot', { format: 'png' })
+        fs.writeFileSync(path.join(ssDir, 'm17_theme_02_dark.png'), Buffer.from(res.data, 'base64'))
+      }
+    })
+
+    await runCase('error_examples_folder_and_diagnostics', async () => {
+      const folderOk = await cdp.evalJs(`(() => ({
+        hasErrorExamples: Boolean(document.querySelector('button[aria-label$="folder error-examples"]')),
+        hasOldInvalid: Boolean(document.querySelector('button[aria-label$="folder invalid"]')),
+      }))()`)
+      if (!folderOk.hasErrorExamples || folderOk.hasOldInvalid) {
+        throw new Error(`Unexpected Explorer folder state: ${JSON.stringify(folderOk)}`)
+      }
+
+      const cases = [
+        { id: 'invalid-c', file: 'undeclared_var.c', stage: 'Semantic Error', needle: 'total' },
+        { id: 'invalid-cpp', file: 'type_mismatch.cpp', stage: 'Semantic Error', needle: 'Type mismatch' },
+        { id: 'invalid-java', file: 'SyntaxError.java', stage: 'Syntax Error', needle: 'syntax error' },
+      ]
+
+      for (const tc of cases) {
+        await cdp.evalJs(`document.querySelector('[data-testid="explorer-file-${tc.id}"]')?.click()`)
+        await cdp.waitFor(
+          `Boolean(document.querySelector('button[aria-label="Close ${tc.file}"]'))`,
+          5000,
+          `opened ${tc.file}`,
+        )
+        await clickRun(cdp)
+        await cdp.waitFor(
+          `(document.getElementById('desktop-results-panel-errors')?.textContent || '').includes(${JSON.stringify(tc.stage)})`,
+          8000,
+          `${tc.file} diagnostics`,
+        )
+        const diagText = await cdp.evalJs(
+          `document.getElementById('desktop-results-panel-errors')?.textContent || ''`,
+        )
+        if (!diagText.toLowerCase().includes(tc.needle.toLowerCase())) {
+          throw new Error(`Expected diagnostic for ${tc.file} containing ${tc.needle}, got ${diagText}`)
+        }
+      }
     })
 
     await runCase('zero_external_network_requests', async () => {

@@ -114,8 +114,15 @@ export interface StartRunResponse {
 export interface CompileDiagnostic {
   stage: DiagnosticStage | string
   line: number | null
+  column?: number | null
   message: string
   raw: string
+}
+
+export interface WorkspaceProblem {
+  fileId: string
+  fileName: string
+  diagnostic: CompileDiagnostic
 }
 
 export interface CompileRequest {
@@ -185,4 +192,75 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   minimap: false,
   lineNumbers: 'on',
   tabSize: 4,
+}
+
+export interface SelectWorkspaceDirectoryResult {
+  canceled: boolean
+  parentDir?: string
+  defaultProjectName?: string
+  desktopPath?: string
+  error?: string
+}
+
+export interface SaveWorkspacePayload {
+  parentDir: string
+  projectName: string
+  folders: string[]
+  files: Array<{
+    id: string
+    name: string
+    path: string
+    language: LanguageId
+    content: string
+  }>
+  activeFilePath?: string | null
+  openFilePaths?: string[]
+  overwrite?: boolean
+}
+
+export interface SaveWorkspaceResult {
+  ok: boolean
+  workspaceRoot?: string
+  projectName?: string
+  needsConfirmation?: boolean
+  existingEntriesCount?: number
+  targetPath?: string
+  error?: string
+}
+
+export interface SaveFileResult {
+  ok: boolean
+  filePath?: string
+  savedPath?: string
+  error?: string
+}
+
+export interface ReadWorkspaceFileResult {
+  ok: boolean
+  content?: string
+  error?: string
+}
+
+export interface WorkspacePathMutationResult {
+  ok: boolean
+  error?: string
+}
+
+export interface LoadedDiskWorkspaceFile {
+  id: string
+  name: string
+  path: string
+  language: LanguageId
+  content: string
+}
+
+export interface LoadPersistedWorkspaceResult {
+  found: boolean
+  workspaceRoot?: string
+  workspaceName?: string
+  folders?: string[]
+  files?: LoadedDiskWorkspaceFile[]
+  activeFilePath?: string | null
+  openFilePaths?: string[]
+  error?: string
 }

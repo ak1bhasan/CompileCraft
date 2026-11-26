@@ -5,7 +5,7 @@ import type { CompileResult } from '../../types/ide'
 interface DiagnosticsPanelProps {
   result: CompileResult | null
   isCompiling: boolean
-  onJumpToLine?: (line: number) => void
+  onJumpToLine?: (line: number, column?: number) => void
 }
 
 export default function DiagnosticsPanel({
@@ -34,11 +34,11 @@ export default function DiagnosticsPanel({
   if (result.ok && result.diagnostics.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
-        <CheckCircle2 size={24} className="text-emerald-400" />
+        <CheckCircle2 size={24} className="text-[var(--cc-success)]" />
         <p className="text-sm font-medium text-[var(--cc-text)]">
           Zero errors found
         </p>
-        <p className="max-w-xs text-xs leading-relaxed text-[var(--cc-text-muted)]">
+        <p className="max-w-xs text-xs leading-relaxed text-[var(--cc-text-secondary)]">
           Lexical, syntax, and semantic analysis passed cleanly in{' '}
           {result.durationMs} ms.
         </p>
@@ -48,7 +48,7 @@ export default function DiagnosticsPanel({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--cc-border)] bg-rose-500/10 px-3 py-1.5 text-[11px] text-rose-300">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--cc-border)] bg-[var(--cc-danger-bg)] px-3 py-1.5 text-[11px] font-medium text-[var(--cc-danger-text)]">
         <span>
           {result.diagnostics.length}{' '}
           {result.diagnostics.length === 1 ? 'error' : 'errors'}
@@ -65,26 +65,27 @@ export default function DiagnosticsPanel({
           <button
             key={`${item.stage}-${item.line ?? 'x'}-${index}`}
             type="button"
+            data-testid={`diagnostics-error-item-${index}`}
             disabled={item.line === null || !onJumpToLine}
             onClick={() => {
               if (item.line !== null && onJumpToLine) {
-                onJumpToLine(item.line)
+                onJumpToLine(item.line, item.column ?? undefined)
               }
             }}
-            className={`flex w-full items-start gap-2 rounded-md border border-rose-500/25 bg-rose-500/5 p-2.5 text-left transition-colors ${
+            className={`flex w-full items-start gap-2 rounded-md border border-[var(--cc-danger-border)] bg-[var(--cc-danger-bg)] p-2.5 text-left transition-colors ${
               item.line !== null && onJumpToLine
-                ? 'cursor-pointer hover:border-rose-400/50 hover:bg-rose-500/10'
+                ? 'cursor-pointer hover:bg-[var(--cc-danger-bg-strong)]'
                 : 'cursor-default'
             }`}
           >
-            <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-400" />
+            <AlertCircle size={14} className="mt-0.5 shrink-0 text-[var(--cc-danger)]" />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-medium text-rose-300">
+                <span className="rounded bg-[var(--cc-danger-bg-strong)] px-1.5 py-0.5 font-medium text-[var(--cc-danger-text)]">
                   {item.stage} Error
                 </span>
                 {item.line !== null ? (
-                  <span className="font-mono text-[var(--cc-text-muted)]">
+                  <span className="font-mono text-[var(--cc-text-secondary)] underline decoration-[var(--cc-border)] underline-offset-2">
                     Line {item.line}
                   </span>
                 ) : null}

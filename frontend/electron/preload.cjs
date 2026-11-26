@@ -26,4 +26,16 @@ contextBridge.exposeInMainWorld('compilecraft', {
     runtime: 'electron',
     platform: process.platform,
   }),
+  workspace: {
+    selectDirectory: () => ipcRenderer.invoke('compilecraft:workspace:select-dir'),
+    saveAs: (payload) => ipcRenderer.invoke('compilecraft:workspace:save-as', payload),
+    saveFile: (payload) => ipcRenderer.invoke('compilecraft:workspace:save-file', payload),
+    readFile: (payload) => ipcRenderer.invoke('compilecraft:workspace:read-file', payload),
+    createFolder: (payload) => ipcRenderer.invoke('compilecraft:workspace:create-folder', payload),
+    renameFile: (payload) => ipcRenderer.invoke('compilecraft:workspace:rename-file', payload),
+    moveFile: (payload) => ipcRenderer.invoke('compilecraft:workspace:move-file', payload),
+    persistUiState: (payload) =>
+      ipcRenderer.invoke('compilecraft:workspace:persist-ui-state', payload),
+    loadPersisted: () => ipcRenderer.invoke('compilecraft:workspace:load-persisted'),
+  },
 })

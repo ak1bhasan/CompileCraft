@@ -5,8 +5,8 @@ export const PROJECT_NAME = 'CompileCraft Workspace'
 export const EXAMPLE_FILES: ExampleFile[] = [
   {
     id: 'demo-c',
-    name: 'control_flow.c',
-    path: 'src/c/control_flow.c',
+    name: 'Main.c',
+    path: 'src/c/Main.c',
     language: 'c',
     content: `#include <stdio.h>
 
@@ -40,8 +40,8 @@ int main() {
   },
   {
     id: 'demo-cpp',
-    name: 'loops_logic.cpp',
-    path: 'src/cpp/loops_logic.cpp',
+    name: 'Main.cpp',
+    path: 'src/cpp/Main.cpp',
     language: 'cpp',
     content: `#include <iostream>
 
@@ -108,7 +108,7 @@ int main() {
   {
     id: 'invalid-c',
     name: 'undeclared_var.c',
-    path: 'src/invalid/undeclared_var.c',
+    path: 'src/error-examples/undeclared_var.c',
     language: 'c',
     content: `int main() {
     int count = 5;
@@ -120,7 +120,7 @@ int main() {
   {
     id: 'invalid-cpp',
     name: 'type_mismatch.cpp',
-    path: 'src/invalid/type_mismatch.cpp',
+    path: 'src/error-examples/type_mismatch.cpp',
     language: 'cpp',
     content: `int main() {
     bool valid = 10 + 5;
@@ -131,7 +131,7 @@ int main() {
   {
     id: 'invalid-java',
     name: 'SyntaxError.java',
-    path: 'src/invalid/SyntaxError.java',
+    path: 'src/error-examples/SyntaxError.java',
     language: 'java',
     content: `public class SyntaxError {
     public static void main(String[] args) {

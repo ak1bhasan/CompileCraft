@@ -94,7 +94,8 @@ export default function EditorSettingsMenu({
       role="dialog"
       aria-modal="false"
       aria-label="Editor settings"
-      className="absolute top-full right-0 z-40 mt-1 w-[min(18rem,calc(100vw-1.5rem))] rounded-lg border border-[var(--cc-border)] bg-[var(--cc-surface)] p-3 shadow-xl shadow-black/40"
+      style={{ boxShadow: 'var(--cc-shadow)' }}
+      className="absolute top-full right-0 z-40 mt-1 w-[min(18rem,calc(100vw-1.5rem))] rounded-lg border border-[var(--cc-border)] bg-[var(--cc-surface-elevated)] p-3"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold tracking-wide text-[var(--cc-text)]">
